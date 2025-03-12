@@ -3,11 +3,19 @@ use logos::Logos;
 #[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ ]+")]
 enum Token {
+    // General Tokens
+    #[regex(r"\d*d\d+")]                DieRoll,
+    #[regex(r"\d+")]                    Digits,
+
+    // Whitespace
+    #[regex(r"[\f\n\r\v]+")]            NewLines,
+    #[regex(r"\t+")]                    Tabs,
+
     // Symbols/Punctuation
     #[token("&")]                       Ampersand,
     #[token("*")]                       Asterisk,
     #[token("@")]                       At,
-    #[token("\\")]                      BackSlash,
+    #[token(r"\")]                      BackSlash,
     #[token("!")]                       Bang,
     #[token("|")]                       Bar,
     #[token("^")]                       Caret,
@@ -15,7 +23,7 @@ enum Token {
     #[token("-")]                       Dash,
     #[token("$")]                       Dollar,
     #[token("..")] #[token("...")]      Ellipsis,
-    #[token("=")]                       EquaLS,
+    #[token("=")]                       Equals,
     #[token("#")]                       Hash,
     #[token("%")]                       Percent,
     #[token(".")]                       Period,
@@ -27,8 +35,36 @@ enum Token {
     #[token("_")]                       Underscore,
 
     // Brackets/Braces
+    #[token("<")]                       LAngle,
+    #[token("[")]                       LBracket,
+    #[token("{")]                       LCurly,
+    #[token("(")]                       LParens,
+    #[token(">")]                       RAngle,
+    #[token("]")]                       RBracket,
+    #[token("}")]                       RCurly,
+    #[token(")")]                       RParens,
 
     // Quotes
+    #[token(r#"""#)]                    DQuote,
+    #[token("`")]                       GQuote,
+    #[token("'")]                       SQuote,
+
+    // Repetition Keywords
+    #[token("once", ignore(case))]      Once,
+    #[token("twice", ignore(case))]     Twice,
+    #[token("thrice", ignore(case))]    Thrice,
+
+    // Numeral Keywords
+    #[token("one", ignore(case))]       One,
+    #[token("two", ignore(case))]       Two,
+    #[token("three", ignore(case))]     Three,
+    #[token("four", ignore(case))]      Four,
+    #[token("five", ignore(case))]      Five,
+    #[token("six", ignore(case))]       Six,
+    #[token("seven", ignore(case))]     Seven,
+    #[token("eight", ignore(case))]     Eight,
+    #[token("nine", ignore(case))]      Nine,
+    #[token("ten", ignore(case))]       Ten,
 
     // Keywords
     #[token("all", ignore(case))]       All,
