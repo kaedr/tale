@@ -6,19 +6,15 @@ pub enum Atom {
     String(String),
     Number(usize),
     Ident(String),
-    DieRoll(usize, usize)
+    DieRoll(usize, usize),
 }
 
-pub enum AST {
-
-}
-
+pub enum AST {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-    }
+    fn it_works() {}
 }

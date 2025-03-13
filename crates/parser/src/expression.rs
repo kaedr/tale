@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use crate::Atom;
 
-
 pub enum Expression {
     Atom(Atom),
     Neg(Rc<Expression>),

@@ -1,6 +1,5 @@
 use crate::statement::CommandSequence;
 
-
 type Modifier = (Duration, isize);
 
 pub enum Duration {
@@ -13,16 +12,13 @@ pub struct InterpolationSequence {
     replacements: Vec<CommandSequence>,
 }
 
-pub struct Script {
-
-}
+pub struct Script {}
 
 pub struct Table {
     name: String,
     roll: (usize, usize),
     tags: Vec<String>,
-    modifiers: Vec<Modifier>
-
+    modifiers: Vec<Modifier>,
 }
 
 pub struct TableGroup {}

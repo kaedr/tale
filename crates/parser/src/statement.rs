@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use crate::{expression::Expression, types::*};
 
-
 pub enum Statement {
     ScriptDef(Script),
     TableDef(Table),
