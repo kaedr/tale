@@ -13,7 +13,7 @@ fn digits(lex: &mut Lexer<Token>) -> Option<usize> {
     lex.slice().parse().ok()
 }
 
-fn word(lex: &mut Lexer<Token>) -> Option<String> {
+fn verbatim(lex: &mut Lexer<Token>) -> Option<String> {
     Some(lex.slice().to_string())
 }
 
@@ -24,7 +24,7 @@ pub enum Token {
     // General Tokens
     #[regex(r"\d*d\d+",die_roll)]       DieRoll((usize, usize)),
     #[regex(r"\d+",digits,priority=3)]  Digits(usize),
-    #[regex(r"\w+",word)]               Word(String),
+    #[regex(r"\w+",verbatim)]           Word(String),
 
 
     // Whitespace
@@ -122,6 +122,126 @@ pub enum Token {
 
 #[cfg(test)]
 mod tests {
+
+    #[cfg(test)]
+    mod test_sample_files {
+        use std::fs::read_to_string;
+
+        use crate::Token;
+        use logos::Logos;
+
+        #[test]
+        fn table_minimal() {
+            let contents = read_to_string("../../samples/01_table_minimal.tale").unwrap();
+            let mut lex = Token::lexer(&contents);
+
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Minimalism".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("less".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("is".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("more".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::End)));
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), None);
+        }
+
+        #[test]
+        fn table_roll_def() {
+            let contents = read_to_string("../../samples/02_table_roll_def.tale").unwrap();
+            let mut lex = Token::lexer(&contents);
+
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Attack".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Roll)));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Roll)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::DieRoll((1, 20)))));
+            assert_eq!(lex.next(), Some(Ok(Token::Plus)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(7))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::End)));
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), None);
+        }
+
+        #[test]
+        fn table_keyed_numeric() {
+            let contents = read_to_string("../../samples/03_table_keyed_numeric.tale").unwrap();
+            let mut lex = Token::lexer(&contents);
+
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("NumKeyed".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(1))));
+            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Is".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("the".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("loneliest".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("number".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(2))));
+            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Can".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("be".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("as".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("bad".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("as".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::One)));
+            assert_eq!(lex.slice(), "one");
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(3))));
+            assert_eq!(lex.next(), Some(Ok(Token::Minus)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(4))));
+            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Range".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(5))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comma)));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(6))));
+            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("CSV".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::End)));
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), None);
+        }
+
+        #[test]
+        fn table_keyed_word() {
+            let contents = read_to_string("../../samples/04_table_keyed_word.tale").unwrap();
+            let mut lex = Token::lexer(&contents);
+
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("TextKeys".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Once)));
+            assert_eq!(lex.slice(), "once");
+            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("upon".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("a".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            assert_eq!(lex.next(), Some(Ok(Token::Time)));
+            assert_eq!(lex.slice(), "time");
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::End)));
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), None);
+        }
+    }
 
     #[cfg(test)]
     mod test_general_tokens {
