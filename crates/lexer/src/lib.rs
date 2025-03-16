@@ -1,4 +1,7 @@
+use std::{str::FromStr, sync::LazyLock};
+
 use logos::{Lexer, Logos};
+use regex::Regex;
 
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
     let parts: Vec<_> = lex.slice().split("d").collect();
@@ -16,8 +19,26 @@ fn verbatim(lex: &mut Lexer<Token>) -> Option<String> {
     Some(lex.slice().to_string())
 }
 
+// TODO: Add in unicode support -> |[\f\v\u{2028}\u{2029}\u{85}]
+static NEWLINE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\r\n?)|(\n\r?)").unwrap());
+
+fn newlines_callback(lex: &mut Lexer<Token>) {
+    lex.extras.0 += NEWLINE_REGEX.find_iter(lex.slice()).count();
+    lex.extras.1 = lex.span().end;
+}
+
+fn get_string_content(lex: &mut Lexer<Token>) -> Option<String> {
+    newlines_callback(lex);
+    let raw = lex.slice();
+    let mut chars = raw.chars();
+    chars.next();
+    chars.next_back();
+    String::from_str(chars.as_str()).ok()
+}
+
 #[rustfmt::skip]
-#[derive(Logos, Debug, PartialEq)]
+#[derive(Logos, Debug, PartialEq, Clone)]
+#[logos(extras = (usize, usize))]
 #[logos(skip r"[ ]+")]
 pub enum Token {
     // General Tokens
@@ -26,9 +47,23 @@ pub enum Token {
     #[token("00")]                      DoubleOught,
     #[regex(r"\w+",verbatim)]           Word(String),
 
+    // Strings
+    // #[token("\u{FF02}",get_string_content)]                // FullDQuote
+    #[regex(r#""[^"]*""#,get_string_content)]                    // DQuote,
+    // #[token("\u{FF40}",get_string_content)]                // FullGQuote,
+    #[regex("`[^`]*`",get_string_content)]                       // GQuote,
+    // #[token("\u{FF07}",get_string_content)]                // FullSQuote,
+    #[regex("'[^']*'",get_string_content)]                       // SQuote,
+    // #[token("\u{2018}",get_string_content)]                // LeftSQuote,
+    // #[token("\u{201C}",get_string_content)]                // LeftDQuote,
+                                        String(String),
+    // #[token("\u{2019}")]                RightSQuote,
+    // #[token("\u{201D}")]                RightDQuote,
 
     // Whitespace
-    #[regex(r"[\f\n\r\v\u{2028}\u{2029}\u{85}]+")]
+    #[regex(r"(\r\n?)+",newlines_callback)]
+    #[regex(r"(\n\r?)+",newlines_callback)]
+    // #[regex(r"[\f\v\u{2028}\u{2029}\u{85}]+",newlines_callback)]
                                         NewLines,
     #[regex(r"\t+")]                    Tabs,
 
@@ -68,16 +103,6 @@ pub enum Token {
     #[token("]")]                       RBracket,
     #[token("}")]                       RCurly,
     #[token(")")]                       RParens,
-
-    // Quotes
-    #[token("\u{FF02}")]
-    #[token(r#"""#)]                    DQuote,
-    #[token("`")]                       GQuote,
-    #[token("'")]                       SQuote,
-    #[token("\u{2018}")]                LeftSQuote,
-    #[token("\u{201C}")]                LeftDQuote,
-    #[token("\u{2019}")]                RightSQuote,
-    #[token("\u{201D}")]                RightDQuote,
 
     // Repetition Keywords
     #[token("once", ignore(case))]      Once,
@@ -122,13 +147,12 @@ pub enum Token {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[cfg(test)]
     mod test_sample_files {
+        use super::*;
         use std::fs::read_to_string;
-
-        use crate::Token;
-        use logos::Logos;
 
         #[test]
         fn table_minimal() {
@@ -174,8 +198,32 @@ mod tests {
         }
 
         #[test]
+        fn table_list() {
+            let contents = read_to_string("../../samples/03_table_list.tale").unwrap();
+            let mut lex = Token::lexer(&contents);
+
+            assert_eq!(lex.next(), Some(Ok(Token::Table)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Groceries".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::List)));
+            assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("eggs".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comma)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("bacon".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comma)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("milk".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comma)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("butter".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comma)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("bread".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), None);
+        }
+
+        #[test]
         fn table_keyed_numeric() {
-            let contents = read_to_string("../../samples/03_table_keyed_numeric.tale").unwrap();
+            let contents = read_to_string("../../samples/04_table_keyed_numeric.tale").unwrap();
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -219,7 +267,7 @@ mod tests {
 
         #[test]
         fn table_keyed_word() {
-            let contents = read_to_string("../../samples/04_table_keyed_word.tale").unwrap();
+            let contents = read_to_string("../../samples/05_table_keyed_word.tale").unwrap();
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -244,194 +292,1143 @@ mod tests {
 
         #[test]
         fn table_group() {
-            let contents = read_to_string("../../samples/05_table_group.tale").unwrap();
+            let contents = read_to_string("../../samples/06_table_group.tale").unwrap();
             let lex = Token::lexer(&contents);
 
             let token_vec: Vec<_> = lex.flatten().collect();
-            assert_eq!(token_vec[0..13], [
-                Token::Table, Token::Group, Token::Colon, Token::DQuote, Token::Word("Treasure".into()),
-                Token::Word("Hoard".into()), Token::Colon, Token::Word("Challenge".into()), Token::Digits(0),
-                Token::Minus, Token::Digits(4), Token::DQuote, Token::NewLines,
-            ]);
-            assert_eq!(token_vec[13..23], [
-                Token::DieRoll((1,100)), Token::Tabs, Token::Word("Gems".into()), Token::Word("or".into()),
-                Token::Word("Art".into()), Token::Word("Objects".into()), Token::Tabs, Token::Word("Magic".into()),
-                Token::Word("Items".into()), Token::NewLines,
-            ]);
-            assert_eq!(token_vec[23..31], [
-                Token::Digits(1), Token::Dash, Token::Digits(6), Token::Tabs, Token::Dash, Token::Tabs, Token::Dash,
-                Token::NewLines,
-            ]);
-            assert_eq!(token_vec[31..45], [
-                Token::Digits(7), Token::Dash, Token::Digits(16), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(10), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Dash, Token::NewLines,
-            ]);
-            assert_eq!(token_vec[45..60], [
-                Token::Digits(17), Token::Dash, Token::Digits(26), Token::Tabs, Token::DieRoll((2, 4)), Token::LParens,
-                Token::Digits(5), Token::RParens, Token::Digits(25), Token::Word("gp".into()),
-                Token::Word("art".into()), Token::Word("objects".into()), Token::Tabs, Token::Dash, Token::NewLines,
-            ]);
-            assert_eq!(token_vec[60..74], [
-                Token::Digits(27), Token::Dash, Token::Digits(36), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(50), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Dash, Token::NewLines,
-            ]);
-            assert_eq!(token_vec[74..96], [
-                Token::Digits(37), Token::Dash, Token::Digits(44), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(10), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 6)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("A".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[96..119], [
-                Token::Digits(45), Token::Dash, Token::Digits(52), Token::Tabs, Token::DieRoll((2, 4)), Token::LParens,
-                Token::Digits(5), Token::RParens, Token::Digits(25), Token::Word("gp".into()),
-                Token::Word("art".into()), Token::Word("objects".into()), Token::Tabs, Token::Roll,
-                Token::DieRoll((1, 6)), Token::Time, Token::On, Token::Word("Magic".into()), Token::Word("Item".into()),
-                Token::Table, Token::Word("A".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[119..141], [
-                Token::Digits(53), Token::Dash, Token::Digits(60), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(50), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 6)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("A".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[141..163], [
-                Token::Digits(61), Token::Dash, Token::Digits(65), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(10), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 4)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("B".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[163..186], [
-                Token::Digits(66), Token::Dash, Token::Digits(70), Token::Tabs, Token::DieRoll((2, 4)), Token::LParens,
-                Token::Digits(5), Token::RParens, Token::Digits(25), Token::Word("gp".into()),
-                Token::Word("art".into()), Token::Word("objects".into()), Token::Tabs, Token::Roll,
-                Token::DieRoll((1, 4)), Token::Time, Token::On, Token::Word("Magic".into()), Token::Word("Item".into()),
-                Token::Table, Token::Word("B".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[186..208], [
-                Token::Digits(71), Token::Dash, Token::Digits(75), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(50), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 4)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("B".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[208..230], [
-                Token::Digits(76), Token::Dash, Token::Digits(78), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(10), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 4)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("C".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[230..253], [
-                Token::Digits(79), Token::Dash, Token::Digits(80), Token::Tabs, Token::DieRoll((2, 4)), Token::LParens,
-                Token::Digits(5), Token::RParens, Token::Digits(25), Token::Word("gp".into()),
-                Token::Word("art".into()), Token::Word("objects".into()), Token::Tabs, Token::Roll,
-                Token::DieRoll((1, 4)), Token::Time, Token::On, Token::Word("Magic".into()), Token::Word("Item".into()),
-                Token::Table, Token::Word("C".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[253..275], [
-                Token::Digits(81), Token::Dash, Token::Digits(85), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(50), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 4)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("C".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[275..298], [
-                Token::Digits(86), Token::Dash, Token::Digits(92), Token::Tabs, Token::DieRoll((2, 4)), Token::LParens,
-                Token::Digits(5), Token::RParens, Token::Digits(25), Token::Word("gp".into()),
-                Token::Word("art".into()), Token::Word("objects".into()), Token::Tabs, Token::Roll,
-                Token::DieRoll((1, 4)), Token::Time, Token::On, Token::Word("Magic".into()), Token::Word("Item".into()),
-                Token::Table, Token::Word("F".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[298..320], [
-                Token::Digits(93), Token::Dash, Token::Digits(97), Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(50), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::DieRoll((1, 4)), Token::Time, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("F".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[320..342], [
-                Token::Digits(98), Token::Dash, Token::Digits(99), Token::Tabs, Token::DieRoll((2, 4)), Token::LParens,
-                Token::Digits(5), Token::RParens, Token::Digits(25), Token::Word("gp".into()),
-                Token::Word("art".into()), Token::Word("objects".into()), Token::Tabs, Token::Roll, Token::Once,
-                Token::On, Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("G".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[342..361], [
-                Token::DoubleOught, Token::Tabs, Token::DieRoll((2, 6)), Token::LParens,
-                Token::Digits(7), Token::RParens, Token::Digits(50), Token::Word("gp".into()),
-                Token::Word("gems".into()), Token::Tabs, Token::Roll, Token::Once, Token::On,
-                Token::Word("Magic".into()), Token::Word("Item".into()), Token::Table,
-                Token::Word("G".into()), Token::Period,Token::NewLines,
-            ]);
-            assert_eq!(token_vec[361..], [
-                Token::End, Token::Table, Token::Group, Token::NewLines
-            ]);
+            assert_eq!(
+                token_vec[0..5],
+                [
+                    Token::Table,
+                    Token::Group,
+                    Token::Colon,
+                    Token::String("Treasure Hoard: Challenge 0-4".into()),
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[5..15],
+                [
+                    Token::DieRoll((1, 100)),
+                    Token::Tabs,
+                    Token::Word("Gems".into()),
+                    Token::Word("or".into()),
+                    Token::Word("Art".into()),
+                    Token::Word("Objects".into()),
+                    Token::Tabs,
+                    Token::Word("Magic".into()),
+                    Token::Word("Items".into()),
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[15..23],
+                [
+                    Token::Digits(1),
+                    Token::Dash,
+                    Token::Digits(6),
+                    Token::Tabs,
+                    Token::Dash,
+                    Token::Tabs,
+                    Token::Dash,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[23..37],
+                [
+                    Token::Digits(7),
+                    Token::Dash,
+                    Token::Digits(16),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(10),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Dash,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[37..52],
+                [
+                    Token::Digits(17),
+                    Token::Dash,
+                    Token::Digits(26),
+                    Token::Tabs,
+                    Token::DieRoll((2, 4)),
+                    Token::LParens,
+                    Token::Digits(5),
+                    Token::RParens,
+                    Token::Digits(25),
+                    Token::Word("gp".into()),
+                    Token::Word("art".into()),
+                    Token::Word("objects".into()),
+                    Token::Tabs,
+                    Token::Dash,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[52..66],
+                [
+                    Token::Digits(27),
+                    Token::Dash,
+                    Token::Digits(36),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(50),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Dash,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[66..88],
+                [
+                    Token::Digits(37),
+                    Token::Dash,
+                    Token::Digits(44),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(10),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 6)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[88..111],
+                [
+                    Token::Digits(45),
+                    Token::Dash,
+                    Token::Digits(52),
+                    Token::Tabs,
+                    Token::DieRoll((2, 4)),
+                    Token::LParens,
+                    Token::Digits(5),
+                    Token::RParens,
+                    Token::Digits(25),
+                    Token::Word("gp".into()),
+                    Token::Word("art".into()),
+                    Token::Word("objects".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 6)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[111..133],
+                [
+                    Token::Digits(53),
+                    Token::Dash,
+                    Token::Digits(60),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(50),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 6)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[133..155],
+                [
+                    Token::Digits(61),
+                    Token::Dash,
+                    Token::Digits(65),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(10),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("B".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[155..178],
+                [
+                    Token::Digits(66),
+                    Token::Dash,
+                    Token::Digits(70),
+                    Token::Tabs,
+                    Token::DieRoll((2, 4)),
+                    Token::LParens,
+                    Token::Digits(5),
+                    Token::RParens,
+                    Token::Digits(25),
+                    Token::Word("gp".into()),
+                    Token::Word("art".into()),
+                    Token::Word("objects".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("B".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[178..200],
+                [
+                    Token::Digits(71),
+                    Token::Dash,
+                    Token::Digits(75),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(50),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("B".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[200..222],
+                [
+                    Token::Digits(76),
+                    Token::Dash,
+                    Token::Digits(78),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(10),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("C".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[222..245],
+                [
+                    Token::Digits(79),
+                    Token::Dash,
+                    Token::Digits(80),
+                    Token::Tabs,
+                    Token::DieRoll((2, 4)),
+                    Token::LParens,
+                    Token::Digits(5),
+                    Token::RParens,
+                    Token::Digits(25),
+                    Token::Word("gp".into()),
+                    Token::Word("art".into()),
+                    Token::Word("objects".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("C".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[245..267],
+                [
+                    Token::Digits(81),
+                    Token::Dash,
+                    Token::Digits(85),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(50),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("C".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[267..290],
+                [
+                    Token::Digits(86),
+                    Token::Dash,
+                    Token::Digits(92),
+                    Token::Tabs,
+                    Token::DieRoll((2, 4)),
+                    Token::LParens,
+                    Token::Digits(5),
+                    Token::RParens,
+                    Token::Digits(25),
+                    Token::Word("gp".into()),
+                    Token::Word("art".into()),
+                    Token::Word("objects".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("F".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[290..312],
+                [
+                    Token::Digits(93),
+                    Token::Dash,
+                    Token::Digits(97),
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(50),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("F".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[312..334],
+                [
+                    Token::Digits(98),
+                    Token::Dash,
+                    Token::Digits(99),
+                    Token::Tabs,
+                    Token::DieRoll((2, 4)),
+                    Token::LParens,
+                    Token::Digits(5),
+                    Token::RParens,
+                    Token::Digits(25),
+                    Token::Word("gp".into()),
+                    Token::Word("art".into()),
+                    Token::Word("objects".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::Once,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("G".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[334..353],
+                [
+                    Token::DoubleOught,
+                    Token::Tabs,
+                    Token::DieRoll((2, 6)),
+                    Token::LParens,
+                    Token::Digits(7),
+                    Token::RParens,
+                    Token::Digits(50),
+                    Token::Word("gp".into()),
+                    Token::Word("gems".into()),
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::Once,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("G".into()),
+                    Token::Period,
+                    Token::NewLines,
+                ]
+            );
+            assert_eq!(
+                token_vec[353..],
+                [Token::End, Token::Table, Token::Group, Token::NewLines]
+            );
         }
 
         #[test]
         fn statement_assignment_expression() {
-            let contents = read_to_string("../../samples/11_statement_assignment_expression.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let contents =
+                read_to_string("../../samples/11_statement_assignment_expression.tale").unwrap();
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..5],
+                [
+                    Token::Set,
+                    Token::Word("the_word".into()),
+                    Token::Equals,
+                    Token::Word("bird".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[5..10],
+                [
+                    Token::Set,
+                    Token::Word("the_word".into()),
+                    Token::To,
+                    Token::Word("bird".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[10..16],
+                [
+                    Token::Word("force".into()),
+                    Token::Equals,
+                    Token::Word("mass".into()),
+                    Token::Asterisk,
+                    Token::Word("acceleration".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[16..20],
+                [
+                    Token::Word("minutes".into()),
+                    Token::To,
+                    Token::Word("midnight".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[20..32],
+                [
+                    Token::DieRoll((1, 7)),
+                    Token::Asterisk,
+                    Token::Digits(8),
+                    Token::Plus,
+                    Token::Digits(4),
+                    Token::Caret,
+                    Token::LParens,
+                    Token::DieRoll((1, 4)),
+                    Token::Minus,
+                    Token::Digits(1),
+                    Token::RParens,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[32..],
+                [
+                    Token::DieRoll((8, 6)),
+                    Token::Slash,
+                    Token::LParens,
+                    Token::DieRoll((1, 100)),
+                    Token::Percent,
+                    Token::Digits(10),
+                    Token::RParens,
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_clear() {
             let contents = read_to_string("../../samples/12_statement_clear.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..6],
+                [
+                    Token::Clear,
+                    Token::Next,
+                    Token::Digits(10),
+                    Token::Word("Quality".into()),
+                    Token::Roll,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[6..11],
+                [
+                    Token::Clear,
+                    Token::All,
+                    Token::Word("Quality".into()),
+                    Token::Roll,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[11..16],
+                [
+                    Token::Clear,
+                    Token::Next,
+                    Token::Digits(10),
+                    Token::Word("Quality".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[16..],
+                [
+                    Token::Clear,
+                    Token::All,
+                    Token::Word("Quality".into()),
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_invoke() {
             let contents = read_to_string("../../samples/13_statement_invoke.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..7],
+                [
+                    Token::Invoke,
+                    Token::Word("Some".into()),
+                    Token::Word("kind".into()),
+                    Token::Word("of".into()),
+                    Token::Word("bizarre".into()),
+                    Token::Word("ritual".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[7..],
+                [
+                    Token::Invoke,
+                    Token::LBracket,
+                    Token::Roll,
+                    Token::On,
+                    Token::Word("Element".into()),
+                    Token::RBracket,
+                    Token::Word("rites".into()),
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_load() {
             let contents = read_to_string("../../samples/14_statement_load.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..8],
+                [
+                    Token::Load,
+                    Token::Word("01_table_minimal".into()),
+                    Token::Period,
+                    Token::Word("tale".into()),
+                    Token::Word("03_table_list".into()),
+                    Token::Period,
+                    Token::Word("tale".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[8..11],
+                [
+                    Token::Load,
+                    Token::String("../../tons of _odd-characters_.tale".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[11..],
+                [
+                    Token::Load,
+                    Token::Ellipsis,
+                    Token::Slash,
+                    Token::Ellipsis,
+                    Token::Slash,
+                    Token::Word("tons".into()),
+                    Token::Word("of".into()),
+                    Token::Word("_odd".into()),
+                    Token::Minus,
+                    Token::Word("characters_".into()),
+                    Token::Period,
+                    Token::Word("tale".into()),
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_lookup() {
             let contents = read_to_string("../../samples/15_statement_lookup.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..5],
+                [
+                    Token::Lookup,
+                    Token::Word("a".into()),
+                    Token::On,
+                    Token::Word("TextKeys".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[5..10],
+                [
+                    Token::Lookup,
+                    Token::Digits(3),
+                    Token::On,
+                    Token::Word("NumKeyed".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[10..15],
+                [
+                    Token::Lookup,
+                    Token::DieRoll((1, 4)),
+                    Token::On,
+                    Token::Word("NumKeyed".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[15..],
+                [
+                    Token::Lookup,
+                    Token::DieRoll((1, 3)),
+                    Token::Plus,
+                    Token::Digits(1),
+                    Token::On,
+                    Token::Word("NumKeyed".into()),
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_modify() {
             let contents = read_to_string("../../samples/16_statement_modify.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..7],
+                [
+                    Token::Modify,
+                    Token::All,
+                    Token::Word("Quality".into()),
+                    Token::Roll,
+                    Token::Plus,
+                    Token::Digits(2),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[7..15],
+                [
+                    Token::Modify,
+                    Token::Next,
+                    Token::Digits(7),
+                    Token::Word("Quality".into()),
+                    Token::Roll,
+                    Token::Plus,
+                    Token::Digits(3),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[15..23],
+                [
+                    Token::Minus,
+                    Token::Digits(2),
+                    Token::To,
+                    Token::Next,
+                    Token::Digits(3),
+                    Token::Word("Quality".into()),
+                    Token::Roll,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[23..],
+                [
+                    Token::Plus,
+                    Token::Digits(10),
+                    Token::To,
+                    Token::All,
+                    Token::Word("Quality".into()),
+                    Token::Roll,
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_output() {
             let contents = read_to_string("../../samples/17_statement_output.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..19],
+                [
+                    Token::Output,
+                    Token::Colon,
+                    Token::Word("There".into()),
+                    Token::Word("are".into()),
+                    Token::LBracket,
+                    Token::DieRoll((1, 6)),
+                    Token::Minus,
+                    Token::Digits(1),
+                    Token::RBracket,
+                    Token::Word("lights".into()),
+                    Token::Word("illuminated".into()),
+                    Token::Word("out".into()),
+                    Token::Word("of".into()),
+                    Token::Word("a".into()),
+                    Token::Word("total".into()),
+                    Token::Word("of".into()),
+                    Token::Digits(5),
+                    Token::Period,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[19..],
+                [
+                    Token::Output,
+                    Token::String("A lovely string".into()),
+                    Token::NewLines
+                ]
+            );
         }
 
         #[test]
         fn statement_roll() {
             let contents = read_to_string("../../samples/18_statement_roll.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..3],
+                [Token::Roll, Token::DieRoll((3, 6)), Token::NewLines]
+            );
+
+            assert_eq!(
+                token_vec[3..8],
+                [
+                    Token::Roll,
+                    Token::DieRoll((1, 20)),
+                    Token::Plus,
+                    Token::Digits(7),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[8..15],
+                [
+                    Token::Roll,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[15..24],
+                [
+                    Token::Roll,
+                    Token::Digits(7),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[24..33],
+                [
+                    Token::Roll,
+                    Token::DieRoll((1, 6)),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[33..41],
+                [
+                    Token::Roll,
+                    Token::DieRoll((1, 6)),
+                    Token::On,
+                    Token::Word("Magic".into()),
+                    Token::Word("Item".into()),
+                    Token::Table,
+                    Token::Word("A".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[41..50],
+                [
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Plus,
+                    Token::Digits(2),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Farm".into()),
+                    Token::Word("Animals".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[50..59],
+                [
+                    Token::Roll,
+                    Token::DieRoll((1, 6)),
+                    Token::Minus,
+                    Token::Digits(1),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Farm".into()),
+                    Token::Word("Animals".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[59..68],
+                [
+                    Token::Roll,
+                    Token::DieRoll((1, 4)),
+                    Token::Minus,
+                    Token::Digits(2),
+                    Token::Time,
+                    Token::On,
+                    Token::Word("Farm".into()),
+                    Token::Word("Animals".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[68..72],
+                [
+                    Token::Roll,
+                    Token::Word("Farm".into()),
+                    Token::Word("Animals".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[72..76],
+                [
+                    Token::Once,
+                    Token::Word("Farm".into()),
+                    Token::Word("Animals".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[76..80],
+                [
+                    Token::Digits(1),
+                    Token::Word("Farm".into()),
+                    Token::Word("Animals".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[80..84],
+                [
+                    Token::Roll,
+                    Token::Digits(3),
+                    Token::DieRoll((1, 6)),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[84..87],
+                [
+                    Token::DieRoll((1, 6)),
+                    Token::DieRoll((1, 6)),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[87..],
+                [Token::Digits(6), Token::DieRoll((3, 6)), Token::NewLines]
+            );
         }
 
         #[test]
         fn statement_show() {
             let contents = read_to_string("../../samples/19_statement_show.tale").unwrap();
-            let mut lex = Token::lexer(&contents);
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..3],
+                [
+                    Token::Show,
+                    Token::Word("Minimalism".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[3..6],
+                [Token::Show, Token::Word("the_word".into()), Token::NewLines]
+            );
+
+            assert_eq!(
+                token_vec[6..9],
+                [
+                    Token::Show,
+                    Token::Word("Variables".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[9..12],
+                [Token::Show, Token::Word("Tables".into()), Token::NewLines]
+            );
+
+            assert_eq!(
+                token_vec[12..],
+                [
+                    Token::Show,
+                    Token::Tag,
+                    Token::Word("Desert".into()),
+                    Token::NewLines
+                ]
+            );
+        }
+
+        #[test]
+        fn script() {
+            let contents = read_to_string("../../samples/21_script.tale").unwrap();
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
+
+            assert_eq!(
+                token_vec[..12],
+                [
+                    Token::Script,
+                    Token::Colon,
+                    Token::Word("LoadSome".into()),
+                    Token::NewLines,
+                    Token::Load,
+                    Token::Word("02_table_def".into()),
+                    Token::Period,
+                    Token::Word("tale".into()),
+                    Token::NewLines,
+                    Token::End,
+                    Token::Script,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[12..33],
+                [
+                    Token::Script,
+                    Token::Colon,
+                    Token::Word("Attack".into()),
+                    Token::Word("with".into()),
+                    Token::Word("Damage".into()),
+                    Token::NewLines,
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::On,
+                    Token::Word("Attack".into()),
+                    Token::Roll,
+                    Token::NewLines,
+                    Token::Tabs,
+                    Token::Roll,
+                    Token::DieRoll((2, 6)),
+                    Token::Plus,
+                    Token::Digits(3),
+                    Token::NewLines,
+                    Token::End,
+                    Token::Script,
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[33..],
+                [
+                    Token::Script,
+                    Token::Colon,
+                    Token::Roll,
+                    Token::Word("after".into()),
+                    Token::Load,
+                    Token::NewLines,
+                    Token::Invoke,
+                    Token::Word("LoadSome".into()),
+                    Token::NewLines,
+                    Token::Tabs,
+                    Token::Invoke,
+                    Token::Word("Attack".into()),
+                    Token::Word("with".into()),
+                    Token::Word("Damage".into()),
+                    Token::NewLines,
+                    Token::End,
+                    Token::Script,
+                    Token::NewLines
+                ]
+            );
         }
     }
 
     #[cfg(test)]
     mod test_general_tokens {
-        use crate::Token;
-        use logos::Logos;
+        use std::fs::read_to_string;
+
+        use super::*;
 
         #[test]
         fn die_rolls() {
@@ -493,37 +1490,75 @@ mod tests {
         }
 
         #[test]
-        fn whitespace() {
-            let mut lex = Token::lexer(
-                "\t\t\u{0C}\t\u{0B}\t\t\t\n\n\t\r\n\t\n\r\t\r\t\t\u{2028}\t\u{2029}\t\u{85}",
-            );
+        fn strings() {
+            let contents = read_to_string("../../samples/91_strings").unwrap();
+            let mut lex = Token::lexer(&contents);
 
-            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Form Feed
-            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Vertical tab (VT)
+            assert_eq!(
+                lex.next(),
+                Some(Ok(Token::String("double quoted string: '`".into())))
+            );
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.extras.0, 1);
+            assert_eq!(
+                lex.next(),
+                Some(Ok(Token::String(r#"grave quoted string: '""#.into())))
+            );
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.extras.0, 2);
+            assert_eq!(
+                lex.next(),
+                Some(Ok(Token::String(r#"single quoted string: `""#.into())))
+            );
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.extras.0, 3);
+            assert_eq!(
+                lex.next(),
+                Some(Ok(Token::String("string\nwith\nnewlines".into())))
+            );
+            assert_eq!(lex.extras.0, 5);
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), None);
+        }
+
+        #[test]
+        fn whitespace() {
+            let mut lex = Token::lexer("\t\t\t\n\n\t\r\n\t\n\r\t\r");
+
+            // assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Form Feed
+            // assert_eq!(lex.extras.0, 1);
+            // assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Vertical tab (VT)
+            // assert_eq!(lex.extras.0, 2);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Multiple line feeds (LF)
+            assert_eq!(lex.extras.0, 2);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Carriage Return Line Feed (CRLF)
+            assert_eq!(lex.extras.0, 3);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Line Feed Carriage Return (LFCR)
+            assert_eq!(lex.extras.0, 4);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Carriage Return (CR)
-            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Line Separator (LS)
-            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Page Separator (PS)
-            assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Next Line (NEL)
+            assert_eq!(lex.extras.0, 5);
+            // assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Line Separator (LS)
+            // assert_eq!(lex.extras.0, 8);
+            // assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Page Separator (PS)
+            // assert_eq!(lex.extras.0, 9);
+            // assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
+            // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Next Line (NEL)
+            // assert_eq!(lex.extras.0, 10);
             assert_eq!(lex.next(), None);
         }
     }
 
     #[cfg(test)]
     mod test_symbols {
-        use crate::Token;
-        use logos::Logos;
+        use super::*;
 
         #[test]
         fn sym_individuals() {
@@ -600,26 +1635,11 @@ mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::RAngle)));
             assert_eq!(lex.next(), None);
         }
-
-        #[test]
-        fn sym_quotes() {
-            let mut lex = Token::lexer(r#"‘“"`'”’"#);
-
-            assert_eq!(lex.next(), Some(Ok(Token::LeftSQuote)));
-            assert_eq!(lex.next(), Some(Ok(Token::LeftDQuote)));
-            assert_eq!(lex.next(), Some(Ok(Token::DQuote)));
-            assert_eq!(lex.next(), Some(Ok(Token::GQuote)));
-            assert_eq!(lex.next(), Some(Ok(Token::SQuote)));
-            assert_eq!(lex.next(), Some(Ok(Token::RightDQuote)));
-            assert_eq!(lex.next(), Some(Ok(Token::RightSQuote)));
-            assert_eq!(lex.next(), None);
-        }
     }
 
     #[cfg(test)]
     mod test_keywords {
-        use crate::Token;
-        use logos::Logos;
+        use super::*;
 
         #[test]
         fn kw_once() {

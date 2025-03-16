@@ -1,0 +1,4 @@
+Lookup a on TextKeys
+lookup 3 ON NumKeyed
+lookup 1d4 on NumKeyed
+lookup 1d3 + 1 on NumKeyed
