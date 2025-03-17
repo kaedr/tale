@@ -46,6 +46,8 @@ pub enum Token {
     #[regex(r"\d+",digits,priority=3)]  Digits(usize),
     #[token("00")]                      DoubleOught,
     #[regex(r"\w+",verbatim)]           Word(String),
+    #[regex(r"#[^\n\r]+",verbatim)]     Comment(String),
+
 
     // Strings
     // #[token("\u{FF02}",get_string_content)]                // FullDQuote
@@ -85,7 +87,7 @@ pub enum Token {
     #[token("=")]                       Equals,
     #[token("#")]                       Hash,
     #[token("-")] #[token("\u{2212}")]  Minus,
-    #[token("%")]                       Percent,
+    #[token("%")]                       Modulo,
     #[token(".")]                       Period,
     #[token("+")]                       Plus,
     #[token("?")]                       Question,
@@ -826,7 +828,7 @@ mod tests {
                     Token::Slash,
                     Token::LParens,
                     Token::DieRoll((1, 100)),
-                    Token::Percent,
+                    Token::Modulo,
                     Token::Digits(10),
                     Token::RParens,
                     Token::NewLines
@@ -940,16 +942,17 @@ mod tests {
             );
 
             assert_eq!(
-                token_vec[8..11],
+                token_vec[8..12],
                 [
                     Token::Load,
+                    Token::Colon,
                     Token::String("../../tons of _odd-characters_.tale".into()),
                     Token::NewLines
                 ]
             );
 
             assert_eq!(
-                token_vec[11..],
+                token_vec[12..],
                 [
                     Token::Load,
                     Token::Ellipsis,
@@ -1490,6 +1493,20 @@ mod tests {
         }
 
         #[test]
+        fn comments() {
+            let mut lex = Token::lexer("not comment#comment\nnext line # more comment");
+
+            assert_eq!(lex.next(), Some(Ok(Token::Word("not".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("comment".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comment("#comment".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::Next)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("line".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::Comment("# more comment".into()))));
+            assert_eq!(lex.next(), None);
+        }
+
+        #[test]
         fn strings() {
             let contents = read_to_string("../../samples/91_strings").unwrap();
             let mut lex = Token::lexer(&contents);
@@ -1562,14 +1579,13 @@ mod tests {
 
         #[test]
         fn sym_individuals() {
-            let mut lex = Token::lexer(r"~!@#$%^&*_+=|\:;,.?/");
+            let mut lex = Token::lexer(r"~!@$%^&*_+=|\:;,.?/#");
 
             assert_eq!(lex.next(), Some(Ok(Token::Tilde)));
             assert_eq!(lex.next(), Some(Ok(Token::Bang)));
             assert_eq!(lex.next(), Some(Ok(Token::At)));
-            assert_eq!(lex.next(), Some(Ok(Token::Hash)));
             assert_eq!(lex.next(), Some(Ok(Token::Dollar)));
-            assert_eq!(lex.next(), Some(Ok(Token::Percent)));
+            assert_eq!(lex.next(), Some(Ok(Token::Modulo)));
             assert_eq!(lex.next(), Some(Ok(Token::Caret)));
             assert_eq!(lex.next(), Some(Ok(Token::Ampersand)));
             assert_eq!(lex.next(), Some(Ok(Token::Asterisk)));
@@ -1584,6 +1600,7 @@ mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::Period)));
             assert_eq!(lex.next(), Some(Ok(Token::Question)));
             assert_eq!(lex.next(), Some(Ok(Token::Slash)));
+            assert_eq!(lex.next(), Some(Ok(Token::Hash)));
             assert_eq!(lex.next(), None);
         }
 
