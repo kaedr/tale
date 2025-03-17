@@ -1,15 +1,6 @@
-mod expression;
-mod statement;
-mod types;
+mod ast;
 
-pub enum Atom {
-    String(String),
-    Number(usize),
-    Ident(String),
-    DieRoll(usize, usize),
-}
-
-pub enum AST {}
+pub use ast::AST;
 
 #[cfg(test)]
 mod tests {
