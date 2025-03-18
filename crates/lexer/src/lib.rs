@@ -1502,7 +1502,10 @@ mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::Next)));
             assert_eq!(lex.next(), Some(Ok(Token::Word("line".into()))));
-            assert_eq!(lex.next(), Some(Ok(Token::Comment("# more comment".into()))));
+            assert_eq!(
+                lex.next(),
+                Some(Ok(Token::Comment("# more comment".into())))
+            );
             assert_eq!(lex.next(), None);
         }
 
