@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 pub struct AST {
     statements: Vec<Statement>,
@@ -26,16 +25,16 @@ enum CommandStatement {
 
 enum Expression {
     Atom(Atom),
-    Neg(Rc<Expression>),
-    Add(Rc<Expression>, Rc<Expression>),
-    Sub(Rc<Expression>, Rc<Expression>),
-    Mul(Rc<Expression>, Rc<Expression>),
-    Div(Rc<Expression>, Rc<Expression>),
-    Mod(Rc<Expression>, Rc<Expression>),
-    Pow(Rc<Expression>, Rc<Expression>),
+    Neg(Box<Expression>),
+    Add(Box<Expression>, Box<Expression>),
+    Sub(Box<Expression>, Box<Expression>),
+    Mul(Box<Expression>, Box<Expression>),
+    Div(Box<Expression>, Box<Expression>),
+    Mod(Box<Expression>, Box<Expression>),
+    Pow(Box<Expression>, Box<Expression>),
     Interpolation(InterpolationSequence),
-    Lookup(Rc<Expression>, Rc<Expression>),
-    Roll(Rc<Expression>, Rc<Expression>, Rc<Expression>),
+    Lookup(Box<Expression>, Box<Expression>),
+    Roll(Box<Expression>, Box<Expression>, Box<Expression>),
 }
 
 enum Atom {
@@ -71,9 +70,10 @@ enum RowKey {
 }
 
 enum TableRowsDef {
-    List(Vec<CommandStatement>),
+    List(Vec<String>),
     Flat(Vec<CommandStatement>),
     Keyed(Vec<(RowKey, CommandStatement)>),
+    Empty,
 }
 
 struct TableDef {
@@ -81,12 +81,12 @@ struct TableDef {
     roll: Expression,
     tags: Vec<String>,
     modifiers: Vec<Modifier>,
-
+    rows: TableRowsDef,
 }
 
 struct TableGroupDef {
     name: String,
-    sub_tables: Vec<String>,
+    sub_tables: Vec<TableDef>,
 }
 
 
