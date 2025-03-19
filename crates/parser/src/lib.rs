@@ -1,6 +1,6 @@
 mod ast;
 
-pub use ast::AST;
+// pub use ast::AST;
 
 #[cfg(test)]
 mod tests {
