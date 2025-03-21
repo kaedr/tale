@@ -2,83 +2,90 @@ use std::rc::Rc;
 
 use chumsky::Span;
 
-pub struct AST<'src> {
-    nodes: Vec<Node<'src, Statement<'src>>>
+pub struct AST {
+    source: String,
+    nodes: Node<Statement>
 }
 
-pub enum Statement<'src> {
+pub enum Statement{
     // Definition Statements
-    Script(Node<'src, Script<'src>>),
-    Table(Node<'src, Table<'src>>),
-    TableGroup(Node<'src, TableGroup<'src>>),
+    Script(Node<Script>),
+    Table(Node<Table>),
+    TableGroup(Node<TableGroup>),
 
     // 'Command' Statements
-    Assignment(Node<'src, Atom<'src>>, Node<'src, Expr<'src>>),
-    Clear(Node<'src, Duration<'src>>, Node<'src, Expr<'src>>),
-    Invoke(Node<'src, Atom<'src>>),
-    Load(Node<'src, Atom<'src>>),
-    Modify(Node<'src, Modifier<'src>>, Node<'src, Expr<'src>>),
-    Output(Node<'src, Expr<'src>>),
-    Show(Node<'src, (bool, String)>),
-    Sequence(Node<'src, Vec<Self>>),
+    Assignment(Node<Atom>, Node<Expr>),
+    Clear(Node<Duration>, Node<Expr>),
+    Invoke(Node<Atom>),
+    Load(Node<Atom>),
+    Modify(Node<Modifier>, Node<Expr>),
+    Output(Node<Expr>),
+    Show(Node<(bool, String)>),
+    Sequence(Node<Vec<Self>>),
 
     // Expression Statement
-    Expr(Node<'src, Expr<'src>>)
+    Expr(Node<Expr>)
 }
 
-pub enum Expr<'src> {
-    Atom(Node<'src, Atom<'src>>),
+pub enum Expr{
+    Atom(Node<Atom>),
 
     // Unary Ops
-    Neg(Node<'src, Self>),
+    Neg(Node<Self>),
 
     // Binary Ops
-    Add(Node<'src, Self>, Node<'src, Self>),
-    Sub(Node<'src, Self>, Node<'src, Self>),
-    Mul(Node<'src, Self>, Node<'src, Self>),
-    Div(Node<'src, Self>, Node<'src, Self>),
-    Mod(Node<'src, Self>, Node<'src, Self>),
-    Pow(Node<'src, Self>, Node<'src, Self>),
+    Add(Node<Self>, Node<Self>),
+    Sub(Node<Self>, Node<Self>),
+    Mul(Node<Self>, Node<Self>),
+    Div(Node<Self>, Node<Self>),
+    Mod(Node<Self>, Node<Self>),
+    Pow(Node<Self>, Node<Self>),
 
     // Keyword Exprs
-    Lookup(Node<'src, Self>, Node<'src, Self>),
-    Roll(Node<'src, Self>, Node<'src, Self>),
+    Lookup(Node<Self>, Node<Self>),
+    Roll(Node<Self>, Node<Self>),
 
     // Interpolation
-    Interpol(Node<'src, Vec<Statement<'src>>>),
+    Interpol(Node<Vec<Statement>>),
 
     // List
-    List(Node<'src, Vec<Atom<'src>>>),
-}
-
-pub enum Atom<'src> {
-    Number(usize),
-    Dice(usize, usize),
-    Str(&'src str),
-    Ident(String),
-}
-
-pub struct Node<'src, T> {
-    actual: Rc<T>,
-    meta: MetaData<'src>,
-    span: SpanInfo<'src>,
+    List(Node<Vec<Atom>>),
 }
 
 #[derive(Debug, Clone)]
-pub struct MetaData<'src> {
-    content: &'src str,
+pub enum Atom {
+    Number(usize),
+    Dice(usize, usize),
+    Str(String),
+    Ident(String),
+}
+
+pub struct Node<T> {
+    actual: Rc<T>,
+    meta: MetaData,
+    span: SpanInfo,
+}
+
+#[derive(Debug, Clone)]
+pub struct MetaData {
     position: (usize, usize),
 }
 
 #[derive(Debug, Clone)]
-pub struct SpanInfo<'src> {
-    context: &'src str,
+pub struct SpanInfo {
+    context: Context,
     start: usize,
     end: usize,
 }
 
-impl<'src> Span for SpanInfo<'src> {
-    type Context = &'src str;
+#[derive(Debug, Clone)]
+pub enum Context {
+    File(String),
+    REPL,
+}
+
+impl Span for SpanInfo {
+    type Context = Context;
 
     type Offset = usize;
 
@@ -91,7 +98,7 @@ impl<'src> Span for SpanInfo<'src> {
     }
 
     fn context(&self) -> Self::Context {
-        self.context
+        self.context.clone()
     }
 
     fn start(&self) -> Self::Offset {
@@ -103,37 +110,37 @@ impl<'src> Span for SpanInfo<'src> {
     }
 }
 
-pub struct Script<'src> {
+pub struct Script{
     name: String,
-    statements: Vec<Statement<'src>>
+    statements: Vec<Statement>
 }
 
-pub struct Table<'src> {
+pub struct Table{
     name: String,
-    roll: Expr<'src>,
+    roll: Expr,
     tags: Vec<String>,
-    modifiers: Vec<Modifier<'src>>,
-    rows: TableRows<'src>,
+    modifiers: Vec<Modifier>,
+    rows: TableRows,
 }
 
-pub struct TableGroup<'src> {
+pub struct TableGroup{
     name: String,
-    sub_tables: Vec<Table<'src>>,
+    sub_tables: Vec<Table>,
 }
 
-pub enum TableRows<'src> {
+pub enum TableRows{
     Empty,
-    List(Vec<Atom<'src>>),
-    Flat(Vec<Node<'src, Statement<'src>>>),
-    Keyed(Vec<(Node<'src, Expr<'src>>, Node<'src, Statement<'src>>)>),
+    List(Vec<Atom>),
+    Flat(Vec<Node<Statement>>),
+    Keyed(Vec<(Node<Expr>, Node<Statement>)>),
 }
 
-pub struct Modifier<'src> {
-    duration: Duration<'src>,
-    value: Expr<'src>,
+pub struct Modifier{
+    duration: Duration,
+    value: Expr,
 }
 
-pub enum Duration<'src> {
+pub enum Duration{
     All,
-    Next(Expr<'src>),
+    Next(Expr),
 }

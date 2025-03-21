@@ -23,8 +23,14 @@ fn verbatim(lex: &mut Lexer<Token>) -> Option<String> {
 static NEWLINE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\r\n?)|(\n\r?)").unwrap());
 
 fn newlines_callback(lex: &mut Lexer<Token>) {
-    lex.extras.0 += NEWLINE_REGEX.find_iter(lex.slice()).count();
-    lex.extras.1 = lex.span().end;
+    let count = NEWLINE_REGEX.find_iter(lex.slice()).count();
+    if count > 0 {
+        lex.extras.0 += count;
+        lex.extras.1.push((
+            lex.extras.0,
+            lex.span().end
+        ));
+    }
 }
 
 fn get_string_content(lex: &mut Lexer<Token>) -> Option<String> {
@@ -37,8 +43,8 @@ fn get_string_content(lex: &mut Lexer<Token>) -> Option<String> {
 }
 
 #[rustfmt::skip]
-#[derive(Logos, Debug, PartialEq, Clone)]
-#[logos(extras = (usize, usize))]
+#[derive(Logos, Debug, PartialEq, Eq, Hash, Clone)]
+#[logos(extras = (usize, Vec<(usize, usize)>))]
 #[logos(skip r"[ ]+")]
 pub enum Token {
     // General Tokens
@@ -1519,26 +1525,25 @@ mod tests {
                 Some(Ok(Token::String("double quoted string: '`".into())))
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
-            assert_eq!(lex.extras.0, 1);
             assert_eq!(
                 lex.next(),
                 Some(Ok(Token::String(r#"grave quoted string: '""#.into())))
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
-            assert_eq!(lex.extras.0, 2);
             assert_eq!(
                 lex.next(),
                 Some(Ok(Token::String(r#"single quoted string: `""#.into())))
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
-            assert_eq!(lex.extras.0, 3);
             assert_eq!(
                 lex.next(),
                 Some(Ok(Token::String("string\nwith\nnewlines".into())))
             );
-            assert_eq!(lex.extras.0, 5);
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
+            // Worth noting here, multiline strings create a weird situation, since
+            // the end of the string triggers a newline count.
+            assert_eq!(lex.extras.1, vec![(1, 27), (2, 53), (3, 80), (5, 102), (6, 103)]);
         }
 
         #[test]
@@ -1553,16 +1558,12 @@ mod tests {
             // assert_eq!(lex.extras.0, 2);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Multiple line feeds (LF)
-            assert_eq!(lex.extras.0, 2);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Carriage Return Line Feed (CRLF)
-            assert_eq!(lex.extras.0, 3);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Line Feed Carriage Return (LFCR)
-            assert_eq!(lex.extras.0, 4);
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Carriage Return (CR)
-            assert_eq!(lex.extras.0, 5);
             // assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Line Separator (LS)
             // assert_eq!(lex.extras.0, 8);
@@ -1573,6 +1574,7 @@ mod tests {
             // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Next Line (NEL)
             // assert_eq!(lex.extras.0, 10);
             assert_eq!(lex.next(), None);
+            assert_eq!(lex.extras.1, vec![(2, 5), (3, 8), (4, 11), (5, 13)]);
         }
     }
 
