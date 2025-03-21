@@ -6,7 +6,7 @@ use regex::Regex;
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
     let parts: Vec<_> = lex.slice().split("d").collect();
     Some((
-        parts.get(0)?.parse().ok().or(Some(1))?,
+        parts.first()?.parse().ok().or(Some(1))?,
         parts.get(1)?.parse().ok()?,
     ))
 }
@@ -26,10 +26,7 @@ fn newlines_callback(lex: &mut Lexer<Token>) {
     let count = NEWLINE_REGEX.find_iter(lex.slice()).count();
     if count > 0 {
         lex.extras.0 += count;
-        lex.extras.1.push((
-            lex.extras.0,
-            lex.span().end
-        ));
+        lex.extras.1.push((lex.extras.0, lex.span().end));
     }
 }
 
@@ -1543,7 +1540,10 @@ mod tests {
             assert_eq!(lex.next(), None);
             // Worth noting here, multiline strings create a weird situation, since
             // the end of the string triggers a newline count.
-            assert_eq!(lex.extras.1, vec![(1, 27), (2, 53), (3, 80), (5, 102), (6, 103)]);
+            assert_eq!(
+                lex.extras.1,
+                vec![(1, 27), (2, 53), (3, 80), (5, 102), (6, 103)]
+            );
         }
 
         #[test]

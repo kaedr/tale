@@ -4,10 +4,10 @@ use chumsky::Span;
 
 pub struct AST {
     source: String,
-    nodes: Node<Statement>
+    nodes: Node<Statement>,
 }
 
-pub enum Statement{
+pub enum Statement {
     // Definition Statements
     Script(Node<Script>),
     Table(Node<Table>),
@@ -24,10 +24,10 @@ pub enum Statement{
     Sequence(Node<Vec<Self>>),
 
     // Expression Statement
-    Expr(Node<Expr>)
+    Expr(Node<Expr>),
 }
 
-pub enum Expr{
+pub enum Expr {
     Atom(Node<Atom>),
 
     // Unary Ops
@@ -52,7 +52,7 @@ pub enum Expr{
     List(Node<Vec<Atom>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Atom {
     Number(usize),
     Dice(usize, usize),
@@ -110,12 +110,12 @@ impl Span for SpanInfo {
     }
 }
 
-pub struct Script{
+pub struct Script {
     name: String,
-    statements: Vec<Statement>
+    statements: Vec<Statement>,
 }
 
-pub struct Table{
+pub struct Table {
     name: String,
     roll: Expr,
     tags: Vec<String>,
@@ -123,24 +123,24 @@ pub struct Table{
     rows: TableRows,
 }
 
-pub struct TableGroup{
+pub struct TableGroup {
     name: String,
     sub_tables: Vec<Table>,
 }
 
-pub enum TableRows{
+pub enum TableRows {
     Empty,
     List(Vec<Atom>),
     Flat(Vec<Node<Statement>>),
     Keyed(Vec<(Node<Expr>, Node<Statement>)>),
 }
 
-pub struct Modifier{
+pub struct Modifier {
     duration: Duration,
     value: Expr,
 }
 
-pub enum Duration{
+pub enum Duration {
     All,
     Next(Expr),
 }
