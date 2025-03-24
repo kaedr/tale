@@ -423,7 +423,7 @@ impl Display for Table {
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableGroup {
     name: String,
-    sub_tables: Vec<Table>,
+    sub_tables: Vec<RcNode<Table>>,
 }
 
 impl Display for TableGroup {

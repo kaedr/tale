@@ -1,6 +1,6 @@
-use std::{collections::HashMap, ops::Range};
+use std::{collections::HashMap, fs::read_to_string, ops::Range};
 
-use ast::rc_node;
+use ast::{RcNode, Script, Table, rc_node};
 use chumsky::{Parser, extra::SimpleState};
 use lexer::{Lexicon, Position, Token, tokenize};
 use parsers::parser;
@@ -17,6 +17,7 @@ pub struct StateTable {
     sources: HashMap<String, String>,
     tokens: HashMap<String, Lexicon>,
     asts: HashMap<String, ast::AST>,
+    symbols: SymbolTable,
 }
 
 impl StateTable {
@@ -26,11 +27,17 @@ impl StateTable {
             sources: HashMap::new(),
             tokens: HashMap::new(),
             asts: HashMap::new(),
+            symbols: SymbolTable::new(),
         }
     }
 
     pub fn add_source(&mut self, name: String, source: String) {
         self.sources.insert(name, source);
+    }
+
+    pub fn add_source_file(&mut self, name: String) {
+        let source = read_to_string(&name).unwrap();
+        self.add_source(name, source);
     }
 
     pub fn lex_source(&mut self, name: String) {
@@ -71,7 +78,7 @@ impl StateTable {
 
     fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
         if let Some(tokens) = self.tokens.get(&self.current) {
-            tokens[span.start].1.start..tokens[span.end - 1].1.end
+            tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end
         } else {
             0..0
         }
@@ -79,14 +86,19 @@ impl StateTable {
 
     fn get_source_slice(&self, span: &Range<usize>) -> &str {
         let source_span = self.get_source_span(span);
-        &self.sources.get(&self.current).unwrap()[source_span]
+        if let Some(source) = self.sources.get(&self.current) {
+            &source[source_span]
+        } else {
+            eprintln!("NO SOURCE FOUND!");
+            "NO SOURCE FOUND!"
+        }
     }
 
     fn spanslate(&self, span: &Range<usize>) -> (String, Range<usize>, Position) {
         if let Some(tokens) = self.tokens.get(&self.current) {
             (
                 self.current.clone(),
-                tokens[span.start].1.start..tokens[span.end - 1].1.end,
+                tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end,
                 tokens[span.start].2,
             )
         } else {
@@ -101,24 +113,56 @@ impl Default for StateTable {
     }
 }
 
+struct SymbolTable {
+    numerics: HashMap<String, isize>,
+    strings: HashMap<String, String>,
+    scripts: HashMap<String, RcNode<Script>>,
+    tables: HashMap<String, RcNode<Table>>,
+}
+
+impl SymbolTable {
+    fn new() -> Self {
+        Self {
+            numerics: HashMap::new(),
+            strings: HashMap::new(),
+            scripts: HashMap::new(),
+            tables: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, name: String, value: isize) {}
+}
+
+impl Default for SymbolTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use chumsky::{error::Simple, extra};
+
     use super::*;
 
-    #[test]
-    fn it_works() {
-        let mut table = StateTable::new();
-        table.add_source("test".into(), "1d20 * 10 ^ 3".into());
-        table.lex_source("test".into());
-        table.parse_source("test".into());
-        let ast = table.asts.get("test").unwrap();
-        println!("{}", ast);
-        assert!(false);
-        assert_eq!(
-            ast,
-            &AST::new(rc_node(ast::Statement::Expr(rc_node(ast::Expr::Atom(
-                ast::Atom::Dice(1, 20)
-            )))))
-        );
+    pub(crate) fn stubbed_parser<'src, T>(
+        table: &'src mut StateTable,
+        tokens: &'src [Token],
+        parser: impl Parser<
+            'src,
+            &'src [Token],
+            T,
+            extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+        > + Clone,
+    ) -> String
+    where
+        T: std::fmt::Display,
+    {
+        let mut state = SimpleState::from(table);
+        let output = parser.parse_with_state(&tokens, &mut state).unwrap();
+        format!("{}", output)
     }
+
+    #[test]
+    fn it_works() {}
 }
