@@ -196,6 +196,7 @@ pub enum Atom {
     Dice(usize, usize),
     Str(String),
     Ident(String),
+    Raw(Token),
 }
 
 impl Atom {
@@ -216,6 +217,7 @@ impl Display for Atom {
             Atom::Dice(n, s) => write!(f, "Atom({}d{})", n, s),
             Atom::Str(s) => write!(f, "Atom({})", s),
             Atom::Ident(s) => write!(f, "Atom({})", s),
+            Atom::Raw(token) => write!(f, "Atom({})", token),
         }
     }
 }

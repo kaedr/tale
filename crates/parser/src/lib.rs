@@ -36,7 +36,6 @@ impl StateTable {
     pub fn lex_source(&mut self, name: String) {
         let source = self.sources.get(&name).unwrap();
         let lexicon = tokenize(source);
-        // println!("{:?}", lexicon);
         self.tokens.insert(name, lexicon);
     }
 
@@ -61,7 +60,6 @@ impl StateTable {
                 }
             }
         };
-        // println!("{}", output);
         self.asts.insert(name, AST::new(output));
     }
 
@@ -71,15 +69,29 @@ impl StateTable {
         tokens
     }
 
+    fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
+        if let Some(tokens) = self.tokens.get(&self.current) {
+            tokens[span.start].1.start..tokens[span.end - 1].1.end
+        } else {
+            0..0
+        }
+    }
+
+    fn get_source_slice(&self, span: &Range<usize>) -> &str {
+        let source_span = self.get_source_span(span);
+        &self.sources.get(&self.current).unwrap()[source_span]
+    }
+
     fn spanslate(&self, span: &Range<usize>) -> (String, Range<usize>, Position) {
-        // println!("{}", self.current);
-        // println!("{:?}", self.tokens);
-        let tokens = self.tokens.get(&self.current).unwrap();
-        (
-            self.current.clone(),
-            tokens[span.start].1.start..tokens[span.end - 1].1.end,
-            tokens[span.start].2,
-        )
+        if let Some(tokens) = self.tokens.get(&self.current) {
+            (
+                self.current.clone(),
+                tokens[span.start].1.start..tokens[span.end - 1].1.end,
+                tokens[span.start].2,
+            )
+        } else {
+            (self.current.clone(), 0..0, (0, 0))
+        }
     }
 }
 
@@ -100,7 +112,6 @@ mod tests {
         table.lex_source("test".into());
         table.parse_source("test".into());
         let ast = table.asts.get("test").unwrap();
-        println!("{:#?}", ast);
         println!("{}", ast);
         assert!(false);
         assert_eq!(

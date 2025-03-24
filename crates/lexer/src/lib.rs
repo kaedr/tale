@@ -1,4 +1,4 @@
-use std::{ops::Range, str::FromStr, sync::LazyLock};
+use std::{fmt::Display, ops::Range, str::FromStr, sync::LazyLock};
 
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
@@ -23,11 +23,15 @@ fn verbatim(lex: &mut Lexer<Token>) -> Option<String> {
 static NEWLINE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\r\n?)|(\n\r?)").unwrap());
 
 fn newlines_callback(lex: &mut Lexer<Token>) {
-    let count = NEWLINE_REGEX.find_iter(lex.slice()).count();
-    if count > 0 {
-        lex.extras.0 += count;
-        lex.extras.1.push((lex.extras.0, lex.span().end));
-    }
+    let found_newlines = NEWLINE_REGEX.find_iter(lex.slice());
+    found_newlines
+        .map(|m| {
+            lex.extras.0 += 1;
+            lex.extras
+                .1
+                .push((lex.extras.0, lex.span().start + m.end()));
+        })
+        .count();
 }
 
 fn get_string_content(lex: &mut Lexer<Token>) -> Option<String> {
@@ -150,6 +154,12 @@ pub enum Token {
     #[token("to", ignore(case))]        To,
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 pub type Position = (usize, usize);
 pub type SourceInfo = (String, Range<usize>, Position);
 
@@ -172,7 +182,7 @@ pub fn tokenize(source: &str) -> Lexicon {
     }
 
     if !errs.is_empty() {
-        println!("Errors: {:?}", errs);
+        eprintln!("Errors: {:?}", errs);
         todo!("Handle lexical errors");
     }
 
@@ -180,7 +190,7 @@ pub fn tokenize(source: &str) -> Lexicon {
 }
 
 fn find_position(start: usize, lines: &[(usize, usize)]) -> Position {
-    for (line, line_end) in lines {
+    for (line, line_end) in lines.iter().rev() {
         if start >= *line_end {
             return (line + 1, start - line_end);
         }
@@ -200,10 +210,54 @@ mod tests {
         #[test]
         fn tokenotomy() {
             let contents = read_to_string("../../samples/91_strings").unwrap();
-            //let mut lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = tokenize(&contents);
+            assert_eq!(
+                token_vec[0..2],
+                [
+                    (
+                        Token::String("double quoted string: '`".into()),
+                        0..26,
+                        (1, 0)
+                    ),
+                    (Token::NewLines, 26..27, (1, 26)),
+                ]
+            );
 
-            println!("{:?}", tokenize(&contents));
-            assert!(false);
+            assert_eq!(
+                token_vec[2..4],
+                [
+                    (
+                        Token::String(r#"grave quoted string: '""#.into()),
+                        27..52,
+                        (2, 0)
+                    ),
+                    (Token::NewLines, 52..53, (2, 25)),
+                ]
+            );
+
+            assert_eq!(
+                token_vec[4..6],
+                [
+                    (
+                        Token::String(r#"single quoted string: `""#.into()),
+                        53..79,
+                        (3, 0)
+                    ),
+                    (Token::NewLines, 79..80, (3, 26)),
+                ]
+            );
+
+            assert_eq!(
+                token_vec[6..8],
+                [
+                    (
+                        Token::String("string\nwith\nnewlines".into()),
+                        80..102,
+                        (4, 0)
+                    ),
+                    (Token::NewLines, 102..103, (6, 9)),
+                ]
+            );
         }
 
         #[test]
@@ -1585,11 +1639,10 @@ mod tests {
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
-            // Worth noting here, multiline strings create a weird situation, since
-            // the end of the string triggers a newline count.
+
             assert_eq!(
                 lex.extras.1,
-                vec![(1, 27), (2, 53), (3, 80), (5, 102), (6, 103)]
+                vec![(1, 27), (2, 53), (3, 80), (4, 88), (5, 93), (6, 103)]
             );
         }
 
@@ -1621,7 +1674,7 @@ mod tests {
             // assert_eq!(lex.next(), Some(Ok(Token::NewLines))); // Next Line (NEL)
             // assert_eq!(lex.extras.0, 10);
             assert_eq!(lex.next(), None);
-            assert_eq!(lex.extras.1, vec![(2, 5), (3, 8), (4, 11), (5, 13)]);
+            assert_eq!(lex.extras.1, vec![(1, 4), (2, 5), (3, 8), (4, 11), (5, 13)]);
         }
     }
 

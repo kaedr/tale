@@ -1,4 +1,4 @@
-use chumsky::{error::Simple, pratt::*, prelude::*};
+use chumsky::{combinator::To, error::Simple, pratt::*, prelude::*, span};
 use lexer::Token;
 
 use crate::{
@@ -12,8 +12,17 @@ pub fn parser<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    arithmetic().map_with(full_rc_node)
+    words().map_with(full_rc_node)
 }
+
+// pub fn assignment<'src>() -> impl Parser<
+//     'src,
+//     &'src [Token],
+//     RcNode<Statement>,
+//     extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+// > + Clone {
+//     just(Token::Set)
+// }
 
 // fn atom<'src>() -> impl Parser<
 //     'src,
@@ -134,11 +143,84 @@ fn qstring<'src>()
     select! { Token::String(s) => Atom::Str(s) }
 }
 
+fn words<'src>()
+-> impl Parser<'src, &'src [Token], RcNode<Expr>, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
++ Clone {
+    word()
+        .or(raw_keywords())
+        .or(typical_punctuation())
+        .repeated()
+        .collect::<Vec<_>>()
+        .map_with(|_, extra| {
+            let span = extra.span().into_range();
+            Atom::Str(extra.state().get_source_slice(&span).to_string())
+        }).map_with(full_rc_node)
+}
+
+fn raw_keywords<'src>()
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
++ Clone {
+    select! {
+        Token::Once => Atom::Raw(Token::Once),
+        Token::Twice => Atom::Raw(Token::Twice),
+        Token::Thrice => Atom::Raw(Token::Thrice),
+
+        Token::One => Atom::Raw(Token::One),
+        Token::Two => Atom::Raw(Token::Two),
+        Token::Three => Atom::Raw(Token::Three),
+        Token::Four => Atom::Raw(Token::Four),
+        Token::Five => Atom::Raw(Token::Five),
+        Token::Six => Atom::Raw(Token::Six),
+        Token::Seven => Atom::Raw(Token::Seven),
+        Token::Eight => Atom::Raw(Token::Eight),
+        Token::Nine => Atom::Raw(Token::Nine),
+        Token::Ten => Atom::Raw(Token::Ten),
+
+        Token::All => Atom::Raw(Token::All),
+        Token::And => Atom::Raw(Token::And),
+        Token::Clear => Atom::Raw(Token::Clear),
+        Token::End => Atom::Raw(Token::End),
+        Token::Group => Atom::Raw(Token::Group),
+        Token::Invoke => Atom::Raw(Token::Invoke),
+        Token::List => Atom::Raw(Token::List),
+        Token::Load => Atom::Raw(Token::Load),
+        Token::Lookup => Atom::Raw(Token::Lookup),
+        Token::Modify => Atom::Raw(Token::Modify),
+        Token::Next => Atom::Raw(Token::Next),
+        Token::On => Atom::Raw(Token::On),
+        Token::Output => Atom::Raw(Token::Output),
+        Token::Roll => Atom::Raw(Token::Roll),
+        Token::Set => Atom::Raw(Token::Set),
+        Token::Show => Atom::Raw(Token::Show),
+        Token::Table => Atom::Raw(Token::Table),
+        Token::Tag => Atom::Raw(Token::Tag),
+        Token::Time => Atom::Raw(Token::Time),
+        Token::To => Atom::Raw(Token::To),
+    }
+}
+
+fn typical_punctuation<'src>()
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
++ Clone {
+    select! {
+        Token::Comma => Atom::Raw(Token::Comma),
+        Token::Period => Atom::Raw(Token::Period),
+        Token::Ellipsis => Atom::Raw(Token::Ellipsis),
+        Token::Bang => Atom::Raw(Token::Bang),
+        Token::Question => Atom::Raw(Token::Question),
+        Token::Colon => Atom::Raw(Token::Colon),
+        Token::SemiColon => Atom::Raw(Token::SemiColon),
+        Token::LParens => Atom::Raw(Token::LParens),
+        Token::RParens => Atom::Raw(Token::RParens),
+        Token::Dash => Atom::Raw(Token::Dash),
+        Token::Minus => Atom::Raw(Token::Minus),
+    }
+}
+
 fn ident<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    let word = word();
-    word.clone().foldl(word.repeated(), ident_normalize)
+    word().foldl(word().repeated(), ident_normalize)
 }
 
 fn value_name<'src>()
@@ -175,6 +257,7 @@ fn ident_normalize(l: Atom, r: Atom) -> Atom {
 #[cfg(test)]
 mod tests {
     use chumsky::extra::SimpleState;
+    use logos::Logos;
 
     use crate::StateTable;
 
@@ -186,7 +269,7 @@ mod tests {
         let mut table = StateTable::new();
         let mut state = SimpleState::from(&mut table);
         let stuff = parser().parse_with_state(&tokens, &mut state);
-        println!("{}", stuff.output().unwrap());
+        println!("{:?}", stuff);
         assert!(false);
     }
 
@@ -203,6 +286,20 @@ mod tests {
         let mut state = SimpleState::from(&mut table);
         let expr = arithmetic().parse_with_state(&tokens, &mut state);
         println!("{}", expr.output().unwrap());
+        assert!(false);
+    }
+
+    #[test]
+    fn test_words() {
+        let mut table = StateTable::new();
+        table.add_source("test".into(), r"this is a test: once upon a time...".into());
+        table.lex_source("test".into());
+        table.parse_source("test".into());
+        let output = table.asts.get("test").unwrap();
+        // let mut state = SimpleState::from(&mut table);
+        // let tokens = Token::lexer("this is a test").flatten().collect::<Vec<_>>();
+        // let output = words().parse_with_state(&tokens, &mut state);
+        println!("{:?}", output);
         assert!(false);
     }
 }
