@@ -1,6 +1,6 @@
-use std::{str::FromStr, sync::LazyLock};
+use std::{ops::Range, str::FromStr, sync::LazyLock};
 
-use logos::{Lexer, Logos};
+use logos::{Lexer, Logos, Span};
 use regex::Regex;
 
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
@@ -150,6 +150,44 @@ pub enum Token {
     #[token("to", ignore(case))]        To,
 }
 
+pub type Position = (usize, usize);
+pub type SourceInfo = (String, Range<usize>, Position);
+
+pub type Lexicon = Vec<(Token, Span, Position)>;
+
+pub fn tokenize(source: &str) -> Lexicon {
+    let mut lex = Token::lexer(source);
+    let mut tokens = Vec::new();
+    let mut errs = Vec::new();
+
+    while let Some(token) = lex.next() {
+        let span = lex.span();
+        match token {
+            Ok(token) => {
+                let position = find_position(span.start, &lex.extras.1);
+                tokens.push((token, span, position));
+            }
+            Err(err) => errs.push((err, span)),
+        }
+    }
+
+    if !errs.is_empty() {
+        println!("Errors: {:?}", errs);
+        todo!("Handle lexical errors");
+    }
+
+    tokens
+}
+
+fn find_position(start: usize, lines: &[(usize, usize)]) -> Position {
+    for (line, line_end) in lines {
+        if start >= *line_end {
+            return (line + 1, start - line_end);
+        }
+    }
+    (1, start)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,6 +196,15 @@ mod tests {
     mod test_sample_files {
         use super::*;
         use std::fs::read_to_string;
+
+        #[test]
+        fn tokenotomy() {
+            let contents = read_to_string("../../samples/91_strings").unwrap();
+            //let mut lex = Token::lexer(&contents);
+
+            println!("{:?}", tokenize(&contents));
+            assert!(false);
+        }
 
         #[test]
         fn table_minimal() {
