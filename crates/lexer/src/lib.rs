@@ -53,21 +53,19 @@ pub enum Token {
     #[regex(r"\d+",digits,priority=3)]  Digits(usize),
     #[token("00")]                      DoubleOught,
     #[regex(r"\w+",verbatim)]           Word(String),
-    #[regex(r"#[^\n\r]+",verbatim)]     Comment(String),
+    #[regex(r"//[^\n\r]+",logos::skip)] Comment,
 
 
     // Strings
-    // #[token("\u{FF02}",get_string_content)]                // FullDQuote
-    #[regex(r#""[^"]*""#,get_string_content)]                    // DQuote,
-    // #[token("\u{FF40}",get_string_content)]                // FullGQuote,
-    #[regex("`[^`]*`",get_string_content)]                       // GQuote,
-    // #[token("\u{FF07}",get_string_content)]                // FullSQuote,
-    #[regex("'[^']*'",get_string_content)]                       // SQuote,
-    // #[token("\u{2018}",get_string_content)]                // LeftSQuote,
-    // #[token("\u{201C}",get_string_content)]                // LeftDQuote,
+    #[regex("\u{FF02}[^\u{FF02}]*\u{FF02}",get_string_content)] // FullDQuote
+    #[regex(r#""[^"]*""#,get_string_content)]                   // DQuote,
+    #[regex("\u{FF40}[^\u{FF40}]*\u{FF40}",get_string_content)] // FullGQuote,
+    #[regex("`[^`]*`",get_string_content)]                      // GQuote,
+    #[regex("\u{FF07}[^\u{FF07}]*\u{FF07}",get_string_content)] // FullSQuote,
+    #[regex("'[^']*'",get_string_content)]                      // SQuote,
+    #[regex("\u{2018}[^\u{2019}]*\u{2019}",get_string_content)] // LeftSQuote, RightSQuote,
+    #[regex("\u{201C}[^\u{201D}]*\u{201D}",get_string_content)] // LeftDQuote, RightDQuote,
                                         String(String),
-    // #[token("\u{2019}")]                RightSQuote,
-    // #[token("\u{201D}")]                RightDQuote,
 
     // Whitespace
     #[regex(r"(\r\n?)+",newlines_callback)]
@@ -1598,18 +1596,13 @@ mod tests {
 
         #[test]
         fn comments() {
-            let mut lex = Token::lexer("not comment#comment\nnext line # more comment");
+            let mut lex = Token::lexer("not comment//comment\nnext line // more comment");
 
             assert_eq!(lex.next(), Some(Ok(Token::Word("not".into()))));
             assert_eq!(lex.next(), Some(Ok(Token::Word("comment".into()))));
-            assert_eq!(lex.next(), Some(Ok(Token::Comment("#comment".into()))));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::Next)));
             assert_eq!(lex.next(), Some(Ok(Token::Word("line".into()))));
-            assert_eq!(
-                lex.next(),
-                Some(Ok(Token::Comment("# more comment".into())))
-            );
             assert_eq!(lex.next(), None);
         }
 
@@ -1638,11 +1631,13 @@ mod tests {
                 Some(Ok(Token::String("string\nwith\nnewlines".into())))
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::String("".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
 
             assert_eq!(
                 lex.extras.1,
-                vec![(1, 27), (2, 53), (3, 80), (4, 88), (5, 93), (6, 103)]
+                vec![(1, 27), (2, 53), (3, 80), (4, 88), (5, 93), (6, 103), (7, 106)]
             );
         }
 
