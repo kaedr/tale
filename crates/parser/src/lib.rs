@@ -130,13 +130,29 @@ impl SymbolTable {
         }
     }
 
-    fn insert(&mut self, name: String, value: isize) {}
+    /// Inserts a value into the appropriate symbol table, returns true if
+    /// overwriting a previously stored value.
+    fn insert(&mut self, name: String, value: SymbolValue) -> bool {
+        match value {
+            SymbolValue::Numeric(v) => self.numerics.insert(name, v).is_some(),
+            SymbolValue::String(v) => self.strings.insert(name, v).is_some(),
+            SymbolValue::Script(node) => self.scripts.insert(name, node).is_some(),
+            SymbolValue::Table(node) => self.tables.insert(name, node).is_some(),
+        }
+    }
 }
 
 impl Default for SymbolTable {
     fn default() -> Self {
         Self::new()
     }
+}
+
+enum SymbolValue {
+    Numeric(isize),
+    String(String),
+    Script(RcNode<Script>),
+    Table(RcNode<Table>),
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@ use crate::{
 use chumsky::{Parser, error::Simple, extra, prelude::*};
 use lexer::Token;
 
-pub(crate) fn term<'src>() -> impl Parser<
+pub fn term<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
@@ -15,7 +15,7 @@ pub(crate) fn term<'src>() -> impl Parser<
     number.or(dice).or(value_name).map_with(full_rc_node)
 }
 
-pub(crate) enum Op {
+pub enum Op {
     Add,
     Sub,
     Mul,
@@ -38,20 +38,20 @@ impl From<Token> for Op {
     }
 }
 
-pub(crate) fn op_parser<'src>(
+pub fn op_parser<'src>(
     token: Token,
 ) -> impl Parser<'src, &'src [Token], Op, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     just(token).map(Op::from)
 }
 
-pub(crate) fn qstring<'src>()
+pub fn qstring<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::String(s) => Atom::Str(s) }
 }
 
-pub(crate) fn words<'src>() -> impl Parser<
+pub fn words<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
@@ -69,7 +69,7 @@ pub(crate) fn words<'src>() -> impl Parser<
         .map_with(full_rc_node)
 }
 
-pub(crate) fn raw_keywords<'src>()
+pub fn raw_keywords<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! {
@@ -111,7 +111,7 @@ pub(crate) fn raw_keywords<'src>()
     }
 }
 
-pub(crate) fn typical_punctuation<'src>()
+pub fn typical_punctuation<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! {
@@ -129,31 +129,31 @@ pub(crate) fn typical_punctuation<'src>()
     }
 }
 
-pub(crate) fn ident<'src>()
+pub fn ident<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     word().foldl(word().repeated(), ident_normalize)
 }
 
-pub(crate) fn value_name<'src>()
+pub fn value_name<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     word()
 }
 
-pub(crate) fn word<'src>()
+pub fn word<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::Word(word) => Atom::Ident(word) }
 }
 
-pub(crate) fn dice<'src>()
+pub fn dice<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::DieRoll((x, y)) => Atom::Dice(x, y) }
 }
 
-pub(crate) fn number<'src>()
+pub fn number<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! {
@@ -162,6 +162,6 @@ pub(crate) fn number<'src>()
     }
 }
 
-pub(crate) fn ident_normalize(l: Atom, r: Atom) -> Atom {
+pub fn ident_normalize(l: Atom, r: Atom) -> Atom {
     l.merge(&r)
 }

@@ -8,7 +8,9 @@ use crate::{
 
 use super::atoms;
 
-pub(crate) fn arithmetic<'src>() -> impl Parser<
+
+
+pub fn arithmetic<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,

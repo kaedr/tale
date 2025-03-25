@@ -163,6 +163,10 @@ pub type SourceInfo = (String, Range<usize>, Position);
 
 pub type Lexicon = Vec<(Token, Span, Position)>;
 
+pub fn quick_tokens(source: &str) -> Vec<Token> {
+    Token::lexer(source).flatten().collect()
+}
+
 pub fn tokenize(source: &str) -> Lexicon {
     let mut lex = Token::lexer(source);
     let mut tokens = Vec::new();
@@ -1637,7 +1641,15 @@ mod tests {
 
             assert_eq!(
                 lex.extras.1,
-                vec![(1, 27), (2, 53), (3, 80), (4, 88), (5, 93), (6, 103), (7, 106)]
+                vec![
+                    (1, 27),
+                    (2, 53),
+                    (3, 80),
+                    (4, 88),
+                    (5, 93),
+                    (6, 103),
+                    (7, 106)
+                ]
             );
         }
 
