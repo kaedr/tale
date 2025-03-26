@@ -32,42 +32,57 @@ impl StateTable {
     }
 
     pub fn add_source(&mut self, name: String, source: String) {
+        self.current = name.clone();
         self.sources.insert(name, source);
     }
 
     pub fn add_source_file(&mut self, name: String) {
+        self.current = name.clone();
         let source = read_to_string(&name).unwrap();
         self.add_source(name, source);
     }
 
-    pub fn lex_source(&mut self, name: String) {
-        let source = self.sources.get(&name).unwrap();
+    pub fn lex_current(&mut self) {
+        let source = self.sources.get(&self.current).unwrap();
         let lexicon = tokenize(source);
-        self.tokens.insert(name, lexicon);
+        self.tokens.insert(self.current.clone(), lexicon);
     }
 
-    pub fn parse_source(&mut self, name: String) {
-        self.current = name.clone();
+    pub fn lex_source(&mut self, name: String) {
+        self.current = name;
+        self.lex_current();
+    }
+
+    pub fn parse_current(&mut self) -> String {
+        let err_string;
         let output = {
-            let tokens = self.get_tokens(&name);
+            let tokens = self.get_tokens(&self.current);
             let mut parse_state = SimpleState::from(&mut *self);
             let parse_result = parser().parse_with_state(&tokens, &mut parse_state);
             match parse_result.into_output_errors() {
                 (Some(output), errs) => {
-                    for err in errs {
+                    for err in &errs {
                         eprintln!("{}", err);
                     }
+                    err_string = format!("{:?}", errs);
                     output
                 }
                 (None, errs) => {
-                    for err in errs {
+                    for err in &errs {
                         eprintln!("{}", err);
                     }
+                    err_string = format!("{:?}", errs);
                     rc_node(ast::Statement::Empty)
                 }
             }
         };
-        self.asts.insert(name, AST::new(output));
+        self.asts.insert(self.current.clone(), AST::new(output));
+        err_string
+    }
+
+    pub fn parse_source(&mut self, name: String) -> String {
+        self.current = name.clone();
+        self.parse_current()
     }
 
     fn get_tokens(&self, name: &str) -> Vec<Token> {
@@ -175,8 +190,10 @@ mod tests {
         T: std::fmt::Display,
     {
         let mut state = SimpleState::from(table);
-        let output = parser.parse_with_state(&tokens, &mut state).unwrap();
-        format!("{}", output)
+        match parser.parse_with_state(&tokens, &mut state).into_result() {
+            Ok(output) => format!("{}", output),
+            Err(err) => format!("{:?}", err),
+        }
     }
 
     #[test]

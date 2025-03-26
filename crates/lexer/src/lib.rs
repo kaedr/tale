@@ -152,6 +152,18 @@ pub enum Token {
     #[token("to", ignore(case))]        To,
 }
 
+impl Token {
+    pub fn to_lowercase(&self) -> String {
+        match self {
+            Self::DieRoll((num, sides)) => format!("{}d{}", num, sides),
+            Self::Digits(num) => num.to_string(),
+            Self::Word(word) => word.to_lowercase(),
+            Self::String(string) => string.to_lowercase(),
+            token => format!("{:?}", token).to_lowercase(),
+        }
+    }
+}
+
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?}", self)

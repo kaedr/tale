@@ -200,12 +200,13 @@ pub enum Atom {
 }
 
 impl Atom {
-    pub fn merge(&self, other: &Self) -> Self {
-        match (self, other) {
-            (Atom::Ident(l), Atom::Ident(r)) => {
-                Atom::Ident(format!("{} {}", l.to_lowercase(), r.to_lowercase()))
-            }
-            _ => unimplemented!(),
+    pub fn to_lowercase(&self) -> String {
+        match self {
+            Self::Number(num) => num.to_string(),
+            Self::Dice(num, sides) => format!("{}d{}", num, sides),
+            Self::Str(s) => s.to_lowercase(),
+            Self::Ident(s) => s.to_lowercase(),
+            Self::Raw(token) => token.to_lowercase(),
         }
     }
 }
@@ -215,7 +216,7 @@ impl Display for Atom {
         match self {
             Atom::Number(n) => write!(f, "Atom({})", n),
             Atom::Dice(n, s) => write!(f, "Atom({}d{})", n, s),
-            Atom::Str(s) => write!(f, "Atom({})", s),
+            Atom::Str(s) => write!(f, "Atom('{}')", s),
             Atom::Ident(s) => write!(f, "Atom({})", s),
             Atom::Raw(token) => write!(f, "Atom({})", token),
         }
@@ -287,39 +288,6 @@ impl<T> From<(T, Range<usize>, SourceInfo)> for Node<T> {
         }
     }
 }
-
-// impl From<Expr> for Node<Statement> {
-//     fn from(value: Expr) -> Self {
-//         Self {
-//             actual: value.into(),
-//             meta: Default::default(),
-//             token_span: Default::default(),
-//             source_span: Default::default(),
-//         }
-//     }
-// }
-
-// impl From<Atom> for Node<Statement> {
-//     fn from(value: Atom) -> Self {
-//         Self {
-//             actual: value.into(),
-//             meta: Default::default(),
-//             token_span: Default::default(),
-//             source_span: Default::default(),
-//         }
-//     }
-// }
-
-// impl From<Atom> for Node<Expr> {
-//     fn from(value: Atom) -> Self {
-//         Self {
-//             actual: value.into(),
-//             meta: Default::default(),
-//             token_span: Default::default(),
-//             source_span: Default::default(),
-//         }
-//     }
-// }
 
 impl<T> InnerExpr for Node<T>
 where

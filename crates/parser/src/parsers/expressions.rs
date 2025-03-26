@@ -8,8 +8,6 @@ use crate::{
 
 use super::atoms;
 
-
-
 pub fn arithmetic<'src>() -> impl Parser<
     'src,
     &'src [Token],
@@ -20,16 +18,16 @@ pub fn arithmetic<'src>() -> impl Parser<
         let term = atoms::term().or(arith.delimited_by(just(Token::LParens), just(Token::RParens)));
         term.pratt((
             // Exponentiation
-            infix(right(4), atoms::op_parser(Token::Caret), fold_infix),
+            infix(right(4), atoms::op(Token::Caret), fold_infix),
             // Negation
-            prefix(3, atoms::op_parser(Token::Minus), fold_prefix),
+            prefix(3, atoms::op(Token::Minus), fold_prefix),
             // Multiplication and Division
-            infix(left(2), atoms::op_parser(Token::Asterisk), fold_infix),
-            infix(left(2), atoms::op_parser(Token::Slash), fold_infix),
-            infix(left(2), atoms::op_parser(Token::Modulo), fold_infix),
+            infix(left(2), atoms::op(Token::Asterisk), fold_infix),
+            infix(left(2), atoms::op(Token::Slash), fold_infix),
+            infix(left(2), atoms::op(Token::Modulo), fold_infix),
             // Addition and Subtraction
-            infix(left(1), atoms::op_parser(Token::Plus), fold_infix),
-            infix(left(1), atoms::op_parser(Token::Minus), fold_infix),
+            infix(left(1), atoms::op(Token::Plus), fold_infix),
+            infix(left(1), atoms::op(Token::Minus), fold_infix),
         ))
     })
 }
