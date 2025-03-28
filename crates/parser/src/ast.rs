@@ -4,7 +4,7 @@ use std::{ops::Range, rc::Rc};
 use chumsky::error::Simple;
 use chumsky::extra;
 use chumsky::span::Span;
-use lexer::{Position, SourceInfo, Token};
+use lexer::{Position, Token};
 
 use crate::SimpleStateTable;
 
@@ -146,14 +146,14 @@ impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Atom(atom) => write!(f, "{}", atom),
-            Expr::Neg(expr) => write!(f, "Neg(-{})", expr),
+            Expr::Neg(expr) => write!(f, "Neg({})", expr),
             Expr::Add(lhs, rhs) => write!(f, "Add({} + {})", lhs, rhs),
             Expr::Sub(lhs, rhs) => write!(f, "Sub({} - {})", lhs, rhs),
             Expr::Mul(lhs, rhs) => write!(f, "Mul({} * {})", lhs, rhs),
             Expr::Div(lhs, rhs) => write!(f, "Div({} / {})", lhs, rhs),
             Expr::Mod(lhs, rhs) => write!(f, "Mod({} % {})", lhs, rhs),
             Expr::Pow(lhs, rhs) => write!(f, "Pow({} ^ {})", lhs, rhs),
-            Expr::Lookup(lhs, rhs) => write!(f, "Lookup({}[{}])", lhs, rhs),
+            Expr::Lookup(lhs, rhs) => write!(f, "Lookup({} on {})", lhs, rhs),
             Expr::Roll(lhs, rhs) => write!(f, "Roll({}, {})", lhs, rhs),
             Expr::Interpol(exprs) => {
                 let exprs = exprs
@@ -216,7 +216,7 @@ impl Display for Atom {
         match self {
             Atom::Number(n) => write!(f, "Atom({})", n),
             Atom::Dice(n, s) => write!(f, "Atom({}d{})", n, s),
-            Atom::Str(s) => write!(f, "Atom('{}')", s),
+            Atom::Str(s) => write!(f, r#"Atom("{}")"#, s),
             Atom::Ident(s) => write!(f, "Atom({})", s),
             Atom::Raw(token) => write!(f, "Atom({})", token),
         }
@@ -247,6 +247,8 @@ where
 
     Rc::new(Node::from(full_info))
 }
+
+type SourceInfo = (String, Range<usize>, Position);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node<T> {

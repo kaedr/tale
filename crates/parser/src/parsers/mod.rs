@@ -3,7 +3,7 @@ use lexer::Token;
 
 use crate::{
     SimpleStateTable,
-    ast::{RcNode, Statement, full_rc_node},
+    ast::{RcNode, Statement},
 };
 
 mod atoms;
@@ -17,7 +17,7 @@ pub fn parser<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    atoms::words().map_with(full_rc_node)
+    todo()
 }
 
 // fn atom<'src>() -> impl Parser<

@@ -1,6 +1,5 @@
 "double quoted string: '`"
 `grave quoted string: '"`
-'single quoted string: `"'
 "string
 with
 newlines"

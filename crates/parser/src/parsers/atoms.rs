@@ -73,8 +73,14 @@ pub fn ident_maybe_sub<'src>()
 + Clone {
     ident()
         .then_ignore(just(Token::Colon).or_not())
-        .then(ident())
-        .map(|(l, r)| ident_normalize(l, r))
+        .then(ident().or_not())
+        .map(|(l, r)| {
+            if let Some(r) = r {
+                ident_normalize(l, r)
+            } else {
+                l
+            }
+        })
 }
 
 pub fn ident<'src>()
@@ -82,6 +88,7 @@ pub fn ident<'src>()
 + Clone {
     wordlike()
         .foldl(wordlike().repeated(), ident_normalize)
+        .or(qstring())
         .map(|id| Atom::Ident(id.to_lowercase()))
 }
 
@@ -140,6 +147,7 @@ pub fn typical_punctuation<'src>()
 + Clone {
     select! {
         Token::Ampersand => Atom::Raw(Token::Ampersand),
+        Token::Apostrophe => Atom::Raw(Token::Apostrophe),
         Token::Comma => Atom::Raw(Token::Comma),
         Token::Period => Atom::Raw(Token::Period),
         Token::Ellipsis => Atom::Raw(Token::Ellipsis),
@@ -211,26 +219,29 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, words());
-        // let errs = table.parse_source("test".into());
-        // assert_eq!("[]", format!("{}", errs));
-        // let output = table.asts.get("test").unwrap();
         assert_eq!(
-            "Atom('This is a test: Once upon a time...')",
+            r#"Atom("This is a test: Once upon a time...")"#,
             format!("{}", output)
         );
 
-        table.add_source(
-            "test2".into(),
-            r"This is a (test): // Once upon a time...".into(),
-        );
+        table.add_source("test2".into(), r"Let's do this!".into());
         table.lex_current();
         let tokens = &table.get_tokens("test2");
         let output = stubbed_parser(&mut table, &tokens, words());
-        assert_eq!("Atom('This is a (test):')", format!("{}", output));
+        assert_eq!(r#"Atom("Let's do this!")"#, format!("{}", output));
 
-        table.add_source("test3".into(), r"This is a test: Reject @ once".into());
+        table.add_source(
+            "test3".into(),
+            r"This is a (test): // Once upon a time...".into(),
+        );
         table.lex_current();
         let tokens = &table.get_tokens("test3");
+        let output = stubbed_parser(&mut table, &tokens, words());
+        assert_eq!(r#"Atom("This is a (test):")"#, format!("{}", output));
+
+        table.add_source("test4".into(), r"This is a test: Reject @ once".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test4");
         let output = stubbed_parser(&mut table, &tokens, words());
         assert_eq!("[found 'At' at 6..7]", format!("{}", output));
     }
@@ -241,6 +252,12 @@ mod tests {
         let tokens = quick_tokens("Group: Subtable");
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
         assert_eq!("Atom(group subtable)", output);
+
+        // TODO: This will probably create a bug somewhere
+        // At the moment, it's not clear where that bug will be
+        let tokens = quick_tokens(r#""Treasure Hoard: Challenge 0-4": Magic Items"#);
+        let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
+        assert_eq!("Atom(treasure hoard: challenge 0-4 magic items)", output);
 
         let tokens = quick_tokens("A; Typo");
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
@@ -269,6 +286,10 @@ mod tests {
         let tokens = quick_tokens("Once upon 1d4 times ten rolls");
         let output = stubbed_parser(&mut table, &tokens, ident());
         assert_eq!("Atom(once upon 1d4 time ten roll)", output);
+
+        let tokens = quick_tokens(r#""Treasure Hoard: Challenge 0-4""#);
+        let output = stubbed_parser(&mut table, &tokens, ident());
+        assert_eq!("Atom(treasure hoard: challenge 0-4)", output);
 
         let tokens = quick_tokens("Not: Valid");
         let output = stubbed_parser(&mut table, &tokens, ident());

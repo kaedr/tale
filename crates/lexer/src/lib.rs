@@ -1,7 +1,9 @@
-use std::{fmt::Display, ops::Range, str::FromStr, sync::LazyLock};
+use std::{fmt::Display, str::FromStr, sync::LazyLock};
 
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
+
+pub mod utils;
 
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
     let parts: Vec<_> = lex.slice().split("d").collect();
@@ -43,6 +45,7 @@ fn get_string_content(lex: &mut Lexer<Token>) -> Option<String> {
     String::from_str(chars.as_str()).ok()
 }
 
+/// All the Tokens that the lexer can produce
 #[rustfmt::skip]
 #[derive(Logos, Debug, PartialEq, Eq, Hash, Clone)]
 #[logos(extras = (usize, Vec<(usize, usize)>))]
@@ -62,7 +65,7 @@ pub enum Token {
     #[regex("\u{FF40}[^\u{FF40}]*\u{FF40}",get_string_content)] // FullGQuote,
     #[regex("`[^`]*`",get_string_content)]                      // GQuote,
     #[regex("\u{FF07}[^\u{FF07}]*\u{FF07}",get_string_content)] // FullSQuote,
-    #[regex("'[^']*'",get_string_content)]                      // SQuote,
+    // #[regex("'[^']*'",get_string_content)]                      // SQuote,
     #[regex("\u{2018}[^\u{2019}]*\u{2019}",get_string_content)] // LeftSQuote, RightSQuote,
     #[regex("\u{201C}[^\u{201D}]*\u{201D}",get_string_content)] // LeftDQuote, RightDQuote,
                                         String(String),
@@ -76,6 +79,7 @@ pub enum Token {
 
     // Symbols/Punctuation
     #[token("&")]                       Ampersand,
+    #[token("'")]                       Apostrophe,
     #[token("*")]                       Asterisk,
     #[token("@")]                       At,
     #[token(r"\")]                      BackSlash,
@@ -153,6 +157,7 @@ pub enum Token {
 }
 
 impl Token {
+    /// Return a lowercased string representing the token.
     pub fn to_lowercase(&self) -> String {
         match self {
             Self::DieRoll((num, sides)) => format!("{}d{}", num, sides),
@@ -171,14 +176,16 @@ impl Display for Token {
 }
 
 pub type Position = (usize, usize);
-pub type SourceInfo = (String, Range<usize>, Position);
 
 pub type Lexicon = Vec<(Token, Span, Position)>;
 
+/// Lexes the source string into a vector of tokens, ignoring any lexical errors.
 pub fn quick_tokens(source: &str) -> Vec<Token> {
     Token::lexer(source).flatten().collect()
 }
 
+/// Lexes the source string into a vector of tokens, their source spans,
+/// and their line/characters positions.
 pub fn tokenize(source: &str) -> Lexicon {
     let mut lex = Token::lexer(source);
     let mut tokens = Vec::new();
@@ -218,12 +225,13 @@ mod tests {
 
     #[cfg(test)]
     mod test_sample_files {
+        use crate::utils::read_sample_file_to_string;
+
         use super::*;
-        use std::fs::read_to_string;
 
         #[test]
         fn tokenotomy() {
-            let contents = read_to_string("../../samples/91_strings").unwrap();
+            let contents = read_sample_file_to_string("91_strings");
             let token_vec: Vec<_> = tokenize(&contents);
             assert_eq!(
                 token_vec[0..2],
@@ -253,30 +261,30 @@ mod tests {
                 token_vec[4..6],
                 [
                     (
-                        Token::String(r#"single quoted string: `""#.into()),
-                        53..79,
+                        Token::String("string\nwith\nnewlines".into()),
+                        53..75,
                         (3, 0)
                     ),
-                    (Token::NewLines, 79..80, (3, 26)),
+                    (Token::NewLines, 75..76, (5, 9)),
                 ]
             );
 
             assert_eq!(
-                token_vec[6..8],
+                token_vec[6..],
                 [
                     (
-                        Token::String("string\nwith\nnewlines".into()),
-                        80..102,
-                        (4, 0)
+                        Token::String("".into()),
+                        76..78,
+                        (6, 0)
                     ),
-                    (Token::NewLines, 102..103, (6, 9)),
+                    (Token::NewLines, 78..79, (6, 2)),
                 ]
             );
         }
 
         #[test]
         fn table_minimal() {
-            let contents = read_to_string("../../samples/01_table_minimal.tale").unwrap();
+            let contents = read_sample_file_to_string("01_table_minimal.tale");
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -297,7 +305,7 @@ mod tests {
 
         #[test]
         fn table_roll_def() {
-            let contents = read_to_string("../../samples/02_table_roll_def.tale").unwrap();
+            let contents = read_sample_file_to_string("02_table_roll_def.tale");
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -319,7 +327,7 @@ mod tests {
 
         #[test]
         fn table_list() {
-            let contents = read_to_string("../../samples/03_table_list.tale").unwrap();
+            let contents = read_sample_file_to_string("03_table_list.tale");
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -343,7 +351,7 @@ mod tests {
 
         #[test]
         fn table_keyed_numeric() {
-            let contents = read_to_string("../../samples/04_table_keyed_numeric.tale").unwrap();
+            let contents = read_sample_file_to_string("04_table_keyed_numeric.tale");
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -387,7 +395,7 @@ mod tests {
 
         #[test]
         fn table_keyed_word() {
-            let contents = read_to_string("../../samples/05_table_keyed_word.tale").unwrap();
+            let contents = read_sample_file_to_string("05_table_keyed_word.tale");
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
@@ -412,7 +420,7 @@ mod tests {
 
         #[test]
         fn table_group() {
-            let contents = read_to_string("../../samples/06_table_group.tale").unwrap();
+            let contents = read_sample_file_to_string("06_table_group.tale");
             let lex = Token::lexer(&contents);
 
             let token_vec: Vec<_> = lex.flatten().collect();
@@ -872,8 +880,7 @@ mod tests {
 
         #[test]
         fn statement_assignment_expression() {
-            let contents =
-                read_to_string("../../samples/11_statement_assignment_expression.tale").unwrap();
+            let contents = read_sample_file_to_string("11_statement_assignment_expression.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -956,7 +963,7 @@ mod tests {
 
         #[test]
         fn statement_clear() {
-            let contents = read_to_string("../../samples/12_statement_clear.tale").unwrap();
+            let contents = read_sample_file_to_string("12_statement_clear.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1007,7 +1014,7 @@ mod tests {
 
         #[test]
         fn statement_invoke() {
-            let contents = read_to_string("../../samples/13_statement_invoke.tale").unwrap();
+            let contents = read_sample_file_to_string("13_statement_invoke.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1041,7 +1048,7 @@ mod tests {
 
         #[test]
         fn statement_load() {
-            let contents = read_to_string("../../samples/14_statement_load.tale").unwrap();
+            let contents = read_sample_file_to_string("14_statement_load.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1091,7 +1098,7 @@ mod tests {
 
         #[test]
         fn statement_lookup() {
-            let contents = read_to_string("../../samples/15_statement_lookup.tale").unwrap();
+            let contents = read_sample_file_to_string("15_statement_lookup.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1144,7 +1151,7 @@ mod tests {
 
         #[test]
         fn statement_modify() {
-            let contents = read_to_string("../../samples/16_statement_modify.tale").unwrap();
+            let contents = read_sample_file_to_string("16_statement_modify.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1205,7 +1212,7 @@ mod tests {
 
         #[test]
         fn statement_output() {
-            let contents = read_to_string("../../samples/17_statement_output.tale").unwrap();
+            let contents = read_sample_file_to_string("17_statement_output.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1246,7 +1253,7 @@ mod tests {
 
         #[test]
         fn statement_roll() {
-            let contents = read_to_string("../../samples/18_statement_roll.tale").unwrap();
+            let contents = read_sample_file_to_string("18_statement_roll.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1425,7 +1432,7 @@ mod tests {
 
         #[test]
         fn statement_show() {
-            let contents = read_to_string("../../samples/19_statement_show.tale").unwrap();
+            let contents = read_sample_file_to_string("19_statement_show.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1470,7 +1477,7 @@ mod tests {
 
         #[test]
         fn script() {
-            let contents = read_to_string("../../samples/21_script.tale").unwrap();
+            let contents = read_sample_file_to_string("21_script.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -1547,7 +1554,8 @@ mod tests {
 
     #[cfg(test)]
     mod test_general_tokens {
-        use std::fs::read_to_string;
+
+        use crate::utils::read_sample_file_to_string;
 
         use super::*;
 
@@ -1624,7 +1632,7 @@ mod tests {
 
         #[test]
         fn strings() {
-            let contents = read_to_string("../../samples/91_strings").unwrap();
+            let contents = read_sample_file_to_string("91_strings");
             let mut lex = Token::lexer(&contents);
 
             assert_eq!(
@@ -1635,11 +1643,6 @@ mod tests {
             assert_eq!(
                 lex.next(),
                 Some(Ok(Token::String(r#"grave quoted string: '""#.into())))
-            );
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
-            assert_eq!(
-                lex.next(),
-                Some(Ok(Token::String(r#"single quoted string: `""#.into())))
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(
@@ -1656,11 +1659,10 @@ mod tests {
                 vec![
                     (1, 27),
                     (2, 53),
-                    (3, 80),
-                    (4, 88),
-                    (5, 93),
-                    (6, 103),
-                    (7, 106)
+                    (3, 61),
+                    (4, 66),
+                    (5, 76),
+                    (6, 79)
                 ]
             );
         }
@@ -1703,7 +1705,7 @@ mod tests {
 
         #[test]
         fn sym_individuals() {
-            let mut lex = Token::lexer(r"~!@$%^&*_+=|\:;,.?/#");
+            let mut lex = Token::lexer(r"~!@$%^&*_+=|\:;',.?/#");
 
             assert_eq!(lex.next(), Some(Ok(Token::Tilde)));
             assert_eq!(lex.next(), Some(Ok(Token::Bang)));
@@ -1720,6 +1722,7 @@ mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::BackSlash)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
             assert_eq!(lex.next(), Some(Ok(Token::SemiColon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Apostrophe)));
             assert_eq!(lex.next(), Some(Ok(Token::Comma)));
             assert_eq!(lex.next(), Some(Ok(Token::Period)));
             assert_eq!(lex.next(), Some(Ok(Token::Question)));
