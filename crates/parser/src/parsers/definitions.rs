@@ -1,4 +1,4 @@
-use chumsky::{Parser, error::Simple, extra, prelude::*};
+use chumsky::prelude::*;
 use lexer::Token;
 
 use crate::{
@@ -10,7 +10,7 @@ pub fn script<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     todo()
 }
@@ -19,7 +19,7 @@ pub fn table<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     todo()
 }
@@ -28,7 +28,7 @@ pub fn table_group<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     todo()
 }

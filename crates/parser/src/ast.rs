@@ -1,9 +1,7 @@
 use std::fmt::Display;
 use std::{ops::Range, rc::Rc};
 
-use chumsky::error::Simple;
-use chumsky::extra;
-use chumsky::span::Span;
+use chumsky::prelude::*;
 use lexer::{Position, Token};
 
 use crate::SimpleStateTable;
@@ -47,6 +45,8 @@ pub enum Statement {
     Modify(RcNode<Modifier>, RcNode<Expr>),
     Output(RcNode<Expr>),
     Show(RcNode<(bool, String)>),
+
+    // Sequence of Statements
     Sequence(RcNode<Vec<RcNode<Self>>>),
 
     // Expression Statement
@@ -85,36 +85,6 @@ impl From<RcNode<Expr>> for Statement {
         Self::Expr(value)
     }
 }
-
-// impl From<Expr> for Statement {
-//     fn from(value: Expr) -> Self {
-//         Self::Expr(value.into())
-//     }
-// }
-
-// impl From<Atom> for Statement {
-//     fn from(value: Atom) -> Self {
-//         Self::Expr(value.into())
-//     }
-// }
-
-// impl InnerExpr for Statement {
-//     fn expr(&self) -> &Expr {
-//         match self {
-//             Self::Expr(expr) => expr,
-//             _ => unimplemented!(),
-//         }
-//     }
-// }
-
-// impl InnerAtom for Statement {
-//     fn atom(&self) -> &Atom {
-//         match self {
-//             Self::Expr(expr) => expr.atom(),
-//             _ => unimplemented!(),
-//         }
-//     }
-// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
@@ -235,7 +205,7 @@ pub fn full_rc_node<'src, I, O>(
         'src,
         '_,
         &'src [Token],
-        extra::Full<Simple<'src, Token>, SimpleStateTable, ()>,
+        extra::Full<Rich<'src, Token>, SimpleStateTable, ()>,
     >,
 ) -> RcNode<O>
 where
@@ -334,32 +304,6 @@ impl SpanInfo {
             start,
             end,
         }
-    }
-}
-
-impl Span for SpanInfo {
-    type Context = String;
-
-    type Offset = usize;
-
-    fn new(context: Self::Context, range: std::ops::Range<Self::Offset>) -> Self {
-        Self {
-            context,
-            start: range.start,
-            end: range.end,
-        }
-    }
-
-    fn context(&self) -> Self::Context {
-        self.context.clone()
-    }
-
-    fn start(&self) -> Self::Offset {
-        self.start
-    }
-
-    fn end(&self) -> Self::Offset {
-        self.end
     }
 }
 

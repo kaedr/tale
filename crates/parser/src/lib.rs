@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs::read_to_string, ops::Range};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::read_to_string,
+    ops::Range,
+};
 
 use ast::{RcNode, Script, Table, rc_node};
 use chumsky::{Parser, extra::SimpleState};
@@ -129,6 +133,7 @@ impl Default for StateTable {
 }
 
 struct SymbolTable {
+    names: HashSet<String>,
     numerics: HashMap<String, isize>,
     strings: HashMap<String, String>,
     scripts: HashMap<String, RcNode<Script>>,
@@ -138,6 +143,7 @@ struct SymbolTable {
 impl SymbolTable {
     fn new() -> Self {
         Self {
+            names: HashSet::new(),
             numerics: HashMap::new(),
             strings: HashMap::new(),
             scripts: HashMap::new(),
@@ -149,6 +155,7 @@ impl SymbolTable {
     /// overwriting a previously stored value.
     fn insert(&mut self, name: String, value: SymbolValue) -> bool {
         match value {
+            SymbolValue::Placeholder => self.names.insert(name),
             SymbolValue::Numeric(v) => self.numerics.insert(name, v).is_some(),
             SymbolValue::String(v) => self.strings.insert(name, v).is_some(),
             SymbolValue::Script(node) => self.scripts.insert(name, node).is_some(),
@@ -164,6 +171,7 @@ impl Default for SymbolTable {
 }
 
 enum SymbolValue {
+    Placeholder,
     Numeric(isize),
     String(String),
     Script(RcNode<Script>),
@@ -172,7 +180,7 @@ enum SymbolValue {
 
 #[cfg(test)]
 mod tests {
-    use chumsky::{error::Simple, extra};
+    use chumsky::prelude::*;
 
     use super::*;
 
@@ -183,7 +191,7 @@ mod tests {
             'src,
             &'src [Token],
             T,
-            extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+            extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
         > + Clone,
     ) -> String
     where

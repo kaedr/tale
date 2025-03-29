@@ -2,14 +2,14 @@ use crate::{
     SimpleStateTable,
     ast::{Atom, Expr, RcNode, full_rc_node},
 };
-use chumsky::{Parser, error::Simple, extra, prelude::*};
+use chumsky::prelude::*;
 use lexer::Token;
 
 pub fn term<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     let (number, dice, value_name) = (number(), dice(), value_name());
     number.or(dice).or(value_name).map_with(full_rc_node)
@@ -40,13 +40,13 @@ impl From<Token> for Op {
 
 pub fn op<'src>(
     token: Token,
-) -> impl Parser<'src, &'src [Token], Op, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+) -> impl Parser<'src, &'src [Token], Op, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     just(token).map(Op::from)
 }
 
 pub fn qstring<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::String(s) => Atom::Str(s) }
 }
@@ -55,7 +55,7 @@ pub fn words<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     wordlike()
         .or(typical_punctuation())
@@ -69,7 +69,7 @@ pub fn words<'src>() -> impl Parser<
 }
 
 pub fn ident_maybe_sub<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     ident()
         .then_ignore(just(Token::Colon).or_not())
@@ -84,7 +84,7 @@ pub fn ident_maybe_sub<'src>()
 }
 
 pub fn ident<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     wordlike()
         .foldl(wordlike().repeated(), ident_normalize)
@@ -93,7 +93,7 @@ pub fn ident<'src>()
 }
 
 pub fn wordlike<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     // Raw keywords coming before numbers is important
     // As numbers numeric keyswords that stand alone are parsed as their value, not the word
@@ -101,7 +101,7 @@ pub fn wordlike<'src>()
 }
 
 pub fn raw_keywords<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! {
         Token::Once => Atom::Raw(Token::Once),
@@ -143,7 +143,7 @@ pub fn raw_keywords<'src>()
 }
 
 pub fn typical_punctuation<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! {
         Token::Ampersand => Atom::Raw(Token::Ampersand),
@@ -163,25 +163,25 @@ pub fn typical_punctuation<'src>()
 }
 
 pub fn value_name<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::Word(word) => Atom::Ident(word.to_lowercase()) }
 }
 
 pub fn word<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::Word(word) => Atom::Str(word) }
 }
 
 pub fn dice<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! { Token::DieRoll((x, y)) => Atom::Dice(x, y) }
 }
 
 pub fn number<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Simple<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     select! {
         Token::DoubleOught => Atom::Number(100),
@@ -198,6 +198,25 @@ pub fn number<'src>()
         Token::Nine => Atom::Number(9),
         Token::Ten => Atom::Number(10),
     }
+}
+
+// Match a character designating termination of the current statement
+// then, unless this character is the end of input, rewind so the character
+// is still available for use a delimiter
+pub fn terminator<'src>()
+-> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
++ Clone {
+    empty()
+        .then_ignore(one_of([
+            Token::Comma,
+            Token::Period,
+            Token::NewLines,
+            Token::RBracket,
+            Token::SemiColon,
+            Token::Tabs,
+        ]))
+        .rewind()
+        .or(end())
 }
 
 pub fn ident_normalize(l: Atom, r: Atom) -> Atom {
@@ -243,7 +262,10 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test4");
         let output = stubbed_parser(&mut table, &tokens, words());
-        assert_eq!("[found 'At' at 6..7]", format!("{}", output));
+        assert_eq!(
+            "[found 'At' at 6..7 expected something else, or end of input]",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -261,7 +283,10 @@ mod tests {
 
         let tokens = quick_tokens("A; Typo");
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
-        assert_eq!("[found 'SemiColon' at 1..2]", output);
+        assert_eq!(
+            "[found 'SemiColon' at 1..2 expected something else, 'Colon', or end of input]",
+            output
+        );
     }
 
     #[test]
@@ -293,7 +318,10 @@ mod tests {
 
         let tokens = quick_tokens("Not: Valid");
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("[found 'Colon' at 1..2]", output);
+        assert_eq!(
+            "[found 'Colon' at 1..2 expected something else, or end of input]",
+            output
+        );
     }
 
     #[test]
@@ -324,7 +352,10 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens[6..7], value_name());
         assert_eq!("Atom(cased_num83r5)", output);
         let output = stubbed_parser(&mut table, &tokens[7..], value_name());
-        assert_eq!("[found 'Digits(42)' at 0..1]", output);
+        assert_eq!(
+            "[found 'Digits(42)' at 0..1 expected something else]",
+            output
+        );
     }
 
     #[test]
@@ -373,6 +404,6 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens[12..13], number());
         assert_eq!("Atom(10)", output);
         let output = stubbed_parser(&mut table, &tokens[13..], number());
-        assert_eq!("[found 'Once' at 0..1]", output);
+        assert_eq!("[found 'Once' at 0..1 expected something else]", output);
     }
 }
