@@ -39,12 +39,12 @@ pub enum Statement {
 
     // 'Command' Statements
     Assignment(RcNode<Atom>, RcNode<Expr>),
-    Clear(RcNode<Duration>, RcNode<Expr>),
+    Clear(RcNode<Duration>, RcNode<Atom>),
     Invoke(RcNode<Atom>),
     Load(RcNode<Atom>),
-    Modify(RcNode<Modifier>, RcNode<Expr>),
+    Modify(RcNode<Modifier>, RcNode<Atom>),
     Output(RcNode<Expr>),
-    Show(RcNode<(bool, String)>),
+    Show(RcNode<(bool, Atom)>), // TODO: Better tag support
 
     // Sequence of Statements
     Sequence(RcNode<Vec<RcNode<Self>>>),
@@ -66,7 +66,12 @@ impl Display for Statement {
             Statement::Load(ident) => write!(f, "Load({})", ident),
             Statement::Modify(modifier, expr) => write!(f, "Modify({} {})", modifier, expr),
             Statement::Output(expr) => write!(f, "Output({})", expr),
-            Statement::Show(show) => write!(f, "Show({})", show.actual.1),
+            Statement::Show(show) => write!(
+                f,
+                "Show{}({})",
+                if show.actual.0 { "Tag" } else { "" },
+                show.actual.1
+            ),
             Statement::Sequence(statements) => {
                 let statements = statements
                     .actual
@@ -106,10 +111,10 @@ pub enum Expr {
     Roll(RcNode<Self>, RcNode<Self>),
 
     // Interpolation
-    Interpol(RcNode<Vec<RcNode<Statement>>>),
+    Interpol(Vec<RcNode<Statement>>),
 
     // List
-    List(RcNode<Vec<RcNode<Atom>>>),
+    List(Vec<RcNode<Atom>>),
 }
 
 impl Display for Expr {
@@ -127,7 +132,6 @@ impl Display for Expr {
             Expr::Roll(lhs, rhs) => write!(f, "Roll({}, {})", lhs, rhs),
             Expr::Interpol(exprs) => {
                 let exprs = exprs
-                    .actual
                     .iter()
                     .map(|expr| format!("{}", expr))
                     .collect::<Vec<_>>();
@@ -135,7 +139,6 @@ impl Display for Expr {
             }
             Expr::List(exprs) => {
                 let exprs = exprs
-                    .actual
                     .iter()
                     .map(|expr| format!("{}", expr))
                     .collect::<Vec<_>>();
@@ -261,24 +264,6 @@ impl<T> From<(T, Range<usize>, SourceInfo)> for Node<T> {
     }
 }
 
-impl<T> InnerExpr for Node<T>
-where
-    T: InnerExpr,
-{
-    fn expr(&self) -> &Expr {
-        self.actual.expr()
-    }
-}
-
-impl<T> InnerAtom for Node<T>
-where
-    T: InnerAtom,
-{
-    fn atom(&self) -> &Atom {
-        self.actual.atom()
-    }
-}
-
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct MetaData {
     position: Position,
@@ -310,7 +295,7 @@ impl SpanInfo {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Script {
     name: String,
-    statements: Vec<Statement>,
+    statements: Vec<RcNode<Statement>>,
 }
 
 impl Display for Script {
@@ -350,14 +335,20 @@ impl Display for TableGroup {
 pub enum TableRows {
     Empty,
     List(Vec<Atom>),
-    Flat(Vec<Node<Statement>>),
-    Keyed(Vec<(Node<Expr>, Node<Statement>)>),
+    Flat(Vec<RcNode<Statement>>),
+    Keyed(Vec<(RcNode<Expr>, RcNode<Statement>)>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Modifier {
     duration: Duration,
-    value: Expr,
+    value: RcNode<Expr>,
+}
+
+impl Modifier {
+    pub fn new(duration: Duration, value: RcNode<Expr>) -> Self {
+        Self { duration, value }
+    }
 }
 
 impl Display for Modifier {
@@ -369,7 +360,7 @@ impl Display for Modifier {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Duration {
     All,
-    Next(Expr),
+    Next(RcNode<Expr>),
 }
 
 impl Display for Duration {
@@ -379,12 +370,4 @@ impl Display for Duration {
             Duration::Next(expr) => write!(f, "Next({})", expr),
         }
     }
-}
-
-pub trait InnerExpr {
-    fn expr(&self) -> &Expr;
-}
-
-pub trait InnerAtom {
-    fn atom(&self) -> &Atom;
 }

@@ -1,7 +1,4 @@
 Set the_word = bird
-Set the_word to bird
+Set the_word to "bird"
 force = mass * acceleration
 minutes to midnight
-
-1d7 * 8 + 4 ^ ( 1d4 - 1 )
-8d6 / ( d100 % 10 )

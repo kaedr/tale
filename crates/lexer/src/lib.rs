@@ -875,8 +875,8 @@ mod tests {
         }
 
         #[test]
-        fn statement_assignment_expression() {
-            let contents = read_sample_file_to_string("11_statement_assignment_expression.tale");
+        fn statement_assignment() {
+            let contents = read_sample_file_to_string("11_statement_assignment.tale");
             let lex = Token::lexer(&contents);
             let token_vec: Vec<_> = lex.flatten().collect();
 
@@ -897,7 +897,7 @@ mod tests {
                     Token::Set,
                     Token::Word("the_word".into()),
                     Token::To,
-                    Token::Word("bird".into()),
+                    Token::String("bird".into()),
                     Token::NewLines
                 ]
             );
@@ -923,9 +923,16 @@ mod tests {
                     Token::NewLines
                 ]
             );
+        }
+
+        #[test]
+        fn statement_expression() {
+            let contents = read_sample_file_to_string("10_statement_expression.tale");
+            let lex = Token::lexer(&contents);
+            let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
-                token_vec[20..32],
+                token_vec[..12],
                 [
                     Token::DieRoll((1, 7)),
                     Token::Asterisk,
@@ -943,7 +950,7 @@ mod tests {
             );
 
             assert_eq!(
-                token_vec[32..],
+                token_vec[12..],
                 [
                     Token::DieRoll((8, 6)),
                     Token::Slash,
@@ -1031,11 +1038,7 @@ mod tests {
                 token_vec[7..],
                 [
                     Token::Invoke,
-                    Token::LBracket,
-                    Token::Roll,
-                    Token::On,
-                    Token::Word("Element".into()),
-                    Token::RBracket,
+                    Token::Word("last".into()),
                     Token::Word("rites".into()),
                     Token::NewLines
                 ]
@@ -1049,13 +1052,10 @@ mod tests {
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
-                token_vec[..8],
+                token_vec[..5],
                 [
                     Token::Load,
                     Token::Word("01_table_minimal".into()),
-                    Token::Period,
-                    Token::Word("tale".into()),
-                    Token::Word("03_table_list".into()),
                     Token::Period,
                     Token::Word("tale".into()),
                     Token::NewLines
@@ -1063,7 +1063,7 @@ mod tests {
             );
 
             assert_eq!(
-                token_vec[8..12],
+                token_vec[5..9],
                 [
                     Token::Load,
                     Token::Colon,
@@ -1073,7 +1073,7 @@ mod tests {
             );
 
             assert_eq!(
-                token_vec[12..],
+                token_vec[9..],
                 [
                     Token::Load,
                     Token::Ellipsis,

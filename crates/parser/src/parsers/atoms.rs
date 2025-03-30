@@ -51,12 +51,15 @@ pub fn qstring<'src>()
     select! { Token::String(s) => Atom::Str(s) }
 }
 
-pub fn words<'src>() -> impl Parser<
+pub fn words<'src, T>() -> impl Parser<
     'src,
     &'src [Token],
-    RcNode<Expr>,
+    RcNode<T>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
-> + Clone {
+> + Clone
+where
+    T: From<Atom>,
+{
     wordlike()
         .or(typical_punctuation())
         .repeated()
@@ -132,7 +135,8 @@ pub fn raw_keywords<'src>()
         Token::Next => Atom::Raw(Token::Next),
         Token::On => Atom::Raw(Token::On),
         Token::Output => Atom::Raw(Token::Output),
-        Token::Roll => Atom::Raw(Token::Roll),
+        // TODO: Figure out how to allow roll in some places without breaking a bunch of crap
+        // Token::Roll => Atom::Raw(Token::Roll),
         Token::Set => Atom::Raw(Token::Set),
         Token::Show => Atom::Raw(Token::Show),
         Token::Table => Atom::Raw(Token::Table),
@@ -148,17 +152,18 @@ pub fn typical_punctuation<'src>()
     select! {
         Token::Ampersand => Atom::Raw(Token::Ampersand),
         Token::Apostrophe => Atom::Raw(Token::Apostrophe),
-        Token::Comma => Atom::Raw(Token::Comma),
-        Token::Period => Atom::Raw(Token::Period),
-        Token::Ellipsis => Atom::Raw(Token::Ellipsis),
         Token::Bang => Atom::Raw(Token::Bang),
-        Token::Question => Atom::Raw(Token::Question),
         Token::Colon => Atom::Raw(Token::Colon),
-        Token::SemiColon => Atom::Raw(Token::SemiColon),
-        Token::LParens => Atom::Raw(Token::LParens),
-        Token::RParens => Atom::Raw(Token::RParens),
+        Token::Comma => Atom::Raw(Token::Comma),
         Token::Dash => Atom::Raw(Token::Dash),
+        Token::Ellipsis => Atom::Raw(Token::Ellipsis),
+        Token::LParens => Atom::Raw(Token::LParens),
         Token::Minus => Atom::Raw(Token::Minus),
+        Token::Period => Atom::Raw(Token::Period),
+        Token::Question => Atom::Raw(Token::Question),
+        Token::RParens => Atom::Raw(Token::RParens),
+        Token::SemiColon => Atom::Raw(Token::SemiColon),
+        Token::Slash => Atom::Raw(Token::Slash),
     }
 }
 
@@ -237,7 +242,7 @@ mod tests {
         table.add_source("test".into(), r"This is a test: Once upon a time...".into());
         table.lex_current();
         let tokens = &table.get_tokens("test");
-        let output = stubbed_parser(&mut table, &tokens, words());
+        let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
             r#"Atom("This is a test: Once upon a time...")"#,
             format!("{}", output)
@@ -246,7 +251,7 @@ mod tests {
         table.add_source("test2".into(), r"Let's do this!".into());
         table.lex_current();
         let tokens = &table.get_tokens("test2");
-        let output = stubbed_parser(&mut table, &tokens, words());
+        let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(r#"Atom("Let's do this!")"#, format!("{}", output));
 
         table.add_source(
@@ -255,13 +260,13 @@ mod tests {
         );
         table.lex_current();
         let tokens = &table.get_tokens("test3");
-        let output = stubbed_parser(&mut table, &tokens, words());
+        let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(r#"Atom("This is a (test):")"#, format!("{}", output));
 
         table.add_source("test4".into(), r"This is a test: Reject @ once".into());
         table.lex_current();
         let tokens = &table.get_tokens("test4");
-        let output = stubbed_parser(&mut table, &tokens, words());
+        let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
             "[found 'At' at 6..7 expected something else, or end of input]",
             format!("{}", output)
@@ -275,7 +280,7 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
         assert_eq!("Atom(group subtable)", output);
 
-        // TODO: This will probably create a bug somewhere
+        // TODO: This will probably create a bug somewhere, using quoted ids followed by not
         // At the moment, it's not clear where that bug will be
         let tokens = quick_tokens(r#""Treasure Hoard: Challenge 0-4": Magic Items"#);
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
@@ -308,9 +313,9 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, ident());
         assert_eq!("Atom(4 8 15 16 23 42)", output);
 
-        let tokens = quick_tokens("Once upon 1d4 times ten rolls");
+        let tokens = quick_tokens("Once upon 1d4 times ten goblins");
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(once upon 1d4 time ten roll)", output);
+        assert_eq!("Atom(once upon 1d4 time ten goblins)", output);
 
         let tokens = quick_tokens(r#""Treasure Hoard: Challenge 0-4""#);
         let output = stubbed_parser(&mut table, &tokens, ident());

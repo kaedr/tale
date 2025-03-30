@@ -6,7 +6,7 @@ use crate::{
     ast::{Atom, Expr, RcNode, full_rc_node},
 };
 
-use super::atoms::{self, ident_maybe_sub, number, terminator, words};
+use super::atoms::{self, ident_maybe_sub, number, qstring, terminator, words};
 
 pub fn any_expr<'src>() -> impl Parser<
     'src,
@@ -14,7 +14,10 @@ pub fn any_expr<'src>() -> impl Parser<
     RcNode<Expr>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    roll().or(lookup()).or(interpolation()).or(arithmetic())
+    roll()
+        .or(lookup())
+        .or(arithmetic().then_ignore(terminator()))
+        .or(interpolation())
 }
 
 pub fn roll<'src>() -> impl Parser<
@@ -30,15 +33,16 @@ pub fn roll<'src>() -> impl Parser<
         }));
 
     optional_repetition
-        .or(optional_roll)
         .then(roll_predicate().or_not())
         .map_with(|(lhs, rhs), extra| {
             if let Some(rhs) = rhs {
-                full_rc_node(Expr::Roll(lhs, rhs), extra)
+                (lhs, rhs)
             } else {
-                full_rc_node(Expr::Roll(full_rc_node(Atom::Number(1), extra), lhs), extra)
+                (full_rc_node(Atom::Number(1), extra), lhs)
             }
         })
+        .or(optional_roll.then(roll_predicate()))
+        .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Roll(lhs, rhs), extra))
 }
 
 fn roll_predicate<'src>() -> impl Parser<
@@ -107,7 +111,12 @@ pub fn interpolation<'src>() -> impl Parser<
     RcNode<Expr>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    todo()
+    qstring()
+        .map_with(full_rc_node)
+        .map_with(full_rc_node)
+        .repeated()
+        .collect()
+        .map_with(|statements, extra| full_rc_node(Expr::Interpol(statements), extra))
 }
 
 pub fn arithmetic<'src>() -> impl Parser<
