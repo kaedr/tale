@@ -60,6 +60,51 @@ pub fn table<'src>() -> impl Parser<
         })
 }
 
+pub fn table_group<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Statement>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    just(Token::Table)
+        .then(just(Token::Group))
+        .then(just(Token::Colon))
+        .ignore_then(ident().map_with(full_rc_node))
+        .then_ignore(just(Token::NewLines))
+        .then(tags_directive().or_not())
+        .then(table_group_body());
+    todo()
+}
+
+fn table_group_body<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    Vec<Table>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    sub_tables_row().then_with_ctx(table_group_rows());
+    todo()
+}
+
+fn sub_tables_row<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    (Atom, Vec<Atom>),
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    todo()
+}
+
+fn table_group_rows<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    (RcNode<Expr>, Vec<RcNode<TableRows>>),
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, (Atom, Vec<Atom>)>,
+> + Clone {
+    let statements = any_statement().separated_by(just(Token::Tabs));
+    row_key().then_with_ctx(statements.configure(|q, ctx| {}))
+}
+
 fn table_rows<'src>() -> impl Parser<
     'src,
     &'src [Token],
@@ -102,21 +147,6 @@ fn table_rows<'src>() -> impl Parser<
         .then_ignore(just(Token::NewLines).ignored().or(end()))
 }
 
-pub fn table_group<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
-> + Clone {
-    // just(Token::Table)
-    //     .then(just(Token::Group))
-    //     .then(just(Token::Colon))
-    //     .ignore_then(ident().map_with(full_rc_node))
-    //     .then_ignore(just(Token::NewLines))
-    //     .then(table_headings());
-    todo()
-}
-
 fn table_headings<'src>() -> impl Parser<
     'src,
     &'src [Token],
@@ -129,15 +159,7 @@ fn table_headings<'src>() -> impl Parser<
         .then_ignore(just(Token::NewLines))
         .map_with(|item, extra| (item, full_rc_node(Vec::new(), extra)));
 
-    let tags_directive = just(Token::Tag)
-        .then(just(Token::Colon))
-        .ignore_then(
-            ident()
-                .separated_by(just(Token::Comma))
-                .collect::<Vec<_>>()
-                .map_with(full_rc_node),
-        )
-        .then_ignore(just(Token::NewLines))
+    let tags_directive = tags_directive()
         .map_with(|item, extra| (full_rc_node(Expr::Empty, extra), item));
 
     // For the sake of the next person to look at this, let's review what's going on here:
@@ -172,6 +194,23 @@ fn table_headings<'src>() -> impl Parser<
                 full_rc_node(Vec::new(), extra),
             ))
         })
+}
+
+fn tags_directive<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Vec<Atom>>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    just(Token::Tag)
+        .then(just(Token::Colon))
+        .ignore_then(
+            ident()
+                .separated_by(just(Token::Comma))
+                .collect::<Vec<_>>()
+                .map_with(full_rc_node),
+        )
+        .then_ignore(just(Token::NewLines))
 }
 
 fn row_key<'src>() -> impl Parser<
@@ -219,7 +258,7 @@ mod tests {
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!(
-            "Table(Atom(colors), (Atom(1d6)) 6 Rows)",
+            "Table(Atom(colors), Atom(1d6), 6 Rows)",
             format!("{}", output)
         );
 
@@ -231,7 +270,7 @@ mod tests {
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!(
-            "Table(Atom(stub), (Atom(1d20)) 0 Rows)",
+            "Table(Atom(stub), Atom(1d20), 0 Rows)",
             format!("{}", output)
         );
 
@@ -245,7 +284,7 @@ mod tests {
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!(
-            "Table(Atom(basic), (Atom(1d3)) 3 Rows)",
+            "Table(Atom(basic), Atom(1d3), 3 Rows)",
             format!("{}", output)
         );
 
@@ -260,8 +299,50 @@ mod tests {
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!(
-            "Table(Atom(keyed), (Atom(1d7)) 4 Rows)",
+            "Table(Atom(keyed), Atom(1d7), 4 Rows)",
             format!("{}", output)
+        );
+    }
+
+    #[test]
+    fn parse_table_group() {
+        let mut table = StateTable::new();
+
+        let source = "Table Group: minimal
+                            1d3\texample
+                            1\ta
+                            2\tb
+                            3\tc
+                            End Table Group";
+        table.add_source("test".into(), source.into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = grubbed_parser(&mut table, &tokens, table_group());
+        assert_eq!(
+            "TableGroup(\nAtom(minimal):\n\
+            \tTable(Atom(minimal example), Atom(1d3), 3 Rows\n\
+            )",
+            output
+        );
+
+        let source = "Table Group: Animals
+                            Tags: animals
+                            1d3\tHouse\tBarn\tForest
+                            1\tCat\tCow\tSquirrel
+                            2\tDog\tHorse\tRabbit
+                            3\tMouse\tPig\tDeer
+                            End Table Group";
+        table.add_source("test".into(), source.into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = grubbed_parser(&mut table, &tokens, table_group());
+        assert_eq!(
+            "TableGroup(\nAtom(animals):\n\
+            \tTable(Atom(animals house), Atom(1d3), 3 Rows\n\
+            \tTable(Atom(animals barn), Atom(1d3), 3 Rows\n\
+            \tTable(Atom(animals forest), Atom(1d3), 3 Rows\n\
+            )",
+            output
         );
     }
 

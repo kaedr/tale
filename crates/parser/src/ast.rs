@@ -59,7 +59,7 @@ impl Display for Statement {
             Statement::Empty => write!(f, "Empty"),
             Statement::Script(script) => write!(f, "Script({})", script),
             Statement::Table(table) => write!(f, "Table({})", table),
-            Statement::TableGroup(group) => write!(f, "TableGroup({})", group),
+            Statement::TableGroup(group) => write!(f, "TableGroup(\n{})", group),
             Statement::Assignment(ident, expr) => write!(f, "Assignment({} = {})", ident, expr),
             Statement::Clear(duration, expr) => write!(f, "Clear({} {})", duration, expr),
             Statement::Invoke(ident) => write!(f, "Invoke({})", ident),
@@ -391,19 +391,24 @@ impl Table {
 
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, ({}) {} Rows", self.name, self.roll, self.rows)
+        write!(f, "{}, {}, {} Rows", self.name, self.roll, self.rows)
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableGroup {
     name: RcNode<Atom>,
+    tags: RcNode<Vec<Atom>>,
     sub_tables: Vec<RcNode<Table>>,
 }
 
 impl Display for TableGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        writeln!(f, "\t{}:", self.name)?;
+        for table in &self.sub_tables {
+            writeln!(f, "{}", table)?;
+        }
+        Ok(())
     }
 }
 
