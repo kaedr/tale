@@ -47,7 +47,7 @@ fn get_string_content(lex: &mut Lexer<Token>) -> Option<String> {
 
 /// All the Tokens that the lexer can produce
 #[rustfmt::skip]
-#[derive(Logos, Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Logos, Debug, PartialEq, Eq, PartialOrd, Hash, Clone)]
 #[logos(extras = (usize, Vec<(usize, usize)>))]
 #[logos(skip r"[ ]+")]
 pub enum Token {

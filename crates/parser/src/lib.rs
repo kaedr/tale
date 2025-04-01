@@ -115,14 +115,17 @@ impl StateTable {
 
     fn spanslate(&self, span: &Range<usize>) -> (String, Range<usize>, Position) {
         if let Some(tokens) = self.tokens.get(&self.current) {
-            (
-                self.current.clone(),
-                tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end,
-                tokens[span.start].2,
-            )
-        } else {
-            (self.current.clone(), 0..0, (0, 0))
+            if tokens.len() > 0 {
+                // TODO: Clean up once https://github.com/rust-lang/rust/issues/53667
+                // is stabilized
+                return (
+                    self.current.clone(),
+                    tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end,
+                    tokens[span.start].2,
+                );
+            }
         }
+        (self.current.clone(), 0..0, (0, 0))
     }
 }
 
@@ -200,6 +203,26 @@ mod tests {
         let mut state = SimpleState::from(table);
         match parser.parse_with_state(&tokens, &mut state).into_result() {
             Ok(output) => format!("{}", output),
+            Err(err) => format!("{:?}", err),
+        }
+    }
+
+    pub(crate) fn grubbed_parser<'src, T>(
+        table: &'src mut StateTable,
+        tokens: &'src [Token],
+        parser: impl Parser<
+            'src,
+            &'src [Token],
+            T,
+            extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+        > + Clone,
+    ) -> String
+    where
+        T: std::fmt::Debug,
+    {
+        let mut state = SimpleState::from(table);
+        match parser.parse_with_state(&tokens, &mut state).into_result() {
+            Ok(output) => format!("{:?}", output),
             Err(err) => format!("{:?}", err),
         }
     }

@@ -93,6 +93,10 @@ impl From<RcNode<Expr>> for Statement {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
+    // Empty Expression
+    Empty,
+
+    // Atom
     Atom(Atom),
 
     // Unary Ops
@@ -111,15 +115,16 @@ pub enum Expr {
     Roll(RcNode<Self>, RcNode<Self>),
 
     // Interpolation
-    Interpol(Vec<RcNode<Statement>>),
+    Interpol(RcNode<Vec<RcNode<Self>>>),
 
     // List
-    List(Vec<RcNode<Atom>>),
+    List(RcNode<Vec<Atom>>),
 }
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Expr::Empty => write!(f, "Empty"),
             Expr::Atom(atom) => write!(f, "{}", atom),
             Expr::Neg(expr) => write!(f, "Neg({})", expr),
             Expr::Add(lhs, rhs) => write!(f, "Add({} + {})", lhs, rhs),
@@ -132,6 +137,7 @@ impl Display for Expr {
             Expr::Roll(lhs, rhs) => write!(f, "Roll({}, {})", lhs, rhs),
             Expr::Interpol(exprs) => {
                 let exprs = exprs
+                    .actual
                     .iter()
                     .map(|expr| format!("{}", expr))
                     .collect::<Vec<_>>();
@@ -139,6 +145,7 @@ impl Display for Expr {
             }
             Expr::List(exprs) => {
                 let exprs = exprs
+                    .inner()
                     .iter()
                     .map(|expr| format!("{}", expr))
                     .collect::<Vec<_>>();
@@ -163,7 +170,7 @@ impl From<Atom> for Expr {
 //     }
 // }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Atom {
     Number(usize),
     Dice(usize, usize),
@@ -182,6 +189,19 @@ impl Atom {
             Self::Raw(token) => token.to_lowercase(),
         }
     }
+
+    pub fn range(&self, other: &Self) -> Vec<Self> {
+        (*self.number()..=*other.number())
+            .map(|val| Self::Number(val))
+            .collect()
+    }
+
+    pub fn number(&self) -> &usize {
+        match self {
+            Self::Number(inner) => inner,
+            _ => unimplemented!(),
+        }
+    }
 }
 
 impl Display for Atom {
@@ -192,6 +212,29 @@ impl Display for Atom {
             Atom::Str(s) => write!(f, r#"Atom("{}")"#, s),
             Atom::Ident(s) => write!(f, "Atom({})", s),
             Atom::Raw(token) => write!(f, "Atom({})", token),
+        }
+    }
+}
+
+impl PartialOrd for Atom {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Atom::Number(l), Atom::Number(r)) => l.partial_cmp(r),
+            (Atom::Dice(ln, ls), Atom::Dice(rn, rs)) => (ln * ls).partial_cmp(&(rn * rs)),
+            (Atom::Str(l), Atom::Str(r)) => l.partial_cmp(r),
+            (Atom::Ident(l), Atom::Ident(r)) => l.partial_cmp(r),
+            (Atom::Raw(l), Atom::Raw(r)) => l.partial_cmp(r),
+            _ => None,
+        }
+    }
+}
+
+impl Ord for Atom {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if let Some(order) = self.partial_cmp(other) {
+            order
+        } else {
+            self.to_string().cmp(&other.to_string())
         }
     }
 }
@@ -229,6 +272,16 @@ pub struct Node<T> {
     meta: MetaData,
     token_span: SpanInfo,
     source_span: SpanInfo,
+}
+
+impl<T> Node<T> {
+    pub fn inner(&self) -> &T {
+        &self.actual
+    }
+
+    pub fn details(&self) -> (&MetaData, &SpanInfo, &SpanInfo) {
+        (&self.meta, &self.token_span, &self.source_span)
+    }
 }
 
 impl<T> Display for Node<T>
@@ -294,34 +347,57 @@ impl SpanInfo {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Script {
-    name: String,
+    name: RcNode<Atom>,
     statements: Vec<RcNode<Statement>>,
+}
+
+impl Script {
+    pub fn new(name: RcNode<Atom>, statements: Vec<RcNode<Statement>>) -> Self {
+        Self { name, statements }
+    }
 }
 
 impl Display for Script {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "{}, {} Statements", self.name, self.statements.len())
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Table {
-    name: String,
-    roll: Expr,
-    tags: Vec<String>,
+    name: RcNode<Atom>,
+    roll: RcNode<Expr>,
+    tags: RcNode<Vec<Atom>>,
     modifiers: Vec<Modifier>,
-    rows: TableRows,
+    rows: RcNode<TableRows>,
+}
+
+impl Table {
+    pub fn new(
+        name: RcNode<Atom>,
+        roll: RcNode<Expr>,
+        tags: RcNode<Vec<Atom>>,
+        rows: RcNode<TableRows>,
+    ) -> Self {
+        Self {
+            name,
+            roll,
+            tags,
+            modifiers: Vec::new(),
+            rows,
+        }
+    }
 }
 
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "{}, ({}) {} Rows", self.name, self.roll, self.rows)
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableGroup {
-    name: String,
+    name: RcNode<Atom>,
     sub_tables: Vec<RcNode<Table>>,
 }
 
@@ -337,6 +413,79 @@ pub enum TableRows {
     List(Vec<Atom>),
     Flat(Vec<RcNode<Statement>>),
     Keyed(Vec<(RcNode<Expr>, RcNode<Statement>)>),
+}
+
+impl TableRows {
+    pub fn calc_roll(&self) -> Expr {
+        match self {
+            TableRows::Empty => Expr::Empty,
+            TableRows::List(atoms) => Expr::Atom(Atom::Dice(1, atoms.len())),
+            TableRows::Flat(nodes) => Expr::Atom(Atom::Dice(1, nodes.len())),
+            TableRows::Keyed(rows) => calc_keyed_roll(rows),
+        }
+    }
+}
+
+impl Display for TableRows {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let num_rows = match self {
+            TableRows::Empty => 0,
+            TableRows::List(atoms) => atoms.len(),
+            TableRows::Flat(nodes) => nodes.len(),
+            TableRows::Keyed(items) => items.len(),
+        };
+        write!(f, "{}", num_rows)
+    }
+}
+
+impl From<Vec<Atom>> for TableRows {
+    fn from(value: Vec<Atom>) -> Self {
+        TableRows::List(value)
+    }
+}
+
+fn calc_keyed_roll<T>(rows: &Vec<(RcNode<Expr>, T)>) -> Expr {
+    let (mut bottom, mut top) = (usize::MAX, usize::MIN);
+    for (key_list, _) in rows {
+        let (low, high) = match key_list.inner() {
+            Expr::List(keys) => (
+                keys.actual
+                    .iter()
+                    .min()
+                    .unwrap_or(&Atom::Number(usize::MAX))
+                    .number(),
+                keys.actual
+                    .iter()
+                    .max()
+                    .unwrap_or(&Atom::Number(usize::MIN))
+                    .number(),
+            ),
+            _ => unreachable!(),
+        };
+        bottom = bottom.min(*low);
+        top = top.max(*high);
+    }
+    let first = rows.first().unwrap().0.details();
+    let last = rows.last().unwrap().0.details();
+    let offset = bottom.saturating_sub(1);
+    println!("{}, {}", top, offset);
+    if offset != 0 {
+        let die_roll = Rc::new(Node {
+            actual: Expr::Atom(Atom::Dice(1, top - offset)),
+            meta: MetaData::new(first.0.position),
+            token_span: SpanInfo::new(first.1.context.clone(), first.1.start, last.1.end),
+            source_span: SpanInfo::new(first.2.context.clone(), first.2.start, last.2.end),
+        });
+        let modifier = Rc::new(Node {
+            actual: Expr::Atom(Atom::Number(offset)),
+            meta: MetaData::new(first.0.position),
+            token_span: SpanInfo::new(first.1.context.clone(), first.1.start, last.1.end),
+            source_span: SpanInfo::new(first.2.context.clone(), first.2.start, last.2.end),
+        });
+        Expr::Add(die_roll, modifier)
+    } else {
+        Expr::Atom(Atom::Dice(1, top))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

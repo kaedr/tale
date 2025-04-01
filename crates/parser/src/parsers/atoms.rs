@@ -63,6 +63,7 @@ where
     wordlike()
         .or(typical_punctuation())
         .repeated()
+        .at_least(1)
         .collect::<Vec<_>>()
         .map_with(|_, extra| {
             let span = extra.span().into_range();

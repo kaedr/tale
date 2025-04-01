@@ -1,4 +1,4 @@
-use chumsky::{container::Seq, prelude::*};
+use chumsky::prelude::*;
 use lexer::Token;
 
 use crate::{
@@ -8,8 +8,17 @@ use crate::{
 
 use super::{
     atoms::{ident, ident_maybe_sub, number, qstring, terminator, value_name, words},
-    expressions::{any_expr, arithmetic, interpolation},
+    expressions::{any_expr, arithmetic, implied_roll_expr, interpolation},
 };
+
+pub fn seq_or_statement<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Statement>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    statement_sequence().or(any_statement())
+}
 
 pub fn any_statement<'src>() -> impl Parser<
     'src,
@@ -26,7 +35,34 @@ pub fn chainable_statement<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    assignment().or(expression()).or(clear()).or(invoke()).or(modify())
+    assignment()
+        .or(expression())
+        .or(clear())
+        .or(invoke())
+        .or(modify())
+}
+
+pub fn statement_sequence<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Statement>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    let chained = chainable_statement()
+        .separated_by(just(Token::Comma).then(just(Token::And).or_not()).ignored())
+        .at_least(1)
+        .collect::<Vec<_>>();
+
+    let implied_roll_expr = implied_roll_expr()
+        .then_ignore(terminator())
+        .map_with(|implied_roll, extra| vec![full_rc_node(implied_roll, extra)]);
+
+    chained
+        .or(any_statement().map(|stmt| vec![stmt]))
+        .or(implied_roll_expr)
+        .delimited_by(just(Token::LBracket), just(Token::RBracket))
+        .map_with(full_rc_node)
+        .map_with(|items, extra| full_rc_node(Statement::Sequence(items), extra))
 }
 
 pub fn assignment<'src>() -> impl Parser<
@@ -200,7 +236,7 @@ mod tests {
         let mut table = StateTable::new();
         let check_vals = vec![
             "Assignment(Atom(the_word) = Atom(bird))",
-            r#"Assignment(Atom(the_word) = Interpol(Expr(Atom("bird"))))"#,
+            r#"Assignment(Atom(the_word) = Interpol(Atom("bird")))"#,
             "Assignment(Atom(force) = Mul(Atom(mass) * Atom(acceleration)))",
             "Assignment(Atom(minutes) = Atom(midnight))",
         ];
@@ -289,12 +325,14 @@ mod tests {
         let mut table = StateTable::new();
         let check_vals = vec![
             r#"Output(Interpol(Atom("There are"), Sub(Atom(1d6) - Atom(1)), Atom("lights illuminated out of a total of 5.")))"#,
-            r#"Output(Interpol("A lovely string"))"#,
+            r#"Output(Interpol(Atom("A lovely string")))"#,
         ];
 
         let lines = read_sample_lines("17_statement_output.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
+            table.add_source("test".into(), line.unwrap());
+            table.lex_current();
+            let tokens = &table.get_tokens("test");
             let output = stubbed_parser(&mut table, &tokens, output());
             assert_eq!(check_vals[index], format!("{}", output));
         }

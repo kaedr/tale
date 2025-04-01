@@ -55,7 +55,6 @@ fn roll_predicate<'src>() -> impl Parser<
     let pred_two = just(Token::On)
         .then(just(Token::Table).then(just(Token::Colon)).or_not())
         .or_not()
-        .map(|stuff| println!("{:?}", stuff))
         .ignore_then(ident_maybe_sub())
         .map_with(full_rc_node);
     let pred_three = just(Token::On).or_not().ignore_then(
@@ -111,12 +110,43 @@ pub fn interpolation<'src>() -> impl Parser<
     RcNode<Expr>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    qstring()
-        .map_with(full_rc_node)
-        .map_with(full_rc_node)
+    let qstr_map = qstring().map_with(full_rc_node);
+
+    let words_map = words();
+
+    qstr_map
+        .or(words_map)
+        .or(embed_expr())
         .repeated()
-        .collect()
-        .map_with(|statements, extra| full_rc_node(Expr::Interpol(statements), extra))
+        .collect::<Vec<_>>()
+        .map_with(full_rc_node)
+        .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra))
+}
+
+fn embed_expr<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Expr>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    implied_roll_expr()
+        .then_ignore(terminator())
+        .or(arithmetic().then_ignore(terminator()))
+        .delimited_by(just(Token::LBracket), just(Token::RBracket))
+}
+
+pub fn implied_roll_expr<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Expr>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    ident_maybe_sub()
+        .map_with(full_rc_node)
+        .map_with(|target, extra| {
+            let implied_rep = full_rc_node(Atom::Number(1), extra);
+            full_rc_node(Expr::Roll(implied_rep, target), extra)
+        })
 }
 
 pub fn arithmetic<'src>() -> impl Parser<
@@ -178,6 +208,38 @@ fn fold_infix<'src>(
         atoms::Op::Mod => full_rc_node(Expr::Mod(lhs, rhs), extra),
         atoms::Op::Pow => full_rc_node(Expr::Pow(lhs, rhs), extra),
     }
+}
+
+pub fn number_range_list<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Expr>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    let num_range = number()
+        .then(
+            one_of([Token::Minus, Token::Dash, Token::Ellipsis])
+                .ignore_then(number())
+                .or_not(),
+        )
+        .map(|(lhs, rhs)| {
+            if let Some(rhs) = rhs {
+                lhs.range(&rhs)
+            } else {
+                vec![lhs]
+            }
+        });
+
+    num_range
+        .clone()
+        .foldl(
+            just(Token::Comma).ignore_then(num_range).repeated(),
+            |mut lhs, mut rhs| {
+                lhs.append(&mut rhs);
+                lhs
+            },
+        )
+        .map_with(|items, extra| full_rc_node(Expr::List(full_rc_node(items, extra)), extra))
 }
 
 #[cfg(test)]
@@ -260,7 +322,12 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
         assert_eq!("Atom(1)", format!("{}", output));
 
-        let tokens = quick_tokens("On Table: Kingdom of [Current Kingdom]");
+        table.add_source(
+            "test".into(),
+            "On Table: Kingdom of [Current Kingdom]".into(),
+        );
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
         assert_eq!(
             r#"Interpol(Atom("Kingdom of"), Roll(Atom(1), Atom(current kingdom)))"#,
@@ -269,11 +336,15 @@ mod tests {
 
         let tokens = quick_tokens("Table: [Food]");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("Atom(stuff)", format!("{}", output));
+        assert_eq!("Interpol(Roll(Atom(1), Atom(food)))", format!("{}", output));
 
         let tokens = quick_tokens("Table: @");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("[found 'At' at 2..3]", format!("{}", output));
+        assert_eq!(
+            "[found 'At' at 2..3 expected something else, 'Comma', 'Period', 'NewLines'\
+        , 'RBracket', 'SemiColon', 'Tabs', end of input, or 'LBracket']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -351,45 +422,64 @@ mod tests {
     #[test]
     fn parse_interpolation() {
         let mut table = StateTable::new();
-        let tokens = quick_tokens("valid");
+        table.add_source("test".into(), "valid".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(r#"Interpol(Atom("valid"))"#, format!("{}", output));
 
-        let tokens = quick_tokens("'also valid'");
+        table.add_source("test".into(), "`also valid`".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(r#"Interpol(Atom("also valid"))"#, format!("{}", output));
 
-        let tokens = quick_tokens("weirdly enough 'also valid'");
+        table.add_source("test".into(), "weirdly enough `also valid`".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"Interpol(Atom("weirdly enough"), Atom("also valid"))"#,
             format!("{}", output)
         );
 
-        let tokens = quick_tokens("simple expression: [1 + 2]");
+        table.add_source("test".into(), "simple expression: [1 + 2]".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
-            r#"Interpol(Atom("simple expression"), Add(Atom(1) + Atom(2)))"#,
+            r#"Interpol(Atom("simple expression:"), Add(Atom(1) + Atom(2)))"#,
             format!("{}", output)
         );
 
-        let tokens = quick_tokens("another [1d4 + 3] things");
+        table.add_source("test".into(), "another [1d4 + 3] things".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"Interpol(Atom("another"), Add(Atom(1d4) + Atom(3)), Atom("things"))"#,
             format!("{}", output)
         );
 
-        let tokens = quick_tokens("what's in the [Box]?");
+        table.add_source("test".into(), "what's in the [Box]?".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"Interpol(Atom("what's in the"), Roll(Atom(1), Atom(box)), Atom("?"))"#,
             format!("{}", output)
         );
 
-        let tokens = quick_tokens("[one @ two]");
+        table.add_source("test".into(), "[one @ two]".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, interpolation());
-        assert_eq!("[found 'At' at 2..3]", format!("{}", output));
+        assert_eq!(
+            "[found 'At' at 2..3 expected something else, 'Colon', 'Comma', 'Period'\
+        , 'NewLines', 'RBracket', 'SemiColon', 'Tabs', end of input, 'Caret', 'Asterisk', 'Slash'\
+        , 'Modulo', 'Plus', or 'Minus']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -442,6 +532,36 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
         assert_eq!(
             "[found 'At' at 1..2 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus', or end of input]",
+            format!("{}", output)
+        );
+    }
+
+    #[test]
+    fn parse_number_range_list() {
+        let mut table = StateTable::new();
+        let tokens = quick_tokens("1");
+        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        assert_eq!("[Atom(1)]", format!("{}", output));
+
+        let tokens = quick_tokens("1-3");
+        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        assert_eq!("[Atom(1), Atom(2), Atom(3)]", format!("{}", output));
+
+        let tokens = quick_tokens("97-00");
+        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        assert_eq!(
+            "[Atom(97), Atom(98), Atom(99), Atom(100)]",
+            format!("{}", output)
+        );
+
+        let tokens = quick_tokens("1,3");
+        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        assert_eq!("[Atom(1), Atom(3)]", format!("{}", output));
+
+        let tokens = quick_tokens("1-3,5,8-10");
+        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        assert_eq!(
+            "[Atom(1), Atom(2), Atom(3), Atom(5), Atom(8), Atom(9), Atom(10)]",
             format!("{}", output)
         );
     }
