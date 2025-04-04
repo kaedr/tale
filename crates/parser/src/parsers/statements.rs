@@ -26,7 +26,14 @@ pub fn any_statement<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    chainable_statement().or(load()).or(output()).or(show())
+    chainable_statement()
+        .or(load())
+        .or(output())
+        .or(show())
+        .or(one_of([Token::Dash, Token::Minus])
+            .then(terminator())
+            .ignored()
+            .map_with(|_, extra| full_rc_node(Statement::Empty, extra)))
 }
 
 pub fn chainable_statement<'src>() -> impl Parser<
@@ -230,6 +237,29 @@ mod tests {
     use crate::{StateTable, tests::stubbed_parser};
 
     use super::*;
+
+    #[test]
+    fn parse_nonce() {
+        let mut table = StateTable::new();
+
+        table.add_source("test".into(), r"-".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        assert_eq!("Empty", format!("{}", output));
+
+        table.add_source("test".into(), r"–".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        assert_eq!("Empty", format!("{}", output));
+
+        table.add_source("test".into(), r"—".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        assert_eq!("Empty", format!("{}", output));
+    }
 
     #[test]
     fn parse_assignment() {

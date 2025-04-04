@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::{ops::Range, rc::Rc};
 
 use chumsky::prelude::*;
+use chumsky::span::Span;
 use lexer::{Position, Token};
 
 use crate::SimpleStateTable;
@@ -88,6 +89,12 @@ impl Display for Statement {
 impl From<RcNode<Expr>> for Statement {
     fn from(value: RcNode<Expr>) -> Self {
         Self::Expr(value)
+    }
+}
+
+impl From<RcNode<TableGroup>> for Statement {
+    fn from(value: RcNode<TableGroup>) -> Self {
+        Statement::TableGroup(value)
     }
 }
 
@@ -282,6 +289,10 @@ impl<T> Node<T> {
     pub fn details(&self) -> (&MetaData, &SpanInfo, &SpanInfo) {
         (&self.meta, &self.token_span, &self.source_span)
     }
+
+    pub fn token_span(&self) -> SimpleSpan {
+        SimpleSpan::new((), self.token_span.start()..self.token_span.end())
+    }
 }
 
 impl<T> Display for Node<T>
@@ -345,6 +356,28 @@ impl SpanInfo {
     }
 }
 
+impl Span for SpanInfo {
+    type Context = String;
+
+    type Offset = usize;
+
+    fn start(&self) -> usize {
+        self.start
+    }
+
+    fn end(&self) -> usize {
+        self.end
+    }
+
+    fn new(context: Self::Context, range: Range<Self::Offset>) -> Self {
+        Self { context, start: range.start(), end: range.end() }
+    }
+
+    fn context(&self) -> Self::Context {
+        self.context.clone()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Script {
     name: RcNode<Atom>,
@@ -402,11 +435,21 @@ pub struct TableGroup {
     sub_tables: Vec<RcNode<Table>>,
 }
 
+impl TableGroup {
+    pub fn new(name: RcNode<Atom>, tags: RcNode<Vec<Atom>>, sub_tables: Vec<RcNode<Table>>) -> Self {
+        Self {
+            name,
+            tags,
+            sub_tables,
+        }
+    }
+}
+
 impl Display for TableGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "\t{}:", self.name)?;
         for table in &self.sub_tables {
-            writeln!(f, "{}", table)?;
+            writeln!(f, "\t\t{}", table)?;
         }
         Ok(())
     }
