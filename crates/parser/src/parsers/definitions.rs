@@ -130,15 +130,17 @@ fn table_group_rows<'src>() -> impl Parser<
         .collect::<Vec<_>>()
         .try_map_with(|rows, extra| {
             let width = rows[0].len();
-            let mut cur_row: usize = 0;
             rows.iter().map(|row| println!("{:#?}", row.last().unwrap().1.token_span())).count();
-            rows.iter().enumerate()
-                .all(|(idx, row)| {cur_row = idx; println!("--->{:#?}", row.last().unwrap()); row.len() == width})
-                .then(|| ())
-                .ok_or(Rich::custom(
-                    SimpleSpan::new((), 0..17),
-                    "Table Group rows must all have same number of columns",
-                ))?;
+            for row in rows.iter() {
+
+            }
+            // rows.iter().enumerate()
+            //     .all(|(idx, row)| {cur_row = idx; println!("--->{:#?}", row.last().unwrap()); row.len() == width})
+            //     .then(|| ())
+            //     .ok_or(Rich::custom(
+            //         SimpleSpan::new((), 0..17),
+            //         "Table Group rows must all have same number of columns",
+            //     ))?;
             let iter_rows = rows
                 .into_iter()
                 .map(|row| row.into_iter())
