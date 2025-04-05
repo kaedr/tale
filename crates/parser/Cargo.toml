@@ -7,3 +7,4 @@ edition = "2024"
 chumsky = { version = "0.10", features = ["pratt"] }
 logos = "0.15"
 lexer = { path = "../lexer" }
+ariadne = "0.5.1"

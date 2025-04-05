@@ -2,7 +2,8 @@ use chumsky::prelude::*;
 use lexer::Token;
 
 use crate::{
-    ast::{full_rc_node, Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows}, SimpleStateTable
+    SimpleStateTable,
+    ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
 };
 
 use super::{
@@ -22,7 +23,9 @@ pub fn script<'src>() -> impl Parser<
         .ignore_then(ident().map_with(full_rc_node))
         .then_ignore(just(Token::NewLines))
         .then(
-            seq_or_statement()
+            just(Token::Tabs)
+                .or_not()
+                .ignore_then(seq_or_statement())
                 .then_ignore(just(Token::NewLines))
                 .repeated()
                 .collect::<Vec<_>>(),
@@ -70,12 +73,18 @@ pub fn table_group<'src>() -> impl Parser<
         .then(just(Token::Colon))
         .ignore_then(ident().map_with(full_rc_node::<Atom, Atom>))
         .then_ignore(just(Token::NewLines))
-        .then(tags_directive().or_not().map_with(|maybe_tags, extra| {
-            maybe_tags.unwrap_or(full_rc_node(Vec::new(), extra))
-        }))
+        .then(
+            tags_directive().or_not().map_with(|maybe_tags, extra| {
+                maybe_tags.unwrap_or(full_rc_node(Vec::new(), extra))
+            }),
+        )
         .then(sub_tables_row())
         .then(table_group_rows())
-        .then_ignore(just(Token::End).then(just(Token::Table)).then(just(Token::Group).or_not()))
+        .then_ignore(
+            just(Token::End)
+                .then(just(Token::Table))
+                .then(just(Token::Group).or_not()),
+        )
         .then_ignore(just(Token::NewLines).ignored().or(end()))
         .try_map_with(|(((name, tags), (roll, sub_names)), sub_rows), extra| {
             if sub_names.len() != sub_rows.len() {
@@ -84,12 +93,18 @@ pub fn table_group<'src>() -> impl Parser<
                     "Table Group rows must all have same number of columns",
                 ));
             }
-            let sub_tables = sub_names.into_iter().zip(sub_rows.into_iter()).map(|(sub_name, rows)| {
-                let full_name = full_rc_node(ident_normalize(name.inner().clone(), sub_name), extra);
-                let table_value = Table::new(full_name, roll.clone(), tags.clone(), rows);
-                full_rc_node(table_value, extra)
-            }).collect();
-            let value: RcNode<TableGroup> = full_rc_node(TableGroup::new(name, tags, sub_tables), extra);
+            let sub_tables = sub_names
+                .into_iter()
+                .zip(sub_rows.into_iter())
+                .map(|(sub_name, rows)| {
+                    let full_name =
+                        full_rc_node(ident_normalize(name.inner().clone(), sub_name), extra);
+                    let table_value = Table::new(full_name, roll.clone(), tags.clone(), rows);
+                    full_rc_node(table_value, extra)
+                })
+                .collect();
+            let value: RcNode<TableGroup> =
+                full_rc_node(TableGroup::new(name, tags, sub_tables), extra);
             Ok(full_rc_node(value, extra))
         })
 }
@@ -100,7 +115,8 @@ fn sub_tables_row<'src>() -> impl Parser<
     (RcNode<Expr>, Vec<Atom>),
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    dice().map_with(full_rc_node)
+    dice()
+        .map_with(full_rc_node)
         .then_ignore(just(Token::Tabs))
         .then(ident().separated_by(just(Token::Tabs)).collect::<Vec<_>>())
         .then_ignore(just(Token::NewLines))
@@ -115,32 +131,33 @@ fn table_group_rows<'src>() -> impl Parser<
     row_key()
         .then(
             any_statement()
-                .separated_by(just(Token::Tabs))
+                .separated_by( one_of([Token::Period, Token::SemiColon]).or_not().then(just(Token::Tabs)))
                 .collect::<Vec<_>>(),
         )
-        .map_with(|(key, items), extra| {
+        .map(|(key, items)| {
             items
                 .into_iter()
                 .map(|item| (key.clone(), item))
                 .collect::<Vec<_>>()
         })
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(one_of([Token::Period, Token::SemiColon]).or_not().then(just(Token::NewLines)))
         .repeated()
         .at_least(1)
         .collect::<Vec<_>>()
         .try_map_with(|rows, extra| {
             let width = rows[0].len();
-            rows.iter().map(|row| println!("{:#?}", row.last().unwrap().1.token_span())).count();
-            for row in rows.iter() {
-
+            for (idx, row) in rows.iter().enumerate() {
+                if row.len() != width {
+                    let err = Err(Rich::custom(
+                        // TODO: Figure out why this span doesn't populate up to the final error.
+                        SimpleSpan::new((), 9999..77777),
+                        format!("Table Group rows must all have same number of columns, row {} has {} columns but expected {}",
+                            idx + 1, row.len(), width
+                        ),
+                    ));
+                    return err;
+                }
             }
-            // rows.iter().enumerate()
-            //     .all(|(idx, row)| {cur_row = idx; println!("--->{:#?}", row.last().unwrap()); row.len() == width})
-            //     .then(|| ())
-            //     .ok_or(Rich::custom(
-            //         SimpleSpan::new((), 0..17),
-            //         "Table Group rows must all have same number of columns",
-            //     ))?;
             let iter_rows = rows
                 .into_iter()
                 .map(|row| row.into_iter())
@@ -200,8 +217,10 @@ fn table_rows<'src>() -> impl Parser<
     list_form
         .or(flat_form
             .or(keyed_form)
-            .or(empty().map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
             .then_ignore(just(Token::End).then(just(Token::Table))))
+        .or(just(Token::End)
+            .then(just(Token::Table))
+            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
         .then_ignore(just(Token::NewLines).ignored().or(end()))
 }
 
@@ -427,7 +446,6 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, sub_tables_row());
         // Assert we parsed a single die roll and 3 columns.
-        println!("{}", output);
         assert_eq!(1, output.matches("Dice(1, 6)").count());
         assert_eq!(3, output.matches("Ident(").count());
     }
@@ -471,7 +489,10 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, table_group_rows());
         // Check the uneven rows case:
-        assert_eq!("[Table Group rows must all have same number of columns at 0..14]", output);
+        assert_eq!(
+            "[Table Group rows must all have same number of columns, row 2 has 1 columns but expected 2 at 14..14]",
+            output
+        );
     }
 
     #[test]
@@ -502,7 +523,6 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, table_headings());
-        //println!("{:?}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("actual: Empty"));
         assert!(output.contains("[Ident(\"dark\")"));
@@ -514,7 +534,6 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, table_headings());
-        //println!("{:?}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 6))"));
         assert!(output.contains("[Ident(\"this\")"));
@@ -527,7 +546,6 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, table_headings());
-        println!("{:?}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(2, 20)"));
         assert!(output.contains("[Ident(\"the other\")"));

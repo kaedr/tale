@@ -12,7 +12,7 @@ pub fn term<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     let (number, dice, value_name) = (number(), dice(), value_name());
-    number.or(dice).or(value_name).map_with(full_rc_node)
+    number.or(dice).or(value_name).map_with(full_rc_node).boxed()
 }
 
 pub enum Op {
@@ -58,7 +58,7 @@ pub fn words<'src, T>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone
 where
-    T: From<Atom>,
+    T: From<Atom> + 'src,
 {
     wordlike()
         .or(typical_punctuation())
@@ -69,7 +69,7 @@ where
             let span = extra.span().into_range();
             Atom::Str(extra.state().get_source_slice(&span).to_string())
         })
-        .map_with(full_rc_node)
+        .map_with(full_rc_node).boxed()
 }
 
 pub fn ident_maybe_sub<'src>()
@@ -93,7 +93,7 @@ pub fn ident<'src>()
     wordlike()
         .foldl(wordlike().repeated(), ident_normalize)
         .or(qstring())
-        .map(|id| Atom::Ident(id.to_lowercase()))
+        .map(|id| Atom::Ident(id.to_lowercase())).boxed()
 }
 
 pub fn wordlike<'src>()
@@ -101,7 +101,7 @@ pub fn wordlike<'src>()
 + Clone {
     // Raw keywords coming before numbers is important
     // As numbers numeric keyswords that stand alone are parsed as their value, not the word
-    word().or(raw_keywords()).or(number()).or(dice())
+    word().or(raw_keywords()).or(number()).or(dice()).boxed()
 }
 
 pub fn raw_keywords<'src>()

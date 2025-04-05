@@ -7,6 +7,8 @@ use lexer::{Position, Token};
 
 use crate::SimpleStateTable;
 
+mod analyzer;
+
 #[derive(Debug, PartialEq)]
 pub struct AST {
     nodes: RcNode<Statement>,
@@ -263,7 +265,9 @@ pub fn full_rc_node<'src, I, O>(
 ) -> RcNode<O>
 where
     O: From<I>,
+    I: std::fmt::Debug,
 {
+    //println!("full_rc_node: {:?}", value);
     let span: std::ops::Range<usize> = extra.span().into_range();
     let spanslation = extra.state().spanslate(&span);
     let full_info = (value.into(), span, spanslation);
@@ -370,7 +374,11 @@ impl Span for SpanInfo {
     }
 
     fn new(context: Self::Context, range: Range<Self::Offset>) -> Self {
-        Self { context, start: range.start(), end: range.end() }
+        Self {
+            context,
+            start: range.start(),
+            end: range.end(),
+        }
     }
 
     fn context(&self) -> Self::Context {
@@ -436,7 +444,11 @@ pub struct TableGroup {
 }
 
 impl TableGroup {
-    pub fn new(name: RcNode<Atom>, tags: RcNode<Vec<Atom>>, sub_tables: Vec<RcNode<Table>>) -> Self {
+    pub fn new(
+        name: RcNode<Atom>,
+        tags: RcNode<Vec<Atom>>,
+        sub_tables: Vec<RcNode<Table>>,
+    ) -> Self {
         Self {
             name,
             tags,
@@ -508,7 +520,7 @@ fn calc_keyed_roll<T>(rows: &Vec<(RcNode<Expr>, T)>) -> Expr {
                     .unwrap_or(&Atom::Number(usize::MIN))
                     .number(),
             ),
-            _ => unreachable!(),
+            _ => return Expr::Atom(Atom::Dice(1, rows.len())),
         };
         bottom = bottom.min(*low);
         top = top.max(*high);
@@ -516,7 +528,6 @@ fn calc_keyed_roll<T>(rows: &Vec<(RcNode<Expr>, T)>) -> Expr {
     let first = rows.first().unwrap().0.details();
     let last = rows.last().unwrap().0.details();
     let offset = bottom.saturating_sub(1);
-    println!("{}, {}", top, offset);
     if offset != 0 {
         let die_roll = Rc::new(Node {
             actual: Expr::Atom(Atom::Dice(1, top - offset)),

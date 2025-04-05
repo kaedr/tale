@@ -306,8 +306,8 @@ mod tests {
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
+            assert_eq!(lex.next(), Some(Ok(Token::Word("Melee".into()))));
             assert_eq!(lex.next(), Some(Ok(Token::Word("Attack".into()))));
-            assert_eq!(lex.next(), Some(Ok(Token::Roll)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::Roll)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
@@ -1507,8 +1507,8 @@ mod tests {
                     Token::Tabs,
                     Token::Roll,
                     Token::On,
+                    Token::Word("Melee".into()),
                     Token::Word("Attack".into()),
-                    Token::Roll,
                     Token::NewLines,
                     Token::Tabs,
                     Token::Roll,
@@ -1527,9 +1527,7 @@ mod tests {
                 [
                     Token::Script,
                     Token::Colon,
-                    Token::Roll,
-                    Token::Word("after".into()),
-                    Token::Load,
+                    Token::String("roll after load".into()),
                     Token::NewLines,
                     Token::Invoke,
                     Token::Word("LoadSome".into()),

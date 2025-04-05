@@ -1,8 +1,11 @@
 use std::{
+    cmp::min,
     collections::{HashMap, HashSet},
     fs::read_to_string,
     ops::Range,
 };
+
+use ariadne::{Color, Label, Report, ReportKind, Source};
 
 use ast::{RcNode, Script, Table, rc_node};
 use chumsky::{Parser, extra::SimpleState};
@@ -21,6 +24,7 @@ pub struct StateTable {
     sources: HashMap<String, String>,
     tokens: HashMap<String, Lexicon>,
     asts: HashMap<String, ast::AST>,
+    //errs: HashMap<String, Vec<Vec<Rich<'src, Token>>>>,
     symbols: SymbolTable,
 }
 
@@ -31,6 +35,7 @@ impl StateTable {
             sources: HashMap::new(),
             tokens: HashMap::new(),
             asts: HashMap::new(),
+            //errs: HashMap::new(),
             symbols: SymbolTable::new(),
         }
     }
@@ -58,28 +63,43 @@ impl StateTable {
     }
 
     pub fn parse_current(&mut self) -> String {
-        let err_string;
+        let the_errs;
+        let tokens = self.get_tokens(&self.current);
         let output = {
-            let tokens = self.get_tokens(&self.current);
             let mut parse_state = SimpleState::from(&mut *self);
             let parse_result = parser().parse_with_state(&tokens, &mut parse_state);
             match parse_result.into_output_errors() {
                 (Some(output), errs) => {
-                    for err in &errs {
-                        eprintln!("{}", err);
-                    }
-                    err_string = format!("{:?}", errs);
+                    the_errs = errs;
                     output
                 }
                 (None, errs) => {
-                    for err in &errs {
-                        eprintln!("{}", err);
-                    }
-                    err_string = format!("{:?}", errs);
+                    the_errs = errs;
                     rc_node(ast::Statement::Empty)
                 }
             }
         };
+        let err_string = format!("{:?}", the_errs);
+        let err_breakout = the_errs
+            .iter()
+            .map(|err| (err.to_string(), err.span().into_range()))
+            .collect::<Vec<_>>();
+        for (msg, span) in err_breakout {
+            let src_span = self.get_source_span(&span);
+            Report::build(ReportKind::Error, (&self.current, src_span.clone()))
+                .with_message(msg)
+                .with_label(
+                    Label::new((&self.current, src_span))
+                        .with_message("Problem here")
+                        .with_color(Color::Red),
+                )
+                .finish()
+                .eprint((
+                    &self.current,
+                    Source::from(self.sources.get(&self.current).unwrap()),
+                ))
+                .unwrap();
+        }
         self.asts.insert(self.current.clone(), AST::new(output));
         err_string
     }
@@ -97,7 +117,8 @@ impl StateTable {
 
     fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
         if let Some(tokens) = self.tokens.get(&self.current) {
-            tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end
+            let start = min(span.start, tokens.len().saturating_sub(1)); // Avoid out of bounds
+            tokens[start].1.start..tokens[span.end.saturating_sub(1)].1.end
         } else {
             0..0
         }

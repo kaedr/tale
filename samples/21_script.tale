@@ -3,11 +3,11 @@ load 02_table_def.tale
 End Script
 
 script: Attack with Damage
-	Roll on Attack Roll
+	Roll on Melee Attack
 	Roll 2d6 + 3
 end script
 
-Script: roll after load
+Script: "roll after load"
 invoke LoadSome
 	invoke Attack with Damage
 end script

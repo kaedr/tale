@@ -1,9 +1,11 @@
 use chumsky::prelude::*;
+use definitions::{script, table, table_group};
 use lexer::Token;
+use statements::seq_or_statement;
 
 use crate::{
     SimpleStateTable,
-    ast::{RcNode, Statement},
+    ast::{RcNode, Statement, full_rc_node},
 };
 
 mod atoms;
@@ -17,20 +19,24 @@ pub fn parser<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    todo()
+    table()
+        .or(table_group())
+        .or(script())
+        .or(seq_or_statement().then_ignore(just(Token::NewLines)))
+        .or(just(Token::NewLines)
+            .ignored()
+            .map_with(|_, extra| full_rc_node(Statement::Empty, extra)))
+        .repeated()
+        .collect::<Vec<_>>()
+        .map_with(|items, extra| {
+            // Combine all parsed statements into a single vec
+            if items.is_empty() {
+                full_rc_node(Statement::Empty, extra) // Handle empty case
+            } else {
+                full_rc_node(Statement::Sequence(full_rc_node(items, extra)), extra)
+            }
+        })
 }
-
-// fn atom<'src>() -> impl Parser<
-//     'src,
-//     &'src [Token],
-//     RcNode<Statement>,
-//     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
-// > + Clone {
-//     let qstring = qstring();
-//     let ident = ident();
-
-//     qstring.or(ident).map(Statement::from).map(rc_node)
-// }
 
 #[cfg(test)]
 mod tests {
@@ -46,7 +52,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -57,7 +63,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -68,7 +74,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -79,7 +85,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -90,7 +96,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -101,18 +107,29 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
-    fn parse_full_11() {
-        let name = "11_statement_assignment_expression.tale";
+    fn parse_full_10() {
+        let name = "10_statement_expression.tale";
         let source = read_sample_file_to_string(name);
         let mut table = StateTable::new();
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
+    }
+
+    #[test]
+    fn parse_full_11() {
+        let name = "11_statement_assignment.tale";
+        let source = read_sample_file_to_string(name);
+        let mut table = StateTable::new();
+        table.add_source(name.to_string(), source);
+        table.lex_current();
+        let errors = table.parse_current();
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -123,7 +140,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -134,7 +151,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -145,7 +162,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -156,7 +173,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -167,7 +184,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -178,7 +195,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -189,7 +206,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -200,7 +217,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 
     #[test]
@@ -211,6 +228,6 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "");
+        assert_eq!(errors, "[]");
     }
 }

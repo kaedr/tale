@@ -17,7 +17,7 @@ pub fn any_expr<'src>() -> impl Parser<
     roll()
         .or(lookup())
         .or(arithmetic().then_ignore(terminator()))
-        .or(interpolation())
+        .or(interpolation()).boxed()
 }
 
 pub fn roll<'src>() -> impl Parser<
@@ -42,7 +42,7 @@ pub fn roll<'src>() -> impl Parser<
             }
         })
         .or(optional_roll.then(roll_predicate()))
-        .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Roll(lhs, rhs), extra))
+        .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Roll(lhs, rhs), extra)).boxed()
 }
 
 fn roll_predicate<'src>() -> impl Parser<
@@ -67,7 +67,7 @@ fn roll_predicate<'src>() -> impl Parser<
         .or(pred_two)
         .then_ignore(terminator())
         .or(pred_three)
-        .then_ignore(terminator())
+        .then_ignore(terminator()).boxed()
 }
 
 fn repetition_clause<'src>() -> impl Parser<
@@ -87,7 +87,7 @@ fn repetition_clause<'src>() -> impl Parser<
                 .delimited_by(just(Token::LParens), just(Token::RParens))
                 .or_not(),
         )
-        .then_ignore(just(Token::Time).or(just(Token::Roll)).or_not()))
+        .then_ignore(just(Token::Time).or(just(Token::Roll)).or_not())).boxed()
 }
 
 pub fn lookup<'src>() -> impl Parser<
@@ -101,7 +101,7 @@ pub fn lookup<'src>() -> impl Parser<
         .then_ignore(just(Token::On))
         .then(ident_maybe_sub().map_with(full_rc_node))
         .then_ignore(terminator())
-        .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Lookup(lhs, rhs), extra))
+        .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Lookup(lhs, rhs), extra)).boxed()
 }
 
 pub fn interpolation<'src>() -> impl Parser<
@@ -118,9 +118,10 @@ pub fn interpolation<'src>() -> impl Parser<
         .or(words_map)
         .or(embed_expr())
         .repeated()
+        .at_least(1)
         .collect::<Vec<_>>()
         .map_with(full_rc_node)
-        .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra))
+        .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra)).boxed()
 }
 
 fn embed_expr<'src>() -> impl Parser<
@@ -132,7 +133,7 @@ fn embed_expr<'src>() -> impl Parser<
     implied_roll_expr()
         .then_ignore(terminator())
         .or(arithmetic().then_ignore(terminator()))
-        .delimited_by(just(Token::LBracket), just(Token::RBracket))
+        .delimited_by(just(Token::LBracket), just(Token::RBracket)).boxed()
 }
 
 pub fn implied_roll_expr<'src>() -> impl Parser<
@@ -170,7 +171,7 @@ pub fn arithmetic<'src>() -> impl Parser<
             infix(left(1), atoms::op(Token::Plus), fold_infix),
             infix(left(1), atoms::op(Token::Minus), fold_infix),
         ))
-    })
+    }).boxed()
 }
 
 fn fold_prefix<'src>(

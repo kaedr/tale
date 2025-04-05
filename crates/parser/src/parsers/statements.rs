@@ -17,7 +17,7 @@ pub fn seq_or_statement<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    statement_sequence().or(any_statement())
+    statement_sequence().or(any_statement()).boxed()
 }
 
 pub fn any_statement<'src>() -> impl Parser<
@@ -26,14 +26,23 @@ pub fn any_statement<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    chainable_statement()
+    nonce()
+        .or(chainable_statement())
         .or(load())
         .or(output())
-        .or(show())
-        .or(one_of([Token::Dash, Token::Minus])
-            .then(terminator())
-            .ignored()
-            .map_with(|_, extra| full_rc_node(Statement::Empty, extra)))
+        .or(show()).boxed()
+}
+
+fn nonce<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Statement>,
+    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+> + Clone {
+    one_of([Token::Dash, Token::Minus])
+        .then(terminator())
+        .ignored()
+        .map_with(|_, extra| full_rc_node(Statement::Empty, extra))
 }
 
 pub fn chainable_statement<'src>() -> impl Parser<
@@ -43,10 +52,10 @@ pub fn chainable_statement<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     assignment()
-        .or(expression())
         .or(clear())
         .or(invoke())
         .or(modify())
+        .or(expression()).boxed()
 }
 
 pub fn statement_sequence<'src>() -> impl Parser<
@@ -69,7 +78,7 @@ pub fn statement_sequence<'src>() -> impl Parser<
         .or(implied_roll_expr)
         .delimited_by(just(Token::LBracket), just(Token::RBracket))
         .map_with(full_rc_node)
-        .map_with(|items, extra| full_rc_node(Statement::Sequence(items), extra))
+        .map_with(|items, extra| full_rc_node(Statement::Sequence(items), extra)).boxed()
 }
 
 pub fn assignment<'src>() -> impl Parser<
@@ -83,7 +92,7 @@ pub fn assignment<'src>() -> impl Parser<
         .ignore_then(value_name().map_with(full_rc_node))
         .then_ignore(just(Token::Equals).or(just(Token::To)))
         .then(any_expr())
-        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra))
+        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra)).boxed()
 }
 
 pub fn expression<'src>() -> impl Parser<
@@ -92,7 +101,7 @@ pub fn expression<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    any_expr().map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra))
+    any_expr().map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra)).boxed()
 }
 
 pub fn clear<'src>() -> impl Parser<
@@ -109,7 +118,7 @@ pub fn clear<'src>() -> impl Parser<
                 .then_ignore(terminator())
                 .map_with(full_rc_node),
         )
-        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Clear(lhs, rhs), extra))
+        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Clear(lhs, rhs), extra)).boxed()
 }
 
 pub fn invoke<'src>() -> impl Parser<
@@ -122,7 +131,7 @@ pub fn invoke<'src>() -> impl Parser<
         .then(just(Token::Colon).or_not())
         .ignore_then(ident().then_ignore(terminator()))
         .map_with(full_rc_node)
-        .map_with(|node, extra| full_rc_node(Statement::Invoke(node), extra))
+        .map_with(|node, extra| full_rc_node(Statement::Invoke(node), extra)).boxed()
 }
 
 pub fn load<'src>() -> impl Parser<
@@ -140,7 +149,7 @@ pub fn load<'src>() -> impl Parser<
                 .rewind()
                 .or(end()),
         )
-        .map_with(|path, extra| full_rc_node(Statement::Load(path), extra))
+        .map_with(|path, extra| full_rc_node(Statement::Load(path), extra)).boxed()
 }
 
 pub fn modify<'src>() -> impl Parser<
@@ -175,7 +184,7 @@ pub fn modify<'src>() -> impl Parser<
                 extra,
             )
         });
-    keyword_form.or(leading_form)
+    keyword_form.or(leading_form).boxed()
 }
 
 fn duration<'src>()
@@ -183,7 +192,7 @@ fn duration<'src>()
 + Clone {
     just(Token::All).map(|_| Duration::All).or(just(Token::Next)
         .ignore_then(arithmetic())
-        .map(|val| Duration::Next(val)))
+        .map(|val| Duration::Next(val))).boxed()
 }
 
 pub fn mod_by<'src>() -> impl Parser<
@@ -198,7 +207,7 @@ pub fn mod_by<'src>() -> impl Parser<
             Token::Plus => value,
             Token::Minus => full_rc_node(Expr::Neg(value), extra),
             _ => unreachable!(),
-        })
+        }).boxed()
 }
 
 pub fn output<'src>() -> impl Parser<
@@ -210,7 +219,7 @@ pub fn output<'src>() -> impl Parser<
     just(Token::Output)
         .ignore_then(just(Token::Colon).or_not())
         .ignore_then(interpolation())
-        .map_with(|value, extra| full_rc_node(Statement::Output(value), extra))
+        .map_with(|value, extra| full_rc_node(Statement::Output(value), extra)).boxed()
 }
 
 pub fn show<'src>() -> impl Parser<
@@ -227,7 +236,7 @@ pub fn show<'src>() -> impl Parser<
                 Statement::Show(full_rc_node((tags.is_some(), value), extra)),
                 extra,
             )
-        })
+        }).boxed()
 }
 
 #[cfg(test)]
@@ -259,6 +268,67 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, any_statement());
         assert_eq!("Empty", format!("{}", output));
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Dash', 'Minus', 'Set', something else\
+            , 'Clear', 'Invoke', 'Modify', 'Plus', 'Roll', 'LParens', 'Lookup', 'LBracket'\
+            , 'Load', 'Output', or 'Show']",
+            format!("{}", output)
+        );
+    }
+
+    #[test]
+    fn parse_sequence() {
+        let mut table = StateTable::new();
+
+        table.add_source("test".into(), r"[Easy Peasy]".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        assert_eq!(
+            "Sequence(Expr(Roll(Atom(easy), Atom(peasy))))",
+            format!("{}", output)
+        );
+
+        table.add_source("test".into(), r"[1d6 + 7]".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        assert_eq!(
+            "Sequence(Expr(Add(Atom(1d6) + Atom(7))))",
+            format!("{}", output)
+        );
+
+        table.add_source("test".into(), r"[Invoke taco, Invoke burrito]".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        assert_eq!(
+            "Sequence(Invoke(Atom(taco)), Invoke(Atom(burrito)))",
+            format!("{}", output)
+        );
+
+        table.add_source("test".into(), r"A + B".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        assert_eq!(
+            "[found 'Word(\"A\")' at 0..1 expected 'LBracket']",
+            format!("{}", output)
+        );
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'LBracket']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -277,6 +347,15 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, assignment());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, assignment());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Set', or something else]",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -295,6 +374,15 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, clear());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, clear());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Clear']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -311,6 +399,15 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, invoke());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, invoke());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Invoke']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -330,6 +427,15 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, load());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, load());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Load']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -348,6 +454,15 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, modify());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, modify());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Modify', 'Plus', or 'Minus']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -366,6 +481,15 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, output());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, output());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Output']",
+            format!("{}", output)
+        );
     }
 
     #[test]
@@ -385,5 +509,14 @@ mod tests {
             let output = stubbed_parser(&mut table, &tokens, show());
             assert_eq!(check_vals[index], format!("{}", output));
         }
+
+        table.add_source("test".into(), "".into());
+        table.lex_current();
+        let tokens = &table.get_tokens("test");
+        let output = stubbed_parser(&mut table, &tokens, show());
+        assert_eq!(
+            "[found end of input at 0..0 expected 'Show']",
+            format!("{}", output)
+        );
     }
 }
