@@ -52,9 +52,10 @@ pub fn table<'src>() -> impl Parser<
         .then(table_headings())
         .then(table_rows())
         .map_with(|((name, (roll, tags)), rows), extra| {
-            let roll = match roll.inner() {
-                Expr::Empty => full_rc_node(rows.inner().calc_roll(), extra),
-                _ => roll,
+            let roll = if roll.inner_t().is_empty() {
+                full_rc_node(rows.inner_t().calc_roll(), extra)
+            } else {
+                roll
             };
             let tags = tags;
             let table = full_rc_node(Table::new(name, roll, tags, rows), extra);
@@ -98,7 +99,7 @@ pub fn table_group<'src>() -> impl Parser<
                 .zip(sub_rows.into_iter())
                 .map(|(sub_name, rows)| {
                     let full_name =
-                        full_rc_node(ident_normalize(name.inner().clone(), sub_name), extra);
+                        full_rc_node(ident_normalize(name.inner_t().clone(), sub_name), extra);
                     let table_value = Table::new(full_name, roll.clone(), tags.clone(), rows);
                     full_rc_node(table_value, extra)
                 })
@@ -322,7 +323,7 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, script());
-        assert_eq!("Script(Atom(example), 1 Statements)", format!("{}", output));
+        assert_eq!("Script: `example`, 1 Statement", format!("{}", output));
     }
 
     #[test]
@@ -334,10 +335,7 @@ mod tests {
         state.lex_current();
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
-        assert_eq!(
-            "Table(Atom(colors), Atom(1d6), 6 Rows)",
-            format!("{}", output)
-        );
+        assert_eq!("Table: `colors`, 1d6, 6 Rows", format!("{}", output));
 
         let source = "Table: Stub
                             Roll: d20
@@ -346,10 +344,7 @@ mod tests {
         state.lex_current();
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
-        assert_eq!(
-            "Table(Atom(stub), Atom(1d20), 0 Rows)",
-            format!("{}", output)
-        );
+        assert_eq!("Table: `stub`, 1d20, 0 Rows", format!("{}", output));
 
         let source = "Table: Basic
                             Pork
@@ -360,10 +355,7 @@ mod tests {
         state.lex_current();
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
-        assert_eq!(
-            "Table(Atom(basic), Atom(1d3), 3 Rows)",
-            format!("{}", output)
-        );
+        assert_eq!("Table: `basic`, 1d3, 3 Rows", format!("{}", output));
 
         let source = "Table: keyed
                             1\tis the loneliest number
@@ -375,10 +367,7 @@ mod tests {
         state.lex_current();
         let tokens = &state.get_tokens("test");
         let output = stubbed_parser(&mut state, &tokens, table());
-        assert_eq!(
-            "Table(Atom(keyed), Atom(1d7), 4 Rows)",
-            format!("{}", output)
-        );
+        assert_eq!("Table: `keyed`, 1d7, 4 Rows", format!("{}", output));
     }
 
     #[test]
@@ -396,9 +385,8 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, table_group());
         assert_eq!(
-            "TableGroup(\n\tAtom(minimal):\n\
-            \t\tAtom(minimal example), Atom(1d3), 3 Rows\n\
-            )",
+            "TableGroup: `minimal`\n\
+            \t`minimal example`, 1d3, 3 Rows\n",
             output
         );
 
@@ -414,11 +402,10 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, table_group());
         assert_eq!(
-            "TableGroup(\n\tAtom(animals):\n\
-            \t\tAtom(animals house), Atom(1d3), 3 Rows\n\
-            \t\tAtom(animals barn), Atom(1d3), 3 Rows\n\
-            \t\tAtom(animals forest), Atom(1d3), 3 Rows\n\
-            )",
+            "TableGroup: `animals`\n\
+            \t`animals house`, 1d3, 3 Rows\n\
+            \t`animals barn`, 1d3, 3 Rows\n\
+            \t`animals forest`, 1d3, 3 Rows\n",
             output
         );
 
@@ -503,9 +490,10 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, table_headings());
+        println!("output: {}", output);
         assert!(output.starts_with("(Node"));
-        assert!(output.contains("actual: Empty"));
-        assert!(output.contains("actual: []"));
+        assert!(output.contains("value: Empty"));
+        assert!(output.contains("value: []"));
         assert!(output.ends_with("} })"));
 
         let source = "Roll: 1d8\n";
@@ -515,7 +503,7 @@ mod tests {
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 8))"));
-        assert!(output.contains("actual: []"));
+        assert!(output.contains("value: []"));
         assert!(output.ends_with("} })"));
 
         let source = "Tags: Dark, Stormy\n";
@@ -524,7 +512,7 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
-        assert!(output.contains("actual: Empty"));
+        assert!(output.contains("value: Empty"));
         assert!(output.contains("[Ident(\"dark\")"));
         assert!(output.contains("Ident(\"stormy\")]"));
         assert!(output.ends_with("} })"));
@@ -581,7 +569,7 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, row_key());
-        assert_eq!("[Atom(22)]", format!("{}", output));
+        assert_eq!("[22]", format!("{}", output));
 
         let source = "4,6-8\t";
         table.add_source("test".into(), source.into());
@@ -589,7 +577,7 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, row_key());
         assert_eq!(
-            "[Atom(4), Atom(6), Atom(7), Atom(8)]",
+            "[4, 6, 7, 8]",
             format!("{}", output)
         );
 
@@ -598,21 +586,21 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, row_key());
-        assert_eq!("Atom(elves)", format!("{}", output));
+        assert_eq!("`elves`", format!("{}", output));
 
         let source = "`Dwarves`\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, row_key());
-        assert_eq!("Atom(dwarves)", format!("{}", output));
+        assert_eq!("`dwarves`", format!("{}", output));
 
         let source = "4 Non Blondes\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, row_key());
-        assert_eq!("Atom(4 non blondes)", format!("{}", output));
+        assert_eq!("`4 non blondes`", format!("{}", output));
 
         let source = "3-4 Business Days\t";
         table.add_source("test".into(), source.into());

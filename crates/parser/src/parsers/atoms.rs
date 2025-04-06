@@ -12,7 +12,11 @@ pub fn term<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     let (number, dice, value_name) = (number(), dice(), value_name());
-    number.or(dice).or(value_name).map_with(full_rc_node).boxed()
+    number
+        .or(dice)
+        .or(value_name)
+        .map_with(full_rc_node)
+        .boxed()
 }
 
 pub enum Op {
@@ -69,7 +73,8 @@ where
             let span = extra.span().into_range();
             Atom::Str(extra.state().get_source_slice(&span).to_string())
         })
-        .map_with(full_rc_node).boxed()
+        .map_with(full_rc_node)
+        .boxed()
 }
 
 pub fn ident_maybe_sub<'src>()
@@ -93,7 +98,8 @@ pub fn ident<'src>()
     wordlike()
         .foldl(wordlike().repeated(), ident_normalize)
         .or(qstring())
-        .map(|id| Atom::Ident(id.to_lowercase())).boxed()
+        .map(|id| Atom::Ident(id.to_lowercase()))
+        .boxed()
 }
 
 pub fn wordlike<'src>()
@@ -245,7 +251,7 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
-            r#"Atom("This is a test: Once upon a time...")"#,
+            r#""This is a test: Once upon a time...""#,
             format!("{}", output)
         );
 
@@ -253,7 +259,7 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test2");
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
-        assert_eq!(r#"Atom("Let's do this!")"#, format!("{}", output));
+        assert_eq!(r#""Let's do this!""#, format!("{}", output));
 
         table.add_source(
             "test3".into(),
@@ -262,7 +268,7 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test3");
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
-        assert_eq!(r#"Atom("This is a (test):")"#, format!("{}", output));
+        assert_eq!(r#""This is a (test):""#, format!("{}", output));
 
         table.add_source("test4".into(), r"This is a test: Reject @ once".into());
         table.lex_current();
@@ -279,13 +285,13 @@ mod tests {
         let mut table = StateTable::new();
         let tokens = quick_tokens("Group: Subtable");
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
-        assert_eq!("Atom(group subtable)", output);
+        assert_eq!("`group subtable`", output);
 
         // TODO: This will probably create a bug somewhere, using quoted ids followed by not
         // At the moment, it's not clear where that bug will be
         let tokens = quick_tokens(r#""Treasure Hoard: Challenge 0-4": Magic Items"#);
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
-        assert_eq!("Atom(treasure hoard: challenge 0-4 magic items)", output);
+        assert_eq!("`treasure hoard: challenge 0-4 magic items`", output);
 
         let tokens = quick_tokens("A; Typo");
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
@@ -300,27 +306,27 @@ mod tests {
         let mut table = StateTable::new();
         let tokens = vec![Token::Word("Simple".into())];
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(simple)", output);
+        assert_eq!("`simple`", output);
 
         let tokens = quick_tokens("Not _quite_ Simple");
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(not _quite_ simple)", output);
+        assert_eq!("`not _quite_ simple`", output);
 
         let tokens = quick_tokens("50 gp Art Objects");
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(50 gp art objects)", output);
+        assert_eq!("`50 gp art objects`", output);
 
         let tokens = quick_tokens("4 8  15   16 23 42");
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(4 8 15 16 23 42)", output);
+        assert_eq!("`4 8 15 16 23 42`", output);
 
         let tokens = quick_tokens("Once upon 1d4 times ten goblins");
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(once upon 1d4 time ten goblins)", output);
+        assert_eq!("`once upon 1d4 time ten goblins`", output);
 
         let tokens = quick_tokens(r#""Treasure Hoard: Challenge 0-4""#);
         let output = stubbed_parser(&mut table, &tokens, ident());
-        assert_eq!("Atom(treasure hoard: challenge 0-4)", output);
+        assert_eq!("`treasure hoard: challenge 0-4`", output);
 
         let tokens = quick_tokens("Not: Valid");
         let output = stubbed_parser(&mut table, &tokens, ident());
@@ -344,19 +350,19 @@ mod tests {
         ];
         let mut table = StateTable::new();
         let output = stubbed_parser(&mut table, &tokens[..1], value_name());
-        assert_eq!("Atom(bare)", output);
+        assert_eq!("`bare`", output);
         let output = stubbed_parser(&mut table, &tokens[1..2], value_name());
-        assert_eq!("Atom(with_underscore)", output);
+        assert_eq!("`with_underscore`", output);
         let output = stubbed_parser(&mut table, &tokens[2..3], value_name());
-        assert_eq!("Atom(cased)", output);
+        assert_eq!("`cased`", output);
         let output = stubbed_parser(&mut table, &tokens[3..4], value_name());
-        assert_eq!("Atom(cased_underscored)", output);
+        assert_eq!("`cased_underscored`", output);
         let output = stubbed_parser(&mut table, &tokens[4..5], value_name());
-        assert_eq!("Atom(num83r5)", output);
+        assert_eq!("`num83r5`", output);
         let output = stubbed_parser(&mut table, &tokens[5..6], value_name());
-        assert_eq!("Atom(num83r5_und3r5c0r3d)", output);
+        assert_eq!("`num83r5_und3r5c0r3d`", output);
         let output = stubbed_parser(&mut table, &tokens[6..7], value_name());
-        assert_eq!("Atom(cased_num83r5)", output);
+        assert_eq!("`cased_num83r5`", output);
         let output = stubbed_parser(&mut table, &tokens[7..], value_name());
         assert_eq!(
             "[found 'Digits(42)' at 0..1 expected something else]",
@@ -384,31 +390,31 @@ mod tests {
         ];
         let mut table = StateTable::new();
         let output = stubbed_parser(&mut table, &tokens[..1], number());
-        assert_eq!("Atom(100)", output);
+        assert_eq!("100", output);
         let output = stubbed_parser(&mut table, &tokens[1..2], number());
-        assert_eq!("Atom(1)", output);
+        assert_eq!("1", output);
         let output = stubbed_parser(&mut table, &tokens[2..3], number());
-        assert_eq!("Atom(9001)", output);
+        assert_eq!("9001", output);
         let output = stubbed_parser(&mut table, &tokens[3..4], number());
-        assert_eq!("Atom(1)", output);
+        assert_eq!("1", output);
         let output = stubbed_parser(&mut table, &tokens[4..5], number());
-        assert_eq!("Atom(2)", output);
+        assert_eq!("2", output);
         let output = stubbed_parser(&mut table, &tokens[5..6], number());
-        assert_eq!("Atom(3)", output);
+        assert_eq!("3", output);
         let output = stubbed_parser(&mut table, &tokens[6..7], number());
-        assert_eq!("Atom(4)", output);
+        assert_eq!("4", output);
         let output = stubbed_parser(&mut table, &tokens[7..8], number());
-        assert_eq!("Atom(5)", output);
+        assert_eq!("5", output);
         let output = stubbed_parser(&mut table, &tokens[8..9], number());
-        assert_eq!("Atom(6)", output);
+        assert_eq!("6", output);
         let output = stubbed_parser(&mut table, &tokens[9..10], number());
-        assert_eq!("Atom(7)", output);
+        assert_eq!("7", output);
         let output = stubbed_parser(&mut table, &tokens[10..11], number());
-        assert_eq!("Atom(8)", output);
+        assert_eq!("8", output);
         let output = stubbed_parser(&mut table, &tokens[11..12], number());
-        assert_eq!("Atom(9)", output);
+        assert_eq!("9", output);
         let output = stubbed_parser(&mut table, &tokens[12..13], number());
-        assert_eq!("Atom(10)", output);
+        assert_eq!("10", output);
         let output = stubbed_parser(&mut table, &tokens[13..], number());
         assert_eq!("[found 'Once' at 0..1 expected something else]", output);
     }

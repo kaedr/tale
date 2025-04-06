@@ -30,7 +30,8 @@ pub fn any_statement<'src>() -> impl Parser<
         .or(chainable_statement())
         .or(load())
         .or(output())
-        .or(show()).boxed()
+        .or(show())
+        .boxed()
 }
 
 fn nonce<'src>() -> impl Parser<
@@ -55,7 +56,8 @@ pub fn chainable_statement<'src>() -> impl Parser<
         .or(clear())
         .or(invoke())
         .or(modify())
-        .or(expression()).boxed()
+        .or(expression())
+        .boxed()
 }
 
 pub fn statement_sequence<'src>() -> impl Parser<
@@ -78,7 +80,8 @@ pub fn statement_sequence<'src>() -> impl Parser<
         .or(implied_roll_expr)
         .delimited_by(just(Token::LBracket), just(Token::RBracket))
         .map_with(full_rc_node)
-        .map_with(|items, extra| full_rc_node(Statement::Sequence(items), extra)).boxed()
+        .map_with(|items, extra| full_rc_node(Statement::Sequence(items), extra))
+        .boxed()
 }
 
 pub fn assignment<'src>() -> impl Parser<
@@ -92,7 +95,8 @@ pub fn assignment<'src>() -> impl Parser<
         .ignore_then(value_name().map_with(full_rc_node))
         .then_ignore(just(Token::Equals).or(just(Token::To)))
         .then(any_expr())
-        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra)).boxed()
+        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra))
+        .boxed()
 }
 
 pub fn expression<'src>() -> impl Parser<
@@ -101,7 +105,9 @@ pub fn expression<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
-    any_expr().map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra)).boxed()
+    any_expr()
+        .map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra))
+        .boxed()
 }
 
 pub fn clear<'src>() -> impl Parser<
@@ -118,7 +124,8 @@ pub fn clear<'src>() -> impl Parser<
                 .then_ignore(terminator())
                 .map_with(full_rc_node),
         )
-        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Clear(lhs, rhs), extra)).boxed()
+        .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Clear(lhs, rhs), extra))
+        .boxed()
 }
 
 pub fn invoke<'src>() -> impl Parser<
@@ -131,7 +138,8 @@ pub fn invoke<'src>() -> impl Parser<
         .then(just(Token::Colon).or_not())
         .ignore_then(ident().then_ignore(terminator()))
         .map_with(full_rc_node)
-        .map_with(|node, extra| full_rc_node(Statement::Invoke(node), extra)).boxed()
+        .map_with(|node, extra| full_rc_node(Statement::Invoke(node), extra))
+        .boxed()
 }
 
 pub fn load<'src>() -> impl Parser<
@@ -149,7 +157,8 @@ pub fn load<'src>() -> impl Parser<
                 .rewind()
                 .or(end()),
         )
-        .map_with(|path, extra| full_rc_node(Statement::Load(path), extra)).boxed()
+        .map_with(|path, extra| full_rc_node(Statement::Load(path), extra))
+        .boxed()
 }
 
 pub fn modify<'src>() -> impl Parser<
@@ -190,9 +199,12 @@ pub fn modify<'src>() -> impl Parser<
 fn duration<'src>()
 -> impl Parser<'src, &'src [Token], Duration, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    just(Token::All).map(|_| Duration::All).or(just(Token::Next)
-        .ignore_then(arithmetic())
-        .map(|val| Duration::Next(val))).boxed()
+    just(Token::All)
+        .map(|_| Duration::All)
+        .or(just(Token::Next)
+            .ignore_then(arithmetic())
+            .map(|val| Duration::Next(val)))
+        .boxed()
 }
 
 pub fn mod_by<'src>() -> impl Parser<
@@ -207,7 +219,8 @@ pub fn mod_by<'src>() -> impl Parser<
             Token::Plus => value,
             Token::Minus => full_rc_node(Expr::Neg(value), extra),
             _ => unreachable!(),
-        }).boxed()
+        })
+        .boxed()
 }
 
 pub fn output<'src>() -> impl Parser<
@@ -219,7 +232,8 @@ pub fn output<'src>() -> impl Parser<
     just(Token::Output)
         .ignore_then(just(Token::Colon).or_not())
         .ignore_then(interpolation())
-        .map_with(|value, extra| full_rc_node(Statement::Output(value), extra)).boxed()
+        .map_with(|value, extra| full_rc_node(Statement::Output(value), extra))
+        .boxed()
 }
 
 pub fn show<'src>() -> impl Parser<
@@ -236,7 +250,8 @@ pub fn show<'src>() -> impl Parser<
                 Statement::Show(full_rc_node((tags.is_some(), value), extra)),
                 extra,
             )
-        }).boxed()
+        })
+        .boxed()
 }
 
 #[cfg(test)]
@@ -290,7 +305,7 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
-            "Sequence(Expr(Roll(Atom(easy), Atom(peasy))))",
+            "Sequence: [\n\tRoll `easy`, `peasy`\n]",
             format!("{}", output)
         );
 
@@ -299,7 +314,7 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
-            "Sequence(Expr(Add(Atom(1d6) + Atom(7))))",
+            "Sequence: [\n\t(1d6 + 7)\n]",
             format!("{}", output)
         );
 
@@ -308,7 +323,7 @@ mod tests {
         let tokens = &table.get_tokens("test");
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
-            "Sequence(Invoke(Atom(taco)), Invoke(Atom(burrito)))",
+            "Sequence: [\n\tInvoke: `taco`,\n\tInvoke: `burrito`\n]",
             format!("{}", output)
         );
 
@@ -335,10 +350,10 @@ mod tests {
     fn parse_assignment() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            "Assignment(Atom(the_word) = Atom(bird))",
-            r#"Assignment(Atom(the_word) = Interpol(Atom("bird")))"#,
-            "Assignment(Atom(force) = Mul(Atom(mass) * Atom(acceleration)))",
-            "Assignment(Atom(minutes) = Atom(midnight))",
+            "Assignment: `the_word` = `bird`",
+            r#"Assignment: `the_word` = !["bird"]!"#,
+            "Assignment: `force` = (`mass` * `acceleration`)",
+            "Assignment: `minutes` = `midnight`",
         ];
 
         let lines = read_sample_lines("11_statement_assignment.tale").unwrap();
@@ -362,10 +377,10 @@ mod tests {
     fn parse_clear() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            "Clear(Next(Atom(10)) Atom(quality))",
-            "Clear(All Atom(quality))",
-            "Clear(Next(Atom(10)) Atom(quality))",
-            "Clear(All Atom(quality))",
+            "Clear Next(10) `quality`",
+            "Clear All `quality`",
+            "Clear Next(10) `quality`",
+            "Clear All `quality`",
         ];
 
         let lines = read_sample_lines("12_statement_clear.tale").unwrap();
@@ -389,8 +404,8 @@ mod tests {
     fn parse_invoke() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            "Invoke(Atom(some kind of bizarre ritual))",
-            "Invoke(Atom(last rites))",
+            "Invoke: `some kind of bizarre ritual`",
+            "Invoke: `last rites`",
         ];
 
         let lines = read_sample_lines("13_statement_invoke.tale").unwrap();
@@ -414,9 +429,9 @@ mod tests {
     fn parse_load() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            r#"Load(Atom("01_table_minimal.tale"))"#,
-            r#"Load(Atom("../../tons of _odd-characters_.tale"))"#,
-            r#"Load(Atom("../../tons of _odd-characters_.tale"))"#,
+            r#"Load: "01_table_minimal.tale""#,
+            r#"Load: "../../tons of _odd-characters_.tale""#,
+            r#"Load: "../../tons of _odd-characters_.tale""#,
         ];
 
         let lines = read_sample_lines("14_statement_load.tale").unwrap();
@@ -442,10 +457,10 @@ mod tests {
     fn parse_modify() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            "Modify(All Atom(2) Atom(quality))",
-            "Modify(Next(Atom(7)) Atom(3) Atom(quality))",
-            "Modify(Next(Atom(3)) Neg(Atom(2)) Atom(quality))",
-            "Modify(All Atom(10) Atom(quality))",
+            "Modify +2 All `quality`",
+            "Modify +3 Next(7) `quality`",
+            "Modify -2 Next(3) `quality`",
+            "Modify +10 All `quality`",
         ];
 
         let lines = read_sample_lines("16_statement_modify.tale").unwrap();
@@ -469,8 +484,8 @@ mod tests {
     fn parse_output() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            r#"Output(Interpol(Atom("There are"), Sub(Atom(1d6) - Atom(1)), Atom("lights illuminated out of a total of 5.")))"#,
-            r#"Output(Interpol(Atom("A lovely string")))"#,
+            r#"Output: !["There are", (1d6 - 1), "lights illuminated out of a total of 5."]!"#,
+            r#"Output: !["A lovely string"]!"#,
         ];
 
         let lines = read_sample_lines("17_statement_output.tale").unwrap();
@@ -496,11 +511,11 @@ mod tests {
     fn parse_show() {
         let mut table = StateTable::new();
         let check_vals = vec![
-            "Show(Atom(minimalism))",
-            "Show(Atom(the_word))",
-            "Show(Atom(variables))",
-            "Show(Atom(tables))",
-            "ShowTag(Atom(desert))",
+            "Show `minimalism`",
+            "Show `the_word`",
+            "Show `variables`",
+            "Show `tables`",
+            "Show Tag `desert`",
         ];
 
         let lines = read_sample_lines("19_statement_show.tale").unwrap();

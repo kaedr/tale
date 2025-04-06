@@ -1,4 +1,6 @@
+use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::Display;
+use std::hash::Hash;
 use std::{ops::Range, rc::Rc};
 
 use chumsky::prelude::*;
@@ -9,7 +11,13 @@ use crate::SimpleStateTable;
 
 mod analyzer;
 
-#[derive(Debug, PartialEq)]
+pub use analyzer::{Analyze, SemErrors};
+
+pub trait Depict {
+    fn depict(&self) -> String;
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct AST {
     nodes: RcNode<Statement>,
 }
@@ -29,6 +37,12 @@ impl Display for AST {
         write!(f, "{}", self.nodes)
     }
 }
+
+// impl Depict for AST {
+//     fn depict(&self) -> String {
+//         format!("{}", self.nodes.depict())
+//     }
+// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
@@ -56,34 +70,49 @@ pub enum Statement {
     Expr(RcNode<Expr>),
 }
 
+impl Statement {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Empty => true,
+            _ => false,
+        }
+    }
+}
+
+impl Default for Statement {
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
 impl Display for Statement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Statement::Empty => write!(f, "Empty"),
-            Statement::Script(script) => write!(f, "Script({})", script),
-            Statement::Table(table) => write!(f, "Table({})", table),
-            Statement::TableGroup(group) => write!(f, "TableGroup(\n{})", group),
-            Statement::Assignment(ident, expr) => write!(f, "Assignment({} = {})", ident, expr),
-            Statement::Clear(duration, expr) => write!(f, "Clear({} {})", duration, expr),
-            Statement::Invoke(ident) => write!(f, "Invoke({})", ident),
-            Statement::Load(ident) => write!(f, "Load({})", ident),
-            Statement::Modify(modifier, expr) => write!(f, "Modify({} {})", modifier, expr),
-            Statement::Output(expr) => write!(f, "Output({})", expr),
+            Statement::Script(script) => write!(f, "Script: {}", script),
+            Statement::Table(table) => write!(f, "Table: {}", table),
+            Statement::TableGroup(group) => write!(f, "TableGroup: {}", group),
+            Statement::Assignment(ident, expr) => write!(f, "Assignment: {} = {}", ident, expr),
+            Statement::Clear(duration, expr) => write!(f, "Clear {} {}", duration, expr),
+            Statement::Invoke(ident) => write!(f, "Invoke: {}", ident),
+            Statement::Load(ident) => write!(f, "Load: {}", ident),
+            Statement::Modify(modifier, expr) => write!(f, "Modify {} {}", modifier, expr),
+            Statement::Output(expr) => write!(f, "Output: {}", expr),
             Statement::Show(show) => write!(
                 f,
-                "Show{}({})",
-                if show.actual.0 { "Tag" } else { "" },
-                show.actual.1
+                "Show {}{}",
+                if show.inner_t().0 { "Tag " } else { "" },
+                show.inner_t().1
             ),
             Statement::Sequence(statements) => {
                 let statements = statements
-                    .actual
+                    .inner_t()
                     .iter()
                     .map(|stmt| format!("{}", stmt))
                     .collect::<Vec<_>>();
-                write!(f, "Sequence({})", statements.join(", "))
+                write!(f, "Sequence: [\n\t{}\n]", statements.join(",\n\t"))
             }
-            Statement::Expr(expr) => write!(f, "Expr({})", expr),
+            Statement::Expr(expr) => write!(f, "{}", expr),
         }
     }
 }
@@ -130,31 +159,46 @@ pub enum Expr {
     List(RcNode<Vec<Atom>>),
 }
 
+impl Expr {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Empty => true,
+            _ => false,
+        }
+    }
+}
+
+impl Default for Expr {
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Empty => write!(f, "Empty"),
             Expr::Atom(atom) => write!(f, "{}", atom),
-            Expr::Neg(expr) => write!(f, "Neg({})", expr),
-            Expr::Add(lhs, rhs) => write!(f, "Add({} + {})", lhs, rhs),
-            Expr::Sub(lhs, rhs) => write!(f, "Sub({} - {})", lhs, rhs),
-            Expr::Mul(lhs, rhs) => write!(f, "Mul({} * {})", lhs, rhs),
-            Expr::Div(lhs, rhs) => write!(f, "Div({} / {})", lhs, rhs),
-            Expr::Mod(lhs, rhs) => write!(f, "Mod({} % {})", lhs, rhs),
-            Expr::Pow(lhs, rhs) => write!(f, "Pow({} ^ {})", lhs, rhs),
-            Expr::Lookup(lhs, rhs) => write!(f, "Lookup({} on {})", lhs, rhs),
-            Expr::Roll(lhs, rhs) => write!(f, "Roll({}, {})", lhs, rhs),
+            Expr::Neg(expr) => write!(f, "-{}", expr),
+            Expr::Add(lhs, rhs) => write!(f, "({} + {})", lhs, rhs),
+            Expr::Sub(lhs, rhs) => write!(f, "({} - {})", lhs, rhs),
+            Expr::Mul(lhs, rhs) => write!(f, "({} * {})", lhs, rhs),
+            Expr::Div(lhs, rhs) => write!(f, "({} / {})", lhs, rhs),
+            Expr::Mod(lhs, rhs) => write!(f, "({} % {})", lhs, rhs),
+            Expr::Pow(lhs, rhs) => write!(f, "({} ^ {})", lhs, rhs),
+            Expr::Lookup(lhs, rhs) => write!(f, "Lookup {} on {}", lhs, rhs),
+            Expr::Roll(lhs, rhs) => write!(f, "Roll {}, {}", lhs, rhs),
             Expr::Interpol(exprs) => {
                 let exprs = exprs
-                    .actual
+                    .inner_t()
                     .iter()
                     .map(|expr| format!("{}", expr))
                     .collect::<Vec<_>>();
-                write!(f, "Interpol({})", exprs.join(", "))
+                write!(f, "![{}]!", exprs.join(", "))
             }
             Expr::List(exprs) => {
                 let exprs = exprs
-                    .inner()
+                    .inner_t()
                     .iter()
                     .map(|expr| format!("{}", expr))
                     .collect::<Vec<_>>();
@@ -170,16 +214,7 @@ impl From<Atom> for Expr {
     }
 }
 
-// impl InnerAtom for Expr {
-//     fn atom(&self) -> &Atom {
-//         match self {
-//             Expr::Atom(atom) => atom,
-//             _ => unimplemented!(),
-//         }
-//     }
-// }
-
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Atom {
     Number(usize),
     Dice(usize, usize),
@@ -216,11 +251,11 @@ impl Atom {
 impl Display for Atom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Atom::Number(n) => write!(f, "Atom({})", n),
-            Atom::Dice(n, s) => write!(f, "Atom({}d{})", n, s),
-            Atom::Str(s) => write!(f, r#"Atom("{}")"#, s),
-            Atom::Ident(s) => write!(f, "Atom({})", s),
-            Atom::Raw(token) => write!(f, "Atom({})", token),
+            Atom::Number(n) => write!(f, "{}", n),
+            Atom::Dice(n, s) => write!(f, "{}d{}", n, s),
+            Atom::Str(s) => write!(f, r#""{}""#, s),
+            Atom::Ident(s) => write!(f, "`{}`", s),
+            Atom::Raw(token) => write!(f, "{}", token),
         }
     }
 }
@@ -277,17 +312,21 @@ where
 
 type SourceInfo = (String, Range<usize>, Position);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Node<T> {
-    actual: T,
+    actual: RefCell<T>,
     meta: MetaData,
     token_span: SpanInfo,
     source_span: SpanInfo,
 }
 
 impl<T> Node<T> {
-    pub fn inner(&self) -> &T {
-        &self.actual
+    pub fn inner_t(&self) -> Ref<T> {
+        self.actual.borrow()
+    }
+
+    pub fn inner_t_mut(&self) -> RefMut<T> {
+        self.actual.borrow_mut()
     }
 
     pub fn details(&self) -> (&MetaData, &SpanInfo, &SpanInfo) {
@@ -297,6 +336,47 @@ impl<T> Node<T> {
     pub fn token_span(&self) -> SimpleSpan {
         SimpleSpan::new((), self.token_span.start()..self.token_span.end())
     }
+
+    pub fn source_span(&self) -> Range<usize> {
+        self.source_span.start()..self.source_span.end()
+    }
+}
+
+impl<T> Hash for Node<T>
+where
+    T: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash the actual value inside the node
+        let actual_value = self.inner_t();
+        actual_value.hash(state);
+    }
+}
+
+impl<T> Eq for Node<T> where T: PartialEq {}
+
+impl<T> PartialEq for Node<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        // Compare the actual values inside the nodes
+        *self.inner_t() == *other.inner_t()
+    }
+}
+
+impl<T> Default for Node<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self {
+            actual: RefCell::new(T::default()),
+            meta: MetaData::new((0, 0)), // Default position
+            token_span: SpanInfo::new(String::new(), 0, 0),
+            source_span: SpanInfo::new(String::new(), 0, 0),
+        }
+    }
 }
 
 impl<T> Display for Node<T>
@@ -304,14 +384,14 @@ where
     T: Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.actual)
+        write!(f, "{}", self.inner_t())
     }
 }
 
 impl<T> From<T> for Node<T> {
     fn from(value: T) -> Self {
         Self {
-            actual: value,
+            actual: RefCell::new(value),
             meta: Default::default(),
             token_span: Default::default(),
             source_span: Default::default(),
@@ -324,7 +404,7 @@ impl<T> From<(T, Range<usize>, SourceInfo)> for Node<T> {
         let (actual, range, src_info) = value;
         let (src_name, src_span, position) = src_info;
         Self {
-            actual,
+            actual: RefCell::new(actual),
             meta: MetaData::new(position),
             token_span: SpanInfo::new(src_name.clone(), range.start, range.end),
             source_span: SpanInfo::new(src_name, src_span.start, src_span.end),
@@ -396,11 +476,34 @@ impl Script {
     pub fn new(name: RcNode<Atom>, statements: Vec<RcNode<Statement>>) -> Self {
         Self { name, statements }
     }
+
+    pub fn name_only(name: String) -> Self {
+        Self {
+            name: rc_node(Atom::Ident(name)),
+            statements: Vec::new(),
+        }
+    }
+
+    pub fn name(&self) -> &RcNode<Atom> {
+        &self.name
+    }
 }
 
 impl Display for Script {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {} Statements", self.name, self.statements.len())
+        write!(
+            f,
+            "{}, {} Statement{}",
+            self.name,
+            self.statements.len(),
+            if self.statements.len() == 1 { "" } else { "s" }
+        )
+    }
+}
+
+impl Hash for Script {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
     }
 }
 
@@ -428,11 +531,48 @@ impl Table {
             rows,
         }
     }
+
+    pub fn name_only(name: String) -> Self {
+        Self {
+            name: rc_node(Atom::Ident(name)),
+            roll: Default::default(),
+            tags: Default::default(),
+            modifiers: Default::default(),
+            rows: Default::default(),
+        }
+    }
+
+    pub fn name(&self) -> &RcNode<Atom> {
+        &self.name
+    }
+
+    pub fn tags(&self) -> &RcNode<Vec<Atom>> {
+        &self.tags
+    }
+}
+
+impl Hash for Table {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
 }
 
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}, {}, {} Rows", self.name, self.roll, self.rows)
+    }
+}
+
+impl From<TableGroup> for Table {
+    fn from(value: TableGroup) -> Self {
+        let roll = value.sub_tables.first().unwrap().inner_t().roll.clone();
+        Self {
+            name: value.name,
+            roll,
+            tags: value.tags,
+            modifiers: Default::default(),
+            rows: rc_node(TableRows::SubTables(value.sub_tables)),
+        }
     }
 }
 
@@ -455,13 +595,21 @@ impl TableGroup {
             sub_tables,
         }
     }
+
+    pub fn name(&self) -> &RcNode<Atom> {
+        &self.name
+    }
+
+    pub fn tags(&self) -> &RcNode<Vec<Atom>> {
+        &self.tags
+    }
 }
 
 impl Display for TableGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "\t{}:", self.name)?;
+        writeln!(f, "{}", self.name)?;
         for table in &self.sub_tables {
-            writeln!(f, "\t\t{}", table)?;
+            writeln!(f, "\t{}", table)?;
         }
         Ok(())
     }
@@ -473,6 +621,7 @@ pub enum TableRows {
     List(Vec<Atom>),
     Flat(Vec<RcNode<Statement>>),
     Keyed(Vec<(RcNode<Expr>, RcNode<Statement>)>),
+    SubTables(Vec<RcNode<Table>>), // For TableGroup storage in symbol table
 }
 
 impl TableRows {
@@ -482,7 +631,14 @@ impl TableRows {
             TableRows::List(atoms) => Expr::Atom(Atom::Dice(1, atoms.len())),
             TableRows::Flat(nodes) => Expr::Atom(Atom::Dice(1, nodes.len())),
             TableRows::Keyed(rows) => calc_keyed_roll(rows),
+            TableRows::SubTables(nodes) => nodes.first().unwrap().inner_t().roll.inner_t().clone(),
         }
+    }
+}
+
+impl Default for TableRows {
+    fn default() -> Self {
+        Self::Empty
     }
 }
 
@@ -491,8 +647,9 @@ impl Display for TableRows {
         let num_rows = match self {
             TableRows::Empty => 0,
             TableRows::List(atoms) => atoms.len(),
-            TableRows::Flat(nodes) => nodes.len(),
+            TableRows::Flat(stmts) => stmts.len(),
             TableRows::Keyed(items) => items.len(),
+            TableRows::SubTables(nodes) => nodes.len(),
         };
         write!(f, "{}", num_rows)
     }
@@ -507,14 +664,17 @@ impl From<Vec<Atom>> for TableRows {
 fn calc_keyed_roll<T>(rows: &Vec<(RcNode<Expr>, T)>) -> Expr {
     let (mut bottom, mut top) = (usize::MAX, usize::MIN);
     for (key_list, _) in rows {
-        let (low, high) = match key_list.inner() {
+        let key_list = key_list.inner_t();
+        let (low, high) = match &*key_list {
             Expr::List(keys) => (
-                keys.actual
+                *keys
+                    .inner_t()
                     .iter()
                     .min()
                     .unwrap_or(&Atom::Number(usize::MAX))
                     .number(),
-                keys.actual
+                *keys
+                    .inner_t()
                     .iter()
                     .max()
                     .unwrap_or(&Atom::Number(usize::MIN))
@@ -522,21 +682,21 @@ fn calc_keyed_roll<T>(rows: &Vec<(RcNode<Expr>, T)>) -> Expr {
             ),
             _ => return Expr::Atom(Atom::Dice(1, rows.len())),
         };
-        bottom = bottom.min(*low);
-        top = top.max(*high);
+        bottom = bottom.min(low);
+        top = top.max(high);
     }
     let first = rows.first().unwrap().0.details();
     let last = rows.last().unwrap().0.details();
     let offset = bottom.saturating_sub(1);
     if offset != 0 {
         let die_roll = Rc::new(Node {
-            actual: Expr::Atom(Atom::Dice(1, top - offset)),
+            actual: Expr::Atom(Atom::Dice(1, top - offset)).into(),
             meta: MetaData::new(first.0.position),
             token_span: SpanInfo::new(first.1.context.clone(), first.1.start, last.1.end),
             source_span: SpanInfo::new(first.2.context.clone(), first.2.start, last.2.end),
         });
         let modifier = Rc::new(Node {
-            actual: Expr::Atom(Atom::Number(offset)),
+            actual: Expr::Atom(Atom::Number(offset)).into(),
             meta: MetaData::new(first.0.position),
             token_span: SpanInfo::new(first.1.context.clone(), first.1.start, last.1.end),
             source_span: SpanInfo::new(first.2.context.clone(), first.2.start, last.2.end),
@@ -561,9 +721,21 @@ impl Modifier {
 
 impl Display for Modifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.duration, self.value)
+        let value = format!("{}", self.value);
+        let value = if value.starts_with('-') {
+            value
+        } else {
+            format!("+{}", value)
+        };
+        write!(f, "{} {}", value, self.duration)
     }
 }
+
+// impl Depict for Modifier {
+//     fn depict(&self) -> String {
+//         format!("{} {}", self.duration.depict(), self.value.depict())
+//     }
+// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Duration {
@@ -579,3 +751,13 @@ impl Display for Duration {
         }
     }
 }
+
+// impl Depict for Duration {
+//     fn depict(&self) -> String {
+//         match self {
+//             Duration::All => "All".to_string(),
+//             Duration::Next(expr) => format!("Next({})", expr.depict()),
+//         }
+//     }
+
+// }
