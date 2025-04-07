@@ -7,26 +7,29 @@ use std::{
     ops::Range,
 };
 
-use ariadne::{Color, Label, Report, ReportKind, Source};
-
-use ast::{Analyze, RcNode, Script, SemErrors, Table, rc_node};
+use ast::{Analyze, RcNode, Script, Table, rc_node};
 use chumsky::{Parser, extra::SimpleState};
+use error::{TaleError, TaleResult, TaleResultVec};
 use lexer::{Lexicon, Position, Token, tokenize};
 use parsers::parser;
 
-pub mod ast;
+mod ast;
+mod lexer;
 mod parsers;
+mod utils;
 
 pub use ast::AST;
 
 type SimpleStateTable<'src> = SimpleState<&'src mut StateTable>;
+
+pub mod error;
 
 pub struct StateTable {
     current: String,
     sources: HashMap<String, String>,
     tokens: HashMap<String, Lexicon>,
     asts: HashMap<String, ast::AST>,
-    //errs: HashMap<String, Vec<Vec<Rich<'src, Token>>>>,
+    //errs: HashMap<String, Vec<TaleError>>,
     symbols: RefCell<SymbolTable>,
 }
 
@@ -42,31 +45,48 @@ impl StateTable {
         }
     }
 
-    pub fn add_source(&mut self, name: String, source: String) {
+    pub fn add_source(&mut self, name: String, source: String) -> TaleResult<()> {
         self.current = name.clone();
-        self.sources.insert(name, source);
+        match self.sources.insert(name, source) {
+            Some(overwritten) => Err(TaleError::system(format!(
+                "Overwriting previous source: {}\nWith: {}",
+                &self.current,
+                overwritten.chars().take(50).collect::<Box<str>>()
+            ))),
+            None => Ok(()),
+        }
     }
 
-    pub fn add_source_file(&mut self, name: String) {
+    pub fn add_source_file(&mut self, name: String) -> TaleResult<()> {
         self.current = name.clone();
-        let source = read_to_string(&name).unwrap();
-        self.add_source(name, source);
+        let source = read_to_string(&name)?;
+        self.add_source(name, source)
     }
 
-    pub fn lex_current(&mut self) {
-        let source = self.sources.get(&self.current).unwrap();
-        let lexicon = tokenize(source);
-        self.tokens.insert(self.current.clone(), lexicon);
+    pub fn lex_current(&mut self) -> TaleResultVec<()> {
+        let source = self
+            .sources
+            .get(&self.current)
+            .ok_or_else(|| TaleError::lexer(0..0, format!("No source named: {}", &self.current)))?;
+        let lexicon = tokenize(source)?;
+        match self.tokens.insert(self.current.clone(), lexicon) {
+            Some(_) => Err(TaleError::lexer(
+                0..0,
+                format!("Overwriting previous lexicon of: {}", &self.current),
+            )
+            .into()),
+            None => Ok(()),
+        }
     }
 
-    pub fn lex_source(&mut self, name: String) {
+    pub fn lex_source(&mut self, name: String) -> TaleResultVec<()> {
         self.current = name;
-        self.lex_current();
+        self.lex_current()
     }
 
-    pub fn parse_current(&mut self) -> String {
+    pub fn parse_current(&mut self) -> TaleResultVec<()> {
         let the_errs;
-        let tokens = self.get_tokens(&self.current);
+        let tokens = self.get_tokens(&self.current)?;
         let output = {
             let mut parse_state = SimpleState::from(&mut *self);
             let parse_result = parser().parse_with_state(&tokens, &mut parse_state);
@@ -81,50 +101,48 @@ impl StateTable {
                 }
             }
         };
-        let err_string = format!("{:?}", the_errs);
-        let err_breakout = the_errs
-            .iter()
-            .map(|err| (err.to_string(), err.span().into_range()))
-            .collect::<Vec<_>>();
-        for (msg, span) in err_breakout {
-            let src_span = self.get_source_span(&span);
-            Report::build(ReportKind::Error, (&self.current, src_span.clone()))
-                .with_message(msg)
-                .with_label(
-                    Label::new((&self.current, src_span))
-                        .with_message("Problem here")
-                        .with_color(Color::Red),
+        if !the_errs.is_empty() {
+            let mut err_breakout = the_errs
+                .iter()
+                .map(|err| TaleError::parser(err.span().into_range(), err.to_string()))
+                .collect::<Vec<_>>();
+            err_breakout
+                .iter_mut()
+                .for_each(|err| err.span = self.get_source_span(&err.span));
+            Err(err_breakout)
+        } else {
+            match self.asts.insert(self.current.clone(), AST::new(output)) {
+                Some(_) => Err(TaleError::parser(
+                    0..0,
+                    format!("Overwriting previous AST of: {}", &self.current),
                 )
-                .finish()
-                .eprint((
-                    &self.current,
-                    Source::from(self.sources.get(&self.current).unwrap()),
-                ))
-                .unwrap();
+                .into()),
+                None => Ok(()),
+            }
         }
-        self.asts.insert(self.current.clone(), AST::new(output));
-        err_string
     }
 
-    pub fn parse_source(&mut self, name: String) -> String {
+    pub fn parse_source(&mut self, name: String) -> TaleResultVec<()> {
         self.current = name.clone();
         self.parse_current()
     }
 
-    pub fn analyze_current(&mut self) -> Result<(), SemErrors> {
-        let ast = self.asts.get_mut(&self.current).unwrap();
+    pub fn analyze_current(&mut self) -> TaleResultVec<()> {
+        let ast = self.asts.get_mut(&self.current).ok_or_else(|| {
+            TaleError::analyzer(0..0, format!("No source named: {}", &self.current))
+        })?;
         ast.analyze(&self.symbols)
     }
 
-    pub fn analyze_source(&mut self, name: String) -> Result<(), SemErrors> {
+    pub fn analyze_source(&mut self, name: String) -> TaleResultVec<()> {
         self.current = name.clone();
         self.analyze_current()
     }
 
-    fn get_tokens(&self, name: &str) -> Vec<Token> {
+    fn get_tokens(&self, name: &str) -> TaleResult<Vec<Token>> {
         let lexicon = self.tokens.get(name).unwrap();
         let tokens: Vec<_> = lexicon.iter().map(|(token, _, _)| token.clone()).collect();
-        tokens
+        Ok(tokens)
     }
 
     fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
@@ -227,18 +245,73 @@ impl SymbolTable {
         }
     }
 
-    pub fn get_value(&self, name: &str) -> Option<SymbolValue> {
+    pub fn get_tags(&self, tags: Vec<&str>) -> SymbolValue {
+        let mut matched_tables = tags.iter().map(|tag| self.tags.get(*tag));
+        let mut intersection = match matched_tables.next() {
+            Some(Some(t)) => t.clone(),
+            _ => {
+                // No tags found, return empty list
+                return SymbolValue::List(Vec::new());
+            }
+        };
+        for tables in matched_tables {
+            match tables {
+                Some(t) => {
+                    // Intersect the current intersection with the new set of tables
+                    intersection = intersection
+                        .iter()
+                        .filter(|x| t.contains(x))
+                        .cloned()
+                        .collect();
+                }
+                None => {
+                    // If any tag was not found, return empty list
+                    return SymbolValue::List(Vec::new());
+                }
+            }
+        }
+        SymbolValue::List(
+            intersection
+                .into_iter()
+                .map(|t| SymbolValue::String(self.get_table(t).unwrap().to_string()))
+                .collect(),
+        )
+    }
+
+    pub fn get_value(&self, name: &str) -> Result<SymbolValue, String> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.numerics.get(name) {
-                return Some(SymbolValue::Numeric(*v));
+                return Ok(SymbolValue::Numeric(*v));
             }
             if let Some(v) = self.strings.get(name) {
-                return Some(SymbolValue::String(v.clone()));
+                return Ok(SymbolValue::String(v.clone()));
             }
-            Some(SymbolValue::String(name.to_string()))
+            Ok(SymbolValue::String(name.to_string()))
         } else {
-            None
+            Err(format!(
+                "Identifier '{}' is not defined in the current symbol table.",
+                name
+            ))
+        }
+    }
+
+    pub fn show_value(&self, name: &str) -> Result<SymbolValue, String> {
+        if self.names.contains(name) {
+            // If the name exists, return the corresponding value if it exists
+            if let Some(v) = self.numerics.get(name) {
+                Ok(SymbolValue::Numeric(*v))
+            } else if let Some(v) = self.strings.get(name) {
+                Ok(SymbolValue::String(v.clone()))
+            } else if let Some(v) = self.scripts.get(&rc_node(Script::name_only(name.into()))) {
+                Ok(SymbolValue::String(v.to_string()))
+            } else if let Some(v) = self.tables.get(&rc_node(Table::name_only(name.into()))) {
+                Ok(SymbolValue::String(v.to_string()))
+            } else {
+                Err(format!("No value found for: {}", name))
+            }
+        } else {
+            Err(format!("No value found for: {}", name))
         }
     }
 
@@ -251,6 +324,45 @@ impl SymbolTable {
         let value = rc_node(Script::name_only(name));
         self.scripts.get(&value)
     }
+
+    pub fn list_names(&self) -> Result<SymbolValue, String> {
+        if self.names.is_empty() {
+            Err("No identifiers are defined in the symbol table.".to_string())
+        } else {
+            let names_list = self
+                .names
+                .iter()
+                .map(|n| SymbolValue::String(n.clone()))
+                .collect();
+            Ok(SymbolValue::List(names_list))
+        }
+    }
+
+    pub fn list_scripts(&self) -> Result<SymbolValue, String> {
+        if self.scripts.is_empty() {
+            Err("No Tables are defined!".to_string())
+        } else {
+            let scripts_list = self
+                .scripts
+                .iter()
+                .map(|t| SymbolValue::String(t.inner_t().name().to_string()))
+                .collect();
+            Ok(SymbolValue::List(scripts_list))
+        }
+    }
+
+    pub fn list_tables(&self) -> Result<SymbolValue, String> {
+        if self.tables.is_empty() {
+            Err("No Tables are defined!".to_string())
+        } else {
+            let tables_list = self
+                .tables
+                .iter()
+                .map(|t| SymbolValue::String(t.inner_t().name().to_string()))
+                .collect();
+            Ok(SymbolValue::List(tables_list))
+        }
+    }
 }
 
 impl Default for SymbolTable {
@@ -259,6 +371,7 @@ impl Default for SymbolTable {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum SymbolValue {
     Placeholder,
     Numeric(isize),
@@ -290,6 +403,7 @@ impl Display for SymbolValue {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use chumsky::prelude::*;
 

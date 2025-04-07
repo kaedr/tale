@@ -1,5 +1,5 @@
+use crate::lexer::Token;
 use chumsky::prelude::*;
-use lexer::Token;
 
 use crate::{
     SimpleStateTable,
@@ -255,10 +255,11 @@ pub fn show<'src>() -> impl Parser<
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
-    use lexer::{quick_tokens, utils::read_sample_lines};
+    use crate::lexer::tests::quick_tokens;
 
-    use crate::{StateTable, tests::stubbed_parser};
+    use crate::{StateTable, tests::stubbed_parser, utils::tests::read_sample_lines};
 
     use super::*;
 
@@ -268,25 +269,25 @@ mod tests {
 
         table.add_source("test".into(), r"-".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, any_statement());
         assert_eq!("Empty", format!("{}", output));
 
         table.add_source("test".into(), r"–".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, any_statement());
         assert_eq!("Empty", format!("{}", output));
 
         table.add_source("test".into(), r"—".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, any_statement());
         assert_eq!("Empty", format!("{}", output));
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, any_statement());
         assert_eq!(
             "[found end of input at 0..0 expected 'Dash', 'Minus', 'Set', something else\
@@ -302,7 +303,7 @@ mod tests {
 
         table.add_source("test".into(), r"[Easy Peasy]".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
             "Sequence: [\n\tRoll `easy`, `peasy`\n]",
@@ -311,16 +312,13 @@ mod tests {
 
         table.add_source("test".into(), r"[1d6 + 7]".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
-        assert_eq!(
-            "Sequence: [\n\t(1d6 + 7)\n]",
-            format!("{}", output)
-        );
+        assert_eq!("Sequence: [\n\t(1d6 + 7)\n]", format!("{}", output));
 
         table.add_source("test".into(), r"[Invoke taco, Invoke burrito]".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
             "Sequence: [\n\tInvoke: `taco`,\n\tInvoke: `burrito`\n]",
@@ -329,7 +327,7 @@ mod tests {
 
         table.add_source("test".into(), r"A + B".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
             "[found 'Word(\"A\")' at 0..1 expected 'LBracket']",
@@ -338,7 +336,7 @@ mod tests {
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, statement_sequence());
         assert_eq!(
             "[found end of input at 0..0 expected 'LBracket']",
@@ -365,7 +363,7 @@ mod tests {
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, assignment());
         assert_eq!(
             "[found end of input at 0..0 expected 'Set', or something else]",
@@ -392,7 +390,7 @@ mod tests {
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, clear());
         assert_eq!(
             "[found end of input at 0..0 expected 'Clear']",
@@ -417,7 +415,7 @@ mod tests {
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, invoke());
         assert_eq!(
             "[found end of input at 0..0 expected 'Invoke']",
@@ -438,14 +436,14 @@ mod tests {
         for (index, line) in lines.enumerate() {
             table.add_source("test".into(), line.unwrap());
             table.lex_current();
-            let tokens = &table.get_tokens("test");
+            let tokens = &table.get_tokens("test").unwrap();
             let output = stubbed_parser(&mut table, &tokens, load());
             assert_eq!(check_vals[index], format!("{}", output));
         }
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, load());
         assert_eq!(
             "[found end of input at 0..0 expected 'Load']",
@@ -472,7 +470,7 @@ mod tests {
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, modify());
         assert_eq!(
             "[found end of input at 0..0 expected 'Modify', 'Plus', or 'Minus']",
@@ -492,14 +490,14 @@ mod tests {
         for (index, line) in lines.enumerate() {
             table.add_source("test".into(), line.unwrap());
             table.lex_current();
-            let tokens = &table.get_tokens("test");
+            let tokens = &table.get_tokens("test").unwrap();
             let output = stubbed_parser(&mut table, &tokens, output());
             assert_eq!(check_vals[index], format!("{}", output));
         }
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, output());
         assert_eq!(
             "[found end of input at 0..0 expected 'Output']",
@@ -527,7 +525,7 @@ mod tests {
 
         table.add_source("test".into(), "".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, show());
         assert_eq!(
             "[found end of input at 0..0 expected 'Show']",

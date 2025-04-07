@@ -1,6 +1,6 @@
+use crate::lexer::Token;
 use chumsky::prelude::*;
 use definitions::{script, table, table_group};
-use lexer::Token;
 use statements::seq_or_statement;
 
 use crate::{
@@ -39,8 +39,9 @@ pub fn parser<'src>() -> impl Parser<
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
-    use lexer::utils::read_sample_file_to_string;
+    use crate::utils::tests::read_sample_file_to_string;
 
     use crate::StateTable;
 
@@ -52,7 +53,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -63,7 +64,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -74,7 +75,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -85,7 +86,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -96,7 +97,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -107,7 +108,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -118,7 +119,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -129,7 +130,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -140,7 +141,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -151,7 +152,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -162,7 +163,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -173,7 +174,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -184,7 +185,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -195,7 +196,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -206,7 +207,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -217,7 +218,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 
     #[test]
@@ -228,6 +229,6 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 }

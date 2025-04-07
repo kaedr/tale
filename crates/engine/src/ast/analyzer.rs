@@ -1,19 +1,20 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::SymbolTable;
+use crate::{
+    SymbolTable,
+    error::{TaleError, TaleResultVec},
+};
 
 use super::{
     AST, Atom, Duration, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
 };
 
-pub type SemErrors = Vec<(Range<usize>, String)>; // (span, message)
-
 pub trait Analyze {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors>;
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()>;
 }
 
 impl Analyze for AST {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.nodes.inner_t().analyze(symbols)
     }
 }
@@ -22,30 +23,16 @@ impl<T> Analyze for Node<T>
 where
     T: Analyze,
 {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.inner_t().analyze(symbols)
     }
 }
-
-// impl<T> Analyze for Vec<T>
-// where
-//     T: Analyze,
-// {
-//     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
-//         self.iter()
-//             .map(|node| {
-//                 // Call analyze on each node in the vector
-//                 node.analyze(symbols)
-//             })
-//             .collect::<Result<(), SemErrors>>()
-//     }
-// }
 
 impl<T> Analyze for Vec<Rc<Node<T>>>
 where
     T: Analyze,
 {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.iter()
             .map(|node| {
                 // Call analyze on each node in the vector
@@ -65,7 +52,7 @@ where
 }
 
 impl Analyze for Statement {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
             Statement::Empty => Ok(()),
             Statement::Script(node) => node.inner_t().analyze(symbols),
@@ -109,39 +96,39 @@ impl Analyze for Statement {
 }
 
 impl Analyze for Script {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         Ok(())
     }
 }
 
 impl Analyze for Table {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         Ok(())
     }
 }
 
 impl Analyze for TableGroup {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         Ok(())
     }
 }
 
 impl Analyze for Expr {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
             Expr::Empty => Ok(()),
-            Expr::Atom(atom) => Ok(()),
-            Expr::Neg(node) => Ok(()),
-            Expr::Add(node, node1) => Ok(()),
-            Expr::Sub(node, node1) => Ok(()),
-            Expr::Mul(node, node1) => Ok(()),
-            Expr::Div(node, node1) => Ok(()),
-            Expr::Mod(node, node1) => Ok(()),
-            Expr::Pow(node, node1) => Ok(()),
-            Expr::Lookup(node, node1) => Ok(()),
+            Expr::Atom(_atom) => Ok(()),
+            Expr::Neg(_expr) => Ok(()),
+            Expr::Add(_lhs, _rhs) => Ok(()),
+            Expr::Sub(_lhs, _rhs) => Ok(()),
+            Expr::Mul(_lhs, _rhs) => Ok(()),
+            Expr::Div(_lhs, _rhs) => Ok(()),
+            Expr::Mod(_lhs, _rhs) => Ok(()),
+            Expr::Pow(_lhs, _rhs) => Ok(()),
+            Expr::Lookup(_lhs, _rhs) => Ok(()),
             Expr::Roll(reps, target) => analyze_roll(symbols, reps, target),
-            Expr::Interpol(node) => Ok(()),
-            Expr::List(node) => Ok(()),
+            Expr::Interpol(_exprs) => Ok(()),
+            Expr::List(_atoms) => Ok(()),
         }
     }
 }
@@ -150,7 +137,7 @@ fn analyze_roll(
     symbols: &RefCell<SymbolTable>,
     reps: &RcNode<Expr>,
     target: &RcNode<Expr>,
-) -> Result<(), SemErrors> {
+) -> TaleResultVec<()> {
     let (left, right) = (reps.inner_t().clone(), target.inner_t().clone());
     match (left, right) {
         (Expr::Atom(Atom::Ident(lhs)), Expr::Atom(Atom::Ident(rhs))) => {
@@ -159,13 +146,13 @@ fn analyze_roll(
                     // Both are defined, this is okay
                     Ok(())
                 }
-                (true, false) => Err(vec![(
+                (true, false) => Err(vec![TaleError::analyzer(
                     target.source_span(),
-                    format!("target '{}' is not defined", rhs),
+                    format!("Roll target '{}' is not defined", rhs),
                 )]),
-                (false, true) => Err(vec![(
+                (false, true) => Err(vec![TaleError::analyzer(
                     reps.source_span(),
-                    format!("reps '{}' is not defined", lhs),
+                    format!("Roll reps '{}' is not defined", lhs),
                 )]),
                 (false, false) => {
                     let joined = format!("{} {}", lhs, rhs);
@@ -174,9 +161,9 @@ fn analyze_roll(
                         *target.inner_t_mut() = Expr::Atom(Atom::Ident(joined.clone()));
                         Ok(())
                     } else {
-                        Err(vec![(
+                        Err(vec![TaleError::analyzer(
                             reps.source_span(),
-                            format!("neither '{}' nor '{}' are defined", lhs, rhs),
+                            format!("Roll: neither '{}' nor '{}' are defined", lhs, rhs),
                         )])
                     }
                 }
@@ -187,26 +174,27 @@ fn analyze_roll(
 }
 
 impl Analyze for Atom {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         Ok(())
     }
 }
 
 impl Analyze for Modifier {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         Ok(())
     }
 }
 
 impl Analyze for Duration {
-    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> Result<(), SemErrors> {
+    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         Ok(())
     }
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
-    use lexer::utils::read_sample_file_to_string;
+    use crate::utils::tests::read_sample_file_to_string;
 
     use crate::StateTable;
 
@@ -218,7 +206,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(errors, "[]");
+        assert_eq!(format!("{:?}", errors), "Ok(())");
 
         table
             .symbols

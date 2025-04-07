@@ -1,5 +1,5 @@
+use crate::lexer::Token;
 use chumsky::prelude::*;
-use lexer::Token;
 
 use crate::{
     SimpleStateTable,
@@ -272,6 +272,7 @@ fn table_headings<'src>() -> impl Parser<
                 full_rc_node(Vec::new(), extra),
             ))
         })
+        .boxed()
 }
 
 fn tags_directive<'src>() -> impl Parser<
@@ -305,6 +306,7 @@ fn row_key<'src>() -> impl Parser<
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use crate::{
         StateTable,
@@ -321,7 +323,7 @@ mod tests {
                             End Script";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, script());
         assert_eq!("Script: `example`, 1 Statement", format!("{}", output));
     }
@@ -333,7 +335,7 @@ mod tests {
                             List: Red, Orange, Yellow, Green, Blue, Purple";
         state.add_source("test".into(), source.into());
         state.lex_current();
-        let tokens = &state.get_tokens("test");
+        let tokens = &state.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!("Table: `colors`, 1d6, 6 Rows", format!("{}", output));
 
@@ -342,7 +344,7 @@ mod tests {
                             End Table";
         state.add_source("test".into(), source.into());
         state.lex_current();
-        let tokens = &state.get_tokens("test");
+        let tokens = &state.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!("Table: `stub`, 1d20, 0 Rows", format!("{}", output));
 
@@ -353,7 +355,7 @@ mod tests {
                             End Table";
         state.add_source("test".into(), source.into());
         state.lex_current();
-        let tokens = &state.get_tokens("test");
+        let tokens = &state.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!("Table: `basic`, 1d3, 3 Rows", format!("{}", output));
 
@@ -365,7 +367,7 @@ mod tests {
                             End Table";
         state.add_source("test".into(), source.into());
         state.lex_current();
-        let tokens = &state.get_tokens("test");
+        let tokens = &state.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!("Table: `keyed`, 1d7, 4 Rows", format!("{}", output));
     }
@@ -382,7 +384,7 @@ mod tests {
                             End Table Group\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, table_group());
         assert_eq!(
             "TableGroup: `minimal`\n\
@@ -399,7 +401,7 @@ mod tests {
                             End Table Group\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, table_group());
         assert_eq!(
             "TableGroup: `animals`\n\
@@ -415,7 +417,7 @@ mod tests {
                             End Table Group\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, table_group());
         assert_eq!(
             "[Table Group rows must all have same number of columns at 0..23]",
@@ -430,7 +432,7 @@ mod tests {
         let source = "1d6\tColor\tShape\tSize\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, sub_tables_row());
         // Assert we parsed a single die roll and 3 columns.
         assert_eq!(1, output.matches("Dice(1, 6)").count());
@@ -447,7 +449,7 @@ mod tests {
                             ";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_group_rows());
         // Assert we parsed 1 column and 3 rows.
         assert_eq!(1, output.matches("Keyed").count());
@@ -460,7 +462,7 @@ mod tests {
                             ";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_group_rows());
         // Assert we parsed 1 column and 3 rows.
         assert_eq!(3, output.matches("Keyed").count());
@@ -473,7 +475,7 @@ mod tests {
                             ";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_group_rows());
         // Check the uneven rows case:
         assert_eq!(
@@ -488,7 +490,7 @@ mod tests {
         let source = "";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         println!("output: {}", output);
         assert!(output.starts_with("(Node"));
@@ -499,7 +501,7 @@ mod tests {
         let source = "Roll: 1d8\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 8))"));
@@ -509,7 +511,7 @@ mod tests {
         let source = "Tags: Dark, Stormy\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("value: Empty"));
@@ -520,7 +522,7 @@ mod tests {
         let source = "Roll: 1d6\nTags: This, That, The Other Thing\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 6))"));
@@ -532,7 +534,7 @@ mod tests {
         let source = "Tags: the other, way around\nRoll: 2d20\n";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(2, 20)"));
@@ -543,7 +545,7 @@ mod tests {
         let source = "Tag: @";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert_eq!(
             "[found 'At' at 2..3 expected something else, or 'NewLines']",
@@ -553,7 +555,7 @@ mod tests {
         let source = "roll: @";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert_eq!(
             "[found 'At' at 2..3 expected 'Minus', something else, or 'LParens']",
@@ -567,45 +569,42 @@ mod tests {
         let source = "22\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, row_key());
         assert_eq!("[22]", format!("{}", output));
 
         let source = "4,6-8\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, row_key());
-        assert_eq!(
-            "[4, 6, 7, 8]",
-            format!("{}", output)
-        );
+        assert_eq!("[4, 6, 7, 8]", format!("{}", output));
 
         let source = "Elves\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, row_key());
         assert_eq!("`elves`", format!("{}", output));
 
         let source = "`Dwarves`\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, row_key());
         assert_eq!("`dwarves`", format!("{}", output));
 
         let source = "4 Non Blondes\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, row_key());
         assert_eq!("`4 non blondes`", format!("{}", output));
 
         let source = "3-4 Business Days\t";
         table.add_source("test".into(), source.into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, row_key());
         assert_eq!(
             "[found 'Word(\"Business\")' at 3..4 expected 'Comma', or 'Tabs']",

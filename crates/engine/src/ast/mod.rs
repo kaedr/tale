@@ -3,19 +3,17 @@ use std::fmt::Display;
 use std::hash::Hash;
 use std::{ops::Range, rc::Rc};
 
+use crate::lexer::{Position, Token};
 use chumsky::prelude::*;
 use chumsky::span::Span;
-use lexer::{Position, Token};
+use eval::Eval;
 
-use crate::SimpleStateTable;
+use crate::{SimpleStateTable, SymbolTable, SymbolValue};
 
 mod analyzer;
+mod eval;
 
-pub use analyzer::{Analyze, SemErrors};
-
-pub trait Depict {
-    fn depict(&self) -> String;
-}
+pub use analyzer::Analyze;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct AST {
@@ -37,12 +35,6 @@ impl Display for AST {
         write!(f, "{}", self.nodes)
     }
 }
-
-// impl Depict for AST {
-//     fn depict(&self) -> String {
-//         format!("{}", self.nodes.depict())
-//     }
-// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
@@ -487,6 +479,10 @@ impl Script {
     pub fn name(&self) -> &RcNode<Atom> {
         &self.name
     }
+
+    pub fn invoke(&self) -> Result<SymbolValue, String> {
+        todo!()
+    }
 }
 
 impl Display for Script {
@@ -548,6 +544,44 @@ impl Table {
 
     pub fn tags(&self) -> &RcNode<Vec<Atom>> {
         &self.tags
+    }
+
+    pub fn roll(&self) -> Result<SymbolValue, String> {
+        todo!()
+    }
+
+    pub fn lookup(&self, key: SymbolValue) -> Result<SymbolValue, String> {
+        todo!()
+    }
+
+    pub fn add_modifier(&mut self, modifier: Modifier) {
+        self.modifiers.push(modifier);
+    }
+
+    pub fn clear_modifier(&mut self, duration: Duration) {
+        match duration {
+            Duration::All => self.modifiers.clear(),
+            Duration::Next(value) => {
+                let amount = value
+                    .eval(&RefCell::new(SymbolTable::new()))
+                    .expect("Error evaluating Clear Duration");
+                if let SymbolValue::Numeric(amount) = amount {
+                    self.modifiers = self
+                        .modifiers
+                        .iter_mut()
+                        .filter_map(|modifier| match modifier.decrease_duration(amount) {
+                            true => Some(modifier.clone()),
+                            false => None,
+                        })
+                        .collect()
+                } else {
+                    unreachable!(
+                        "Duration::Next should only contain numeric values, found: {:?}",
+                        value
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -717,6 +751,13 @@ impl Modifier {
     pub fn new(duration: Duration, value: RcNode<Expr>) -> Self {
         Self { duration, value }
     }
+
+    /// Decreases the duration by the specified amount
+    /// Returns true if there is duration remaining
+    fn decrease_duration(&mut self, amount: isize) -> bool {
+        // Decrease the duration by the specified amount
+        self.duration.decrease(amount)
+    }
 }
 
 impl Display for Modifier {
@@ -731,16 +772,42 @@ impl Display for Modifier {
     }
 }
 
-// impl Depict for Modifier {
-//     fn depict(&self) -> String {
-//         format!("{} {}", self.duration.depict(), self.value.depict())
-//     }
-// }
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Duration {
     All,
     Next(RcNode<Expr>),
+}
+
+impl Duration {
+    /// Decreases the duration by the specified amount
+    /// Returns true if there is duration remaining
+    fn decrease(&mut self, amount: isize) -> bool {
+        match self {
+            Duration::All => true,
+            Duration::Next(node) => {
+                let value = node
+                    .eval(&RefCell::new(SymbolTable::new()))
+                    .expect("Error evaluating Duration");
+                if let SymbolValue::Numeric(num) = value {
+                    let new_value = num as isize - amount;
+                    if new_value <= 0 {
+                        // Duration is exhausted
+                        *self = Duration::All; // Set to All
+                        false
+                    } else {
+                        // Update the node with the new value
+                        *node.inner_t_mut() = Expr::Atom(Atom::Number(new_value as usize));
+                        true // Duration remains
+                    }
+                } else {
+                    unreachable!(
+                        "Duration::Next should only contain numeric values, found: {:?}",
+                        value
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl Display for Duration {
@@ -751,13 +818,3 @@ impl Display for Duration {
         }
     }
 }
-
-// impl Depict for Duration {
-//     fn depict(&self) -> String {
-//         match self {
-//             Duration::All => "All".to_string(),
-//             Duration::Next(expr) => format!("Next({})", expr.depict()),
-//         }
-//     }
-
-// }

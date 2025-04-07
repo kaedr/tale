@@ -1,9 +1,9 @@
+use crate::lexer::Token;
 use crate::{
     SimpleStateTable,
     ast::{Atom, Expr, RcNode, full_rc_node},
 };
 use chumsky::prelude::*;
-use lexer::Token;
 
 pub fn term<'src>() -> impl Parser<
     'src,
@@ -236,8 +236,9 @@ pub fn ident_normalize(l: Atom, r: Atom) -> Atom {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
-    use lexer::quick_tokens;
+    use crate::lexer::tests::quick_tokens;
 
     use crate::{StateTable, tests::stubbed_parser};
 
@@ -248,7 +249,7 @@ mod tests {
         let mut table = StateTable::new();
         table.add_source("test".into(), r"This is a test: Once upon a time...".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
             r#""This is a test: Once upon a time...""#,
@@ -257,7 +258,7 @@ mod tests {
 
         table.add_source("test2".into(), r"Let's do this!".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test2");
+        let tokens = &table.get_tokens("test2").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(r#""Let's do this!""#, format!("{}", output));
 
@@ -266,13 +267,13 @@ mod tests {
             r"This is a (test): // Once upon a time...".into(),
         );
         table.lex_current();
-        let tokens = &table.get_tokens("test3");
+        let tokens = &table.get_tokens("test3").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(r#""This is a (test):""#, format!("{}", output));
 
         table.add_source("test4".into(), r"This is a test: Reject @ once".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test4");
+        let tokens = &table.get_tokens("test4").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
             "[found 'At' at 6..7 expected something else, or end of input]",

@@ -1,5 +1,5 @@
+use crate::lexer::Token;
 use chumsky::{pratt::*, prelude::*};
-use lexer::Token;
 
 use crate::{
     SimpleStateTable,
@@ -254,12 +254,16 @@ pub fn number_range_list<'src>() -> impl Parser<
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use super::*;
 
-    use lexer::{quick_tokens, utils::read_sample_lines};
+    use crate::lexer::tests::quick_tokens;
 
-    use crate::{StateTable, parsers::expressions::arithmetic, tests::stubbed_parser};
+    use crate::{
+        StateTable, parsers::expressions::arithmetic, tests::stubbed_parser,
+        utils::tests::read_sample_lines,
+    };
 
     #[test]
     fn parse_roll() {
@@ -336,7 +340,7 @@ mod tests {
             "On Table: Kingdom of [Current Kingdom]".into(),
         );
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
         assert_eq!(
             r#"!["Kingdom of", Roll 1, `current kingdom`]!"#,
@@ -433,19 +437,19 @@ mod tests {
         let mut table = StateTable::new();
         table.add_source("test".into(), "valid".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(r#"!["valid"]!"#, format!("{}", output));
 
         table.add_source("test".into(), "`also valid`".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(r#"!["also valid"]!"#, format!("{}", output));
 
         table.add_source("test".into(), "weirdly enough `also valid`".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"!["weirdly enough", "also valid"]!"#,
@@ -454,7 +458,7 @@ mod tests {
 
         table.add_source("test".into(), "simple expression: [1 + 2]".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"!["simple expression:", (1 + 2)]!"#,
@@ -463,7 +467,7 @@ mod tests {
 
         table.add_source("test".into(), "another [1d4 + 3] things".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"!["another", (1d4 + 3), "things"]!"#,
@@ -472,7 +476,7 @@ mod tests {
 
         table.add_source("test".into(), "what's in the [Box]?".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"!["what's in the", Roll 1, `box`, "?"]!"#,
@@ -481,7 +485,7 @@ mod tests {
 
         table.add_source("test".into(), "[one @ two]".into());
         table.lex_current();
-        let tokens = &table.get_tokens("test");
+        let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             "[found 'At' at 2..3 expected something else, 'Colon', 'Comma', 'Period'\

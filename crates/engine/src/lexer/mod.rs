@@ -3,7 +3,7 @@ use std::{fmt::Display, str::FromStr, sync::LazyLock};
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
 
-pub mod utils;
+use crate::{error::TaleError, error::TaleResultVec};
 
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
     let parts: Vec<_> = lex.slice().split("d").collect();
@@ -179,14 +179,9 @@ pub type Position = (usize, usize);
 
 pub type Lexicon = Vec<(Token, Span, Position)>;
 
-/// Lexes the source string into a vector of tokens, ignoring any lexical errors.
-pub fn quick_tokens(source: &str) -> Vec<Token> {
-    Token::lexer(source).flatten().collect()
-}
-
 /// Lexes the source string into a vector of tokens, their source spans,
 /// and their line/characters positions.
-pub fn tokenize(source: &str) -> Lexicon {
+pub fn tokenize(source: &str) -> TaleResultVec<Lexicon> {
     let mut lex = Token::lexer(source);
     let mut tokens = Vec::new();
     let mut errs = Vec::new();
@@ -198,16 +193,18 @@ pub fn tokenize(source: &str) -> Lexicon {
                 let position = find_position(span.start, &lex.extras.1);
                 tokens.push((token, span, position));
             }
-            Err(err) => errs.push((err, span)),
+            Err(_) => errs.push(TaleError::lexer(
+                span,
+                format!("Invalid input character(s): {}", lex.slice()),
+            )),
         }
     }
 
     if !errs.is_empty() {
-        eprintln!("Errors: {:?}", errs);
-        todo!("Handle lexical errors");
+        Err(errs)
+    } else {
+        Ok(tokens)
     }
-
-    tokens
 }
 
 fn find_position(start: usize, lines: &[(usize, usize)]) -> Position {
@@ -220,19 +217,25 @@ fn find_position(start: usize, lines: &[(usize, usize)]) -> Position {
 }
 
 #[cfg(test)]
-mod tests {
+#[allow(unused_must_use)]
+pub(crate) mod tests {
     use super::*;
+
+    /// Lexes the source string into a vector of tokens, ignoring any lexical errors.
+    pub(crate) fn quick_tokens(source: &str) -> Vec<Token> {
+        Token::lexer(source).flatten().collect()
+    }
 
     #[cfg(test)]
     mod test_sample_files {
-        use crate::utils::read_sample_file_to_string;
+        use crate::utils::tests::read_sample_file_to_string;
 
         use super::*;
 
         #[test]
         fn tokenotomy() {
             let contents = read_sample_file_to_string("91_strings");
-            let token_vec: Vec<_> = tokenize(&contents);
+            let token_vec: Vec<_> = tokenize(&contents).unwrap();
             assert_eq!(
                 token_vec[0..2],
                 [
@@ -1549,7 +1552,7 @@ mod tests {
     #[cfg(test)]
     mod test_general_tokens {
 
-        use crate::utils::read_sample_file_to_string;
+        use crate::utils::tests::read_sample_file_to_string;
 
         use super::*;
 
