@@ -983,6 +983,8 @@ pub(crate) mod tests {
                     Token::DieRoll((1, 100)),
                     Token::Modulo,
                     Token::Digits(10),
+                    Token::Plus,
+                    Token::Digits(1),
                     Token::RParens,
                     Token::NewLines
                 ]

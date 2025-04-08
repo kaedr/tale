@@ -100,6 +100,7 @@ pub fn assignment<'src>() -> impl Parser<
         .ignore_then(value_name().map_with(full_rc_node))
         .then_ignore(just(Token::Equals).or(just(Token::To)))
         .then(any_expr())
+        .then_ignore(terminator())
         .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra))
         .boxed()
 }
@@ -250,6 +251,7 @@ pub fn show<'src>() -> impl Parser<
     just(Token::Show)
         .ignore_then(just(Token::Tag).or_not())
         .then(ident_maybe_sub())
+        .then_ignore(terminator())
         .map_with(|(tags, value), extra| {
             full_rc_node(
                 Statement::Show(full_rc_node((tags.is_some(), value), extra)),

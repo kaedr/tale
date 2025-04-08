@@ -127,6 +127,7 @@ pub fn interpolation<'src>() -> impl Parser<
         .repeated()
         .at_least(1)
         .collect::<Vec<_>>()
+        .then_ignore(terminator())
         .map_with(full_rc_node)
         .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra))
         .boxed()

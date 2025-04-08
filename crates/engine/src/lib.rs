@@ -222,26 +222,78 @@ impl Default for StateTable {
     }
 }
 
-pub struct Scope {
-    numerics: HashMap<String, isize>,
-    strings: HashMap<String, String>,
+pub struct Scopes {
+    numerics: Vec<HashMap<String, isize>>,
+    strings: Vec<HashMap<String, String>>,
 }
 
-impl Scope {
+impl Scopes {
     fn new() -> Self {
-        Self { numerics: HashMap::new(), strings: HashMap::new() }
+        Self {
+            numerics: vec![HashMap::new()],
+            strings: vec![HashMap::new()],
+        }
     }
 
-    fn resolve(&self, name: &str) -> TaleResultVec<SymbolValue> {
-        todo!()
+    fn insert(&mut self, name: String, value: SymbolValue) -> bool {
+        match value {
+            SymbolValue::Numeric(v) => self
+                .numerics
+                .last_mut()
+                .expect("There must always be at least one valid scope")
+                .insert(name, v)
+                .is_none(),
+            SymbolValue::String(v) => self
+                .strings
+                .last_mut()
+                .expect("There must always be at least one valid scope")
+                .insert(name, v)
+                .is_none(),
+            _ => unreachable!(
+                "Attempted to insert Non Numeric/String value into Scope: {}",
+                self.len()
+            ),
+        }
+    }
+
+    fn resolve(&self, name: &str) -> Option<SymbolValue> {
+        self.numerics
+            .iter()
+            .zip(self.strings.iter())
+            .rev()
+            .find_map(|(nums, strs)| {
+                if let Some(n) = nums.get(name) {
+                    Some(SymbolValue::Numeric(*n))
+                } else {
+                    strs.get(name).map(|s| SymbolValue::String(s.clone()))
+                }
+            })
+    }
+
+    fn push(&mut self) {
+        self.numerics.push(HashMap::new());
+        self.strings.push(HashMap::new());
+    }
+
+    fn pop(&mut self) {
+        if self.len() > 1 {
+            self.numerics.pop();
+            self.strings.pop();
+        } else {
+            unreachable!("Attempted to pop base scope!");
+        }
+    }
+
+    fn len(&self) -> usize {
+        // If the internal Vecs are somehow a different length, we should probably break
+        debug_assert_eq!(self.numerics.len(), self.strings.len());
+        self.numerics.len()
     }
 }
 
 pub struct SymbolTable {
     names: HashSet<String>,
-    numerics: HashMap<String, isize>,
-    strings: HashMap<String, String>,
-    scopes: Vec<Scope>,
+    scopes: Scopes,
     scripts: HashMap<String, RcNode<Script>>,
     tables: HashMap<String, RcNode<Table>>,
     tags: HashMap<String, Vec<String>>,
@@ -251,10 +303,8 @@ impl SymbolTable {
     fn new() -> Self {
         Self {
             names: HashSet::new(),
-            numerics: HashMap::new(),
-            strings: HashMap::new(),
             scripts: HashMap::new(),
-            scopes: Vec::new(),
+            scopes: Scopes::new(),
             tables: HashMap::new(),
             tags: HashMap::new(),
         }
@@ -265,8 +315,8 @@ impl SymbolTable {
     fn insert(&mut self, name: String, value: SymbolValue) -> bool {
         match value {
             SymbolValue::Placeholder => self.names.insert(name),
-            SymbolValue::Numeric(v) => self.numerics.insert(name, v).is_none(),
-            SymbolValue::String(v) => self.strings.insert(name, v).is_none(),
+            SymbolValue::Numeric(_) => self.scopes.insert(name, value),
+            SymbolValue::String(_) => self.scopes.insert(name, value),
             SymbolValue::Script(node) => self.scripts.insert(name, node).is_none(),
             SymbolValue::Table(node) => self.tables.insert(name, node).is_none(),
             SymbolValue::List(_) => todo!(),
@@ -326,13 +376,11 @@ impl SymbolTable {
     pub fn get_value(&self, name: &str) -> TaleResultVec<SymbolValue> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
-            if let Some(v) = self.numerics.get(name) {
-                return Ok(SymbolValue::Numeric(*v));
+            if let Some(v) = self.scopes.resolve(name) {
+                Ok(v)
+            } else {
+                Ok(SymbolValue::String(name.to_string()))
             }
-            if let Some(v) = self.strings.get(name) {
-                return Ok(SymbolValue::String(v.clone()));
-            }
-            Ok(SymbolValue::String(name.to_string()))
         } else {
             Err(vec![TaleError::evaluator(
                 0..0,
@@ -344,10 +392,8 @@ impl SymbolTable {
     pub fn show_value(&self, name: &str) -> TaleResultVec<SymbolValue> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
-            if let Some(v) = self.numerics.get(name) {
-                Ok(SymbolValue::Numeric(*v))
-            } else if let Some(v) = self.strings.get(name) {
-                Ok(SymbolValue::String(v.clone()))
+            if let Some(v) = self.scopes.resolve(name) {
+                Ok(v)
             } else if let Some(v) = self.scripts.get(name) {
                 Ok(SymbolValue::String(v.to_string()))
             } else if let Some(v) = self.tables.get(name) {
@@ -414,11 +460,11 @@ impl SymbolTable {
     }
 
     pub fn push_scope(&mut self) {
-
+        self.scopes.push();
     }
 
     pub fn pop_scope(&mut self) {
-
+        self.scopes.pop();
     }
 }
 
@@ -603,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_10() {
+    fn pipeline_full_10_expr() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -620,7 +666,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_11() {
+    fn pipeline_full_11_assign() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -637,7 +683,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_11_with_deps() {
+    fn pipeline_full_11_assign_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -659,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_12() {
+    fn pipeline_full_12_clear() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -676,7 +722,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_12_with_deps() {
+    fn pipeline_full_12_clear_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -698,7 +744,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_13() {
+    fn pipeline_full_13_invoke() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -715,7 +761,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_13_with_deps() {
+    fn pipeline_full_13_invoke_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -738,7 +784,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_14() {
+    fn pipeline_full_14_load() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -753,7 +799,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_15() {
+    fn pipeline_full_15_lookup() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -768,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_15_with_deps() {
+    fn pipeline_full_15_lookup_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -788,7 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_16() {
+    fn pipeline_full_16_modify() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -803,7 +849,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_16_with_deps() {
+    fn pipeline_full_16_modify_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -823,7 +869,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_17() {
+    fn pipeline_full_17_output() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -838,7 +884,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_18() {
+    fn pipeline_full_18_roll() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -853,7 +899,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_18_with_deps() {
+    fn pipeline_full_18_roll_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -873,7 +919,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_19() {
+    fn pipeline_full_19_show() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -888,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_19_with_deps() {
+    fn pipeline_full_19_show_with_deps() {
         let mut table = StateTable::new();
         table.pipeline_file(
             sample_path("92_supporting_defs.tale")
@@ -908,7 +954,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_21() {
+    fn pipeline_full_21_scripts() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
@@ -919,12 +965,29 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_full_92() {
+    fn pipeline_full_92_supporting_defs() {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
             table.pipeline_file(
                 sample_path("92_supporting_defs.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.ends_with("]))"));
+        assert_eq!(11, output.matches("Placeholder").count());
+    }
+
+    #[test]
+    fn pipeline_full_93_scopes() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("93_scoping.tale")
                     .to_string_lossy()
                     .to_string()
             )

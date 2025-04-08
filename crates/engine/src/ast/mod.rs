@@ -485,7 +485,10 @@ impl Script {
     }
 
     pub fn invoke(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
-        self.statements.eval(symbols)
+        symbols.borrow_mut().push_scope();
+        let output = self.statements.eval(symbols);
+        symbols.borrow_mut().pop_scope();
+        output
     }
 }
 
@@ -548,7 +551,11 @@ impl Table {
         todo!()
     }
 
-    pub fn lookup(&self, symbols: &RefCell<SymbolTable>, key: SymbolValue) -> TaleResultVec<SymbolValue> {
+    pub fn lookup(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        key: SymbolValue,
+    ) -> TaleResultVec<SymbolValue> {
         todo!()
     }
 
