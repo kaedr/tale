@@ -14,4 +14,5 @@ End Script
 
 Set item = 0
 Invoke A
-Set item = 4
+output: [item]
+Set Item = 4

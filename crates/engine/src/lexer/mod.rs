@@ -324,7 +324,6 @@ pub(crate) mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::End)));
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
-            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
         }
 

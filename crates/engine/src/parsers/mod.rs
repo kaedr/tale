@@ -22,7 +22,7 @@ pub fn parser<'src>() -> impl Parser<
     table()
         .or(table_group())
         .or(script())
-        .or(seq_or_statement().then_ignore(just(Token::NewLines)))
+        .or(seq_or_statement().then_ignore(just(Token::NewLines).ignored().or(end())))
         .or(just(Token::NewLines)
             .ignored()
             .map_with(|_, extra| full_rc_node(Statement::Empty, extra)))
@@ -196,6 +196,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
+        println!("{}", table.asts.get("17_statement_output.tale").unwrap());
         assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 

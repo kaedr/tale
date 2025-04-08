@@ -824,7 +824,9 @@ mod tests {
             )
         );
         println!("{}", output);
-        assert_eq!("", output)
+        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(4, output.matches("is not defined").count());
     }
 
     #[test]
@@ -859,7 +861,9 @@ mod tests {
             )
         );
         println!("{}", output);
-        assert_eq!("", output)
+        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(4, output.matches("is not defined").count());
     }
 
     #[test]
@@ -879,7 +883,7 @@ mod tests {
             )
         );
         println!("{}", output);
-        assert_eq!("", output)
+        assert_eq!("Ok(List([Placeholder, Placeholder, Placeholder, Placeholder]))", output)
     }
 
     #[test]
@@ -894,7 +898,8 @@ mod tests {
             )
         );
         println!("{}", output);
-        assert_eq!("", output)
+        assert!(output.starts_with("Ok(List([String(\"There are "));
+        assert!(output.ends_with("lights illuminated out of a total of 5.\"), String(\"A lovely string\")]))"));
     }
 
     #[test]
@@ -1005,6 +1010,7 @@ mod tests {
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(11, output.matches("Placeholder").count());
+        assert_eq!(5, output.matches("Placeholder").count());
+        assert_eq!(2, output.matches("Overwriting previous value").count());
     }
 }

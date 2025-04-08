@@ -229,22 +229,20 @@ pub fn number<'src>()
 }
 
 // Match a character designating termination of the current statement
-// then, unless this character is the end of input, rewind so the character
-// is still available for use a delimiter
+// then, rewind so the character is still available for use a delimiter
 pub fn terminator<'src>()
 -> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    empty()
-        .then_ignore(one_of([
+    one_of([
             Token::Comma,
             Token::Period,
             Token::NewLines,
             Token::RBracket,
             Token::SemiColon,
             Token::Tabs,
-        ]))
-        .rewind()
-        .or(end())
+        ]).ignored()
+        .or(end()).rewind()
+        .labelled("Terminator")
 }
 
 pub fn ident_normalize(l: Atom, r: Atom) -> Atom {

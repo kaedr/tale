@@ -19,6 +19,7 @@ pub fn any_expr<'src>() -> impl Parser<
         .or(arithmetic().then_ignore(terminator()))
         .or(interpolation())
         .boxed()
+        .labelled("Any Expression")
 }
 
 pub fn roll<'src>() -> impl Parser<
@@ -189,6 +190,8 @@ pub fn arithmetic<'src>() -> impl Parser<
         ))
     })
     .boxed()
+    .labelled("Arithmetic Expression")
+    .as_context()
 }
 
 fn fold_prefix<'src>(

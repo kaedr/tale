@@ -27,10 +27,10 @@ pub fn any_statement<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone {
     nonce()
-        .or(chainable_statement())
         .or(load())
         .or(output())
         .or(show())
+        .or(chainable_statement())
         .and_is(
             just(Token::End)
                 .then(one_of([Token::Script, Token::Table]))
@@ -106,6 +106,8 @@ pub fn assignment<'src>() -> impl Parser<
         .then_ignore(terminator())
         .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra))
         .boxed()
+        .labelled("Assignment Statement")
+        .as_context()
 }
 
 pub fn expression<'src>() -> impl Parser<
