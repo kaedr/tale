@@ -325,6 +325,10 @@ impl<T> Node<T> {
         (&self.meta, &self.token_span, &self.source_span)
     }
 
+    pub fn position(&self) -> Position {
+        self.meta.position
+    }
+
     pub fn token_span(&self) -> SimpleSpan {
         SimpleSpan::new((), self.token_span.start()..self.token_span.end())
     }

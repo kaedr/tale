@@ -20,8 +20,11 @@ where
         self.inner_t().eval(symbols).map_err(|mut errs| {
             errs.iter_mut().for_each(|err| {
                 // Amend default spans with actual spans
-                if err.span.start() == 0 && err.span.end() == 0 {
-                    err.span = self.source_span();
+                if err.start() == 0 && err.end() == 0 {
+                    err.update_span(self.source_span());
+                }
+                if err.position() == (0, 0) {
+                    err.update_position(self.position());
                 }
             });
             errs
@@ -214,6 +217,7 @@ fn clear_stmt(
         }
         None => Err(vec![TaleError::evaluator(
             target.source_span(),
+            target.position(),
             format!("Cannot clear modifiers for: '{name}' (Not a Table or Group name)"),
         )]),
     }
@@ -244,6 +248,7 @@ fn modify_stmt(
         }
         None => Err(vec![TaleError::evaluator(
             target.source_span(),
+            target.position(),
             format!("Cannot modify: '{name}' (Not a Table or Group name)"),
         )]),
     }
@@ -260,18 +265,27 @@ fn show_stmt(
             .get_tags(target.to_string().split_whitespace().collect::<Vec<_>>()))
     } else {
         match target.to_string().as_str() {
-            "tables" | "table" => symbols
-                .borrow()
-                .list_tables()
-                .map_err(|err| vec![TaleError::evaluator(node.source_span(), err)]),
-            "scripts" | "script" => symbols
-                .borrow()
-                .list_scripts()
-                .map_err(|err| vec![TaleError::evaluator(node.source_span(), err)]),
-            "values" | "variables" | "names" => symbols
-                .borrow()
-                .list_names()
-                .map_err(|err| vec![TaleError::evaluator(node.source_span(), err)]),
+            "tables" | "table" => symbols.borrow().list_tables().map_err(|err| {
+                vec![TaleError::evaluator(
+                    node.source_span(),
+                    node.position(),
+                    err,
+                )]
+            }),
+            "scripts" | "script" => symbols.borrow().list_scripts().map_err(|err| {
+                vec![TaleError::evaluator(
+                    node.source_span(),
+                    node.position(),
+                    err,
+                )]
+            }),
+            "values" | "variables" | "names" => symbols.borrow().list_names().map_err(|err| {
+                vec![TaleError::evaluator(
+                    node.source_span(),
+                    node.position(),
+                    err,
+                )]
+            }),
             other => symbols.borrow().show_value(other),
         }
     }
@@ -286,6 +300,7 @@ impl Eval for Expr {
                 SymbolValue::Numeric(n) => Ok(SymbolValue::Numeric(-n)),
                 other => Err(vec![TaleError::evaluator(
                     node.source_span(),
+                    node.position(),
                     format!("Cannot negate {:?}", other),
                 )]),
             },
@@ -323,6 +338,7 @@ fn add_expr(
         }
         _ => Err(vec![TaleError::evaluator(
             lhs.merge_source_span(rhs),
+            lhs.position(),
             "Cannot add non-numeric values.".to_string(),
         )]),
     }
@@ -348,6 +364,7 @@ fn sub_expr(
         }
         _ => Err(vec![TaleError::evaluator(
             lhs.merge_source_span(rhs),
+            lhs.position(),
             "Cannot subract non-numeric values.".to_string(),
         )]),
     }
@@ -373,6 +390,7 @@ fn mul_expr(
         }
         _ => Err(vec![TaleError::evaluator(
             lhs.merge_source_span(rhs),
+            lhs.position(),
             "Cannot multiply non-numeric values.".to_string(),
         )]),
     }
@@ -398,6 +416,7 @@ fn div_expr(
         }
         _ => Err(vec![TaleError::evaluator(
             lhs.merge_source_span(rhs),
+            lhs.position(),
             "Cannot divide non-numeric values.".to_string(),
         )]),
     }
@@ -423,6 +442,7 @@ fn mod_expr(
         }
         _ => Err(vec![TaleError::evaluator(
             lhs.merge_source_span(rhs),
+            lhs.position(),
             "Cannot modulo non-numeric values.".to_string(),
         )]),
     }
@@ -448,6 +468,7 @@ fn pow_expr(
         }
         _ => Err(vec![TaleError::evaluator(
             lhs.merge_source_span(rhs),
+            lhs.position(),
             "Cannot exponentiate non-numeric values.".to_string(),
         )]),
     }
@@ -468,12 +489,14 @@ fn lookup_expr(
             } else {
                 Err(vec![TaleError::evaluator(
                     target.source_span(),
+                    target.position(),
                     format!("Cannot lookup on: '{target_val}' (Not a Table or Group name)"),
                 )])
             }
         }
         _ => Err(vec![TaleError::evaluator(
             target.source_span(),
+            target.position(),
             format!("Cannot lookup on: '{target_val}' (Not a Table or Group name)"),
         )]),
     }
@@ -505,6 +528,7 @@ fn roll_expr(
         },
         _ => Err(vec![TaleError::evaluator(
             reps.merge_source_span(target),
+            reps.position(),
             format!("Invalid types for roll expression: {reps} and {target}."),
         )]),
     }
@@ -523,6 +547,7 @@ fn roll_invoke_or_err(
     } else {
         Err(vec![TaleError::evaluator(
             0..0,
+            (0, 0),
             format!("No such Table: '{target}'"),
         )])
     }
@@ -543,6 +568,7 @@ fn invoke_roll_or_err(
     } else {
         Err(vec![TaleError::evaluator(
             0..0,
+            (0, 0),
             format!("No such Script: '{target}'"),
         )])
     }
@@ -584,6 +610,7 @@ fn roll_dice(x: usize, y: usize) -> TaleResultVec<SymbolValue> {
     if x == 0 || y == 0 {
         return Err(vec![TaleError::evaluator(
             0..0,
+            (0, 0),
             "Cannot roll zero dice or zero sides.".to_string(),
         )]);
     }

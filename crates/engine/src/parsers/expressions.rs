@@ -45,6 +45,7 @@ pub fn roll<'src>() -> impl Parser<
         .or(optional_roll.then(roll_predicate()))
         .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Roll(lhs, rhs), extra))
         .boxed()
+        .labelled("Roll Expression")
 }
 
 fn roll_predicate<'src>() -> impl Parser<
@@ -71,6 +72,7 @@ fn roll_predicate<'src>() -> impl Parser<
         .or(pred_three)
         .then_ignore(terminator())
         .boxed()
+        .labelled("Roll Predicate")
 }
 
 fn repetition_clause<'src>() -> impl Parser<
@@ -92,8 +94,10 @@ fn repetition_clause<'src>() -> impl Parser<
                     .delimited_by(just(Token::LParens), just(Token::RParens))
                     .or_not(),
             )
-            .then_ignore(just(Token::Time).or(just(Token::Roll)).or_not()))
+            .then_ignore(just(Token::Time).or(just(Token::Roll)).or_not().labelled("'Times/Rolls'"))
+            )
         .boxed()
+        .labelled("Repetition Clause")
 }
 
 pub fn lookup<'src>() -> impl Parser<
@@ -109,6 +113,7 @@ pub fn lookup<'src>() -> impl Parser<
         .then_ignore(terminator())
         .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Lookup(lhs, rhs), extra))
         .boxed()
+        .labelled("Lookup Expression")
 }
 
 pub fn interpolation<'src>() -> impl Parser<
@@ -131,6 +136,7 @@ pub fn interpolation<'src>() -> impl Parser<
         .map_with(full_rc_node)
         .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra))
         .boxed()
+        .labelled("Interpolation")
 }
 
 fn embed_expr<'src>() -> impl Parser<
@@ -252,6 +258,7 @@ pub fn number_range_list<'src>() -> impl Parser<
             },
         )
         .map_with(|items, extra| full_rc_node(Expr::List(full_rc_node(items, extra)), extra))
+        .labelled("Number, Range, List")
 }
 
 #[cfg(test)]
@@ -299,8 +306,7 @@ mod tests {
         let tokens = quick_tokens("Roll 2 @");
         let output = stubbed_parser(&mut table, &tokens, roll());
         assert_eq!(
-            "[found 'At' at 2..3 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus'\
-            , 'LParens', 'Time', 'Roll', 'On', something else, 'Table', or end of input]",
+            "[found 'At' at 2..3 expected Arithmetic Operator, 'LParens', 'Times/Rolls', Roll Predicate, or end of input in Arithmetic Expression at 1..2]",
             format!("{output}")
         );
     }
@@ -355,8 +361,7 @@ mod tests {
         let tokens = quick_tokens("Table: @");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
         assert_eq!(
-            "[found 'At' at 2..3 expected something else, 'Comma', 'Period', 'NewLines'\
-        , 'RBracket', 'SemiColon', 'Tabs', end of input, or 'LBracket']",
+            "[found 'At' at 2..3 expected Identity, Terminator, or Interpolation]",
             format!("{output}")
         );
     }
@@ -402,10 +407,7 @@ mod tests {
 
         let tokens = quick_tokens("1d6 + 1 (@5)");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!(
-            "[found 'At' at 4..5 expected something else]",
-            format!("{output}")
-        );
+        assert_eq!("[found 'At' at 4..5 expected Numeric]", format!("{output}"));
     }
 
     #[test]
@@ -428,7 +430,7 @@ mod tests {
         let tokens = quick_tokens("Lookup 2 @ TextKeys");
         let output = stubbed_parser(&mut table, &tokens, lookup());
         assert_eq!(
-            "[found 'At' at 2..3 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus', or 'On']",
+            "[found 'At' at 2..3 expected Arithmetic Operator, or 'On' in Arithmetic Expression at 1..2]",
             format!("{output}")
         );
     }
@@ -480,9 +482,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
-            "[found 'At' at 2..3 expected something else, 'Colon', 'Comma', 'Period'\
-        , 'NewLines', 'RBracket', 'SemiColon', 'Tabs', end of input, 'Caret', 'Asterisk', 'Slash'\
-        , 'Modulo', 'Plus', or 'Minus']",
+            "[found 'At' at 2..3 expected Wordlike, 'Colon', Identity, Terminator, or Arithmetic Operator]",
             format!("{output}")
         );
     }
@@ -536,7 +536,7 @@ mod tests {
         let tokens = quick_tokens("one @ two");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
         assert_eq!(
-            "[found 'At' at 1..2 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus', or end of input]",
+            "[found 'At' at 1..2 expected Arithmetic Operator, or end of input in Arithmetic Expression at 0..1]",
             format!("{output}")
         );
     }
@@ -563,5 +563,12 @@ mod tests {
         let tokens = quick_tokens("1-3,5,8-10");
         let output = stubbed_parser(&mut table, &tokens, number_range_list());
         assert_eq!("[1, 2, 3, 5, 8, 9, 10]", format!("{output}"));
+
+        let tokens = quick_tokens("bacon");
+        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        assert_eq!(
+            "[found 'Word(\"bacon\")' at 0..1 expected Number, Range, List]",
+            format!("{output}")
+        );
     }
 }

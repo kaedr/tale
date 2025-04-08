@@ -193,10 +193,14 @@ pub fn tokenize(source: &str) -> TaleResultVec<Lexicon> {
                 let position = find_position(span.start, &lex.extras.1);
                 tokens.push((token, span, position));
             }
-            Err(_) => errs.push(TaleError::lexer(
-                span,
-                format!("Invalid input character(s): {}", lex.slice()),
-            )),
+            Err(_) => {
+                let position = find_position(span.start, &lex.extras.1);
+                errs.push(TaleError::lexer(
+                    span,
+                    position,
+                    format!("Invalid input character(s): {}", lex.slice()),
+                ))
+            }
         }
     }
 

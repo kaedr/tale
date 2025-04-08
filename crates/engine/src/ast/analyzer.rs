@@ -174,10 +174,12 @@ fn analyze_roll(
                 }
                 (true, false) => Err(vec![TaleError::analyzer(
                     target.source_span(),
+                    target.position(),
                     format!("Roll target '{rhs}' is not defined"),
                 )]),
                 (false, true) => Err(vec![TaleError::analyzer(
                     reps.source_span(),
+                    reps.position(),
                     format!("Roll reps '{lhs}' is not defined"),
                 )]),
                 (false, false) => {
@@ -189,6 +191,7 @@ fn analyze_roll(
                     } else {
                         Err(vec![TaleError::analyzer(
                             reps.source_span(),
+                            reps.position(),
                             format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
                         )])
                     }

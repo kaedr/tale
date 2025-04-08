@@ -17,6 +17,7 @@ pub fn term<'src>() -> impl Parser<
         .or(value_name)
         .map_with(full_rc_node)
         .boxed()
+        .labelled("Arithmetic Term")
 }
 
 pub enum Op {
@@ -46,13 +47,14 @@ pub fn op<'src>(
     token: Token,
 ) -> impl Parser<'src, &'src [Token], Op, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    just(token).map(Op::from)
+    just(token).map(Op::from).labelled("Arithmetic Operator")
 }
 
 pub fn qstring<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! { Token::String(s) => Atom::Str(s) }
+    let qstring = select! { Token::String(s) => Atom::Str(s) };
+    qstring.labelled("Quoted String")
 }
 
 pub fn words<'src, T>() -> impl Parser<
@@ -75,6 +77,7 @@ where
         })
         .map_with(full_rc_node)
         .boxed()
+        .labelled("Words")
 }
 
 pub fn ident_maybe_sub<'src>()
@@ -90,6 +93,7 @@ pub fn ident_maybe_sub<'src>()
                 l
             }
         })
+        .labelled("Identity")
 }
 
 pub fn ident<'src>()
@@ -100,6 +104,7 @@ pub fn ident<'src>()
         .or(qstring())
         .map(|id| Atom::Ident(id.to_lowercase()))
         .boxed()
+        .labelled("Identity")
 }
 
 pub fn wordlike<'src>()
@@ -107,13 +112,18 @@ pub fn wordlike<'src>()
 + Clone {
     // Raw keywords coming before numbers is important
     // As numbers numeric keyswords that stand alone are parsed as their value, not the word
-    word().or(raw_keywords()).or(number()).or(dice()).boxed()
+    word()
+        .or(raw_keywords())
+        .or(number())
+        .or(dice())
+        .boxed()
+        .labelled("Wordlike")
 }
 
 pub fn raw_keywords<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! {
+    let raw_keywords = select! {
         Token::Once => Atom::Raw(Token::Once),
         Token::Twice => Atom::Raw(Token::Twice),
         Token::Thrice => Atom::Raw(Token::Thrice),
@@ -150,13 +160,14 @@ pub fn raw_keywords<'src>()
         Token::Tag => Atom::Raw(Token::Tag),
         Token::Time => Atom::Raw(Token::Time),
         Token::To => Atom::Raw(Token::To),
-    }
+    };
+    raw_keywords.labelled("Keyword")
 }
 
 pub fn typical_punctuation<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! {
+    let typical_punctuation = select! {
         Token::Ampersand => Atom::Raw(Token::Ampersand),
         Token::Apostrophe => Atom::Raw(Token::Apostrophe),
         Token::Bang => Atom::Raw(Token::Bang),
@@ -171,31 +182,35 @@ pub fn typical_punctuation<'src>()
         Token::RParens => Atom::Raw(Token::RParens),
         Token::SemiColon => Atom::Raw(Token::SemiColon),
         Token::Slash => Atom::Raw(Token::Slash),
-    }
+    };
+    typical_punctuation.labelled("Typical Punctuation")
 }
 
 pub fn value_name<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! { Token::Word(word) => Atom::Ident(word.to_lowercase()) }
+    let value_name = select! { Token::Word(word) => Atom::Ident(word.to_lowercase()) };
+    value_name.labelled("Value Name")
 }
 
 pub fn word<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! { Token::Word(word) => Atom::Str(word) }
+    let word = select! { Token::Word(word) => Atom::Str(word) };
+    word.labelled("Word")
 }
 
 pub fn dice<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! { Token::DieRoll((x, y)) => Atom::Dice(x, y) }
+    let dice = select! { Token::DieRoll((x, y)) => Atom::Dice(x, y) };
+    dice.labelled("Dice")
 }
 
 pub fn number<'src>()
 -> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
-    select! {
+    let number = select! {
         Token::DoubleOught => Atom::Number(100),
         Token::Digits(number) => Atom::Number(number),
 
@@ -209,7 +224,8 @@ pub fn number<'src>()
         Token::Eight => Atom::Number(8),
         Token::Nine => Atom::Number(9),
         Token::Ten => Atom::Number(10),
-    }
+    };
+    number.labelled("Numeric")
 }
 
 // Match a character designating termination of the current statement
@@ -276,7 +292,7 @@ mod tests {
         let tokens = &table.get_tokens("test4").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
-            "[found 'At' at 6..7 expected something else, or end of input]",
+            "[found 'At' at 6..7 expected Wordlike, Typical Punctuation, or end of input]",
             format!("{output}")
         );
     }
@@ -297,7 +313,7 @@ mod tests {
         let tokens = quick_tokens("A; Typo");
         let output = stubbed_parser(&mut table, &tokens, ident_maybe_sub());
         assert_eq!(
-            "[found 'SemiColon' at 1..2 expected something else, 'Colon', or end of input]",
+            "[found 'SemiColon' at 1..2 expected Wordlike, 'Colon', Identity, or end of input]",
             output
         );
     }
@@ -332,7 +348,7 @@ mod tests {
         let tokens = quick_tokens("Not: Valid");
         let output = stubbed_parser(&mut table, &tokens, ident());
         assert_eq!(
-            "[found 'Colon' at 1..2 expected something else, or end of input]",
+            "[found 'Colon' at 1..2 expected Wordlike, or end of input]",
             output
         );
     }
@@ -365,10 +381,7 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens[6..7], value_name());
         assert_eq!("`cased_num83r5`", output);
         let output = stubbed_parser(&mut table, &tokens[7..], value_name());
-        assert_eq!(
-            "[found 'Digits(42)' at 0..1 expected something else]",
-            output
-        );
+        assert_eq!("[found 'Digits(42)' at 0..1 expected Value Name]", output);
     }
 
     #[test]
@@ -417,6 +430,6 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens[12..13], number());
         assert_eq!("10", output);
         let output = stubbed_parser(&mut table, &tokens[13..], number());
-        assert_eq!("[found 'Once' at 0..1 expected something else]", output);
+        assert_eq!("[found 'Once' at 0..1 expected Numeric]", output);
     }
 }

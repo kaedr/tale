@@ -64,14 +64,14 @@ impl StateTable {
     }
 
     pub fn lex_current(&mut self) -> TaleResultVec<()> {
-        let source = self
-            .sources
-            .get(&self.current)
-            .ok_or_else(|| TaleError::lexer(0..0, format!("No source named: {}", &self.current)))?;
+        let source = self.sources.get(&self.current).ok_or_else(|| {
+            TaleError::lexer(0..0, (0, 0), format!("No source named: {}", &self.current))
+        })?;
         let lexicon = tokenize(source)?;
         match self.tokens.insert(self.current.clone(), lexicon) {
             Some(_) => Err(TaleError::lexer(
                 0..0,
+                (0, 0),
                 format!("Overwriting previous lexicon of: {}", &self.current),
             )
             .into()),
@@ -104,16 +104,18 @@ impl StateTable {
         if !the_errs.is_empty() {
             let mut err_breakout = the_errs
                 .iter()
-                .map(|err| TaleError::parser(err.span().into_range(), err.to_string()))
+                .map(|err| TaleError::parser(err.span().into_range(), (0, 0), err.to_string()))
                 .collect::<Vec<_>>();
-            err_breakout
-                .iter_mut()
-                .for_each(|err| err.span = self.get_source_span(&err.span));
+            err_breakout.iter_mut().for_each(|err| {
+                err.update_span(self.get_source_span(&err.span()));
+                err.update_position(self.get_source_position(&err.span()));
+            });
             Err(err_breakout)
         } else {
             match self.asts.insert(self.current.clone(), AST::new(output)) {
                 Some(_) => Err(TaleError::parser(
                     0..0,
+                    (0, 0),
                     format!("Overwriting previous AST of: {}", &self.current),
                 )
                 .into()),
@@ -129,7 +131,7 @@ impl StateTable {
 
     pub fn analyze_current(&mut self) -> TaleResultVec<()> {
         let ast = self.asts.get_mut(&self.current).ok_or_else(|| {
-            TaleError::analyzer(0..0, format!("No source named: {}", &self.current))
+            TaleError::analyzer(0..0, (0, 0), format!("No source named: {}", &self.current))
         })?;
         ast.analyze(&self.symbols)
     }
@@ -141,7 +143,7 @@ impl StateTable {
 
     pub fn evaluate_current(&mut self) -> TaleResultVec<SymbolValue> {
         let ast = self.asts.get_mut(&self.current).ok_or_else(|| {
-            TaleError::evaluator(0..0, format!("No source named: {}", &self.current))
+            TaleError::evaluator(0..0, (0, 0), format!("No source named: {}", &self.current))
         })?;
         ast.eval(&self.symbols)
     }
@@ -179,6 +181,15 @@ impl StateTable {
             tokens[start].1.start..tokens[span.end.saturating_sub(1)].1.end
         } else {
             0..0
+        }
+    }
+
+    fn get_source_position(&self, span: &Range<usize>) -> Position {
+        if let Some(tokens) = self.tokens.get(&self.current) {
+            let start = min(span.start, tokens.len().saturating_sub(1)); // Avoid out of bounds
+            tokens[start].2
+        } else {
+            (0, 0)
         }
     }
 
@@ -384,6 +395,7 @@ impl SymbolTable {
         } else {
             Err(vec![TaleError::evaluator(
                 0..0,
+                (0, 0),
                 format!("Identifier '{name}' is not defined in the current symbol table."),
             )])
         }
@@ -401,12 +413,14 @@ impl SymbolTable {
             } else {
                 Err(vec![TaleError::evaluator(
                     0..0,
+                    (0, 0),
                     format!("No value found for: {name}"),
                 )])
             }
         } else {
             Err(vec![TaleError::evaluator(
                 0..0,
+                (0, 0),
                 format!("No value found for: {name}"),
             )])
         }
@@ -986,11 +1000,7 @@ mod tests {
         let mut table = StateTable::new();
         let output = format!(
             "{:?}",
-            table.pipeline_file(
-                sample_path("93_scoping.tale")
-                    .to_string_lossy()
-                    .to_string()
-            )
+            table.pipeline_file(sample_path("93_scoping.tale").to_string_lossy().to_string())
         );
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));

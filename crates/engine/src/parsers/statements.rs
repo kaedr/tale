@@ -37,6 +37,7 @@ pub fn any_statement<'src>() -> impl Parser<
                 .not(),
         )
         .boxed()
+        .labelled("Statement")
 }
 
 fn nonce<'src>() -> impl Parser<
@@ -49,6 +50,7 @@ fn nonce<'src>() -> impl Parser<
         .then(terminator())
         .ignored()
         .map_with(|_, extra| full_rc_node(Statement::Empty, extra))
+        .labelled("Nonce")
 }
 
 pub fn chainable_statement<'src>() -> impl Parser<
@@ -63,6 +65,7 @@ pub fn chainable_statement<'src>() -> impl Parser<
         .or(modify())
         .or(expression())
         .boxed()
+        .labelled("Chainable Statement")
 }
 
 pub fn statement_sequence<'src>() -> impl Parser<
@@ -132,6 +135,8 @@ pub fn clear<'src>() -> impl Parser<
         )
         .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Clear(lhs, rhs), extra))
         .boxed()
+        .labelled("Clear Statement")
+        .as_context()
 }
 
 pub fn invoke<'src>() -> impl Parser<
@@ -146,6 +151,8 @@ pub fn invoke<'src>() -> impl Parser<
         .map_with(full_rc_node)
         .map_with(|node, extra| full_rc_node(Statement::Invoke(node), extra))
         .boxed()
+        .labelled("Invoke Statement")
+        .as_context()
 }
 
 pub fn load<'src>() -> impl Parser<
@@ -165,6 +172,8 @@ pub fn load<'src>() -> impl Parser<
         )
         .map_with(|path, extra| full_rc_node(Statement::Load(path), extra))
         .boxed()
+        .labelled("Load Statement")
+        .as_context()
 }
 
 pub fn modify<'src>() -> impl Parser<
@@ -199,7 +208,11 @@ pub fn modify<'src>() -> impl Parser<
                 extra,
             )
         });
-    keyword_form.or(leading_form).boxed()
+    keyword_form
+        .or(leading_form)
+        .boxed()
+        .labelled("Modify Statement")
+        .as_context()
 }
 
 fn duration<'src>()
@@ -240,6 +253,8 @@ pub fn output<'src>() -> impl Parser<
         .ignore_then(interpolation())
         .map_with(|value, extra| full_rc_node(Statement::Output(value), extra))
         .boxed()
+        .labelled("Output Statement")
+        .as_context()
 }
 
 pub fn show<'src>() -> impl Parser<
@@ -259,6 +274,8 @@ pub fn show<'src>() -> impl Parser<
             )
         })
         .boxed()
+        .labelled("Show Statement")
+        .as_context()
 }
 
 #[cfg(test)]
@@ -297,9 +314,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, any_statement());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Dash', 'Minus', 'Set', something else\
-            , 'Clear', 'Invoke', 'Modify', 'Plus', 'Roll', 'LParens', 'Lookup', 'LBracket'\
-            , 'Load', 'Output', or 'Show']",
+            "[found end of input at 0..0 expected Statement]",
             format!("{output}")
         );
     }
@@ -375,7 +390,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, assignment());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Set', or something else]",
+            "[found end of input at 0..0 expected Assignment Statement]",
             format!("{output}")
         );
     }
@@ -402,7 +417,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, clear());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Clear']",
+            "[found end of input at 0..0 expected Clear Statement]",
             format!("{output}")
         );
     }
@@ -427,7 +442,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, invoke());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Invoke']",
+            "[found end of input at 0..0 expected Invoke Statement]",
             format!("{output}")
         );
     }
@@ -455,7 +470,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, load());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Load']",
+            "[found end of input at 0..0 expected Load Statement]",
             format!("{output}")
         );
     }
@@ -482,7 +497,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, modify());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Modify', 'Plus', or 'Minus']",
+            "[found end of input at 0..0 expected Modify Statement]",
             format!("{output}")
         );
     }
@@ -509,7 +524,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, output());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Output']",
+            "[found end of input at 0..0 expected Output Statement]",
             format!("{output}")
         );
     }
@@ -537,7 +552,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, show());
         assert_eq!(
-            "[found end of input at 0..0 expected 'Show']",
+            "[found end of input at 0..0 expected Show Statement]",
             format!("{output}")
         );
     }

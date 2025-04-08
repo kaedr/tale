@@ -37,6 +37,8 @@ pub fn script<'src>() -> impl Parser<
             Statement::Script(full_rc_node(value, extra))
         })
         .map_with(full_rc_node)
+        .labelled("Script Definition")
+        .as_context()
 }
 
 pub fn table<'src>() -> impl Parser<
@@ -61,6 +63,8 @@ pub fn table<'src>() -> impl Parser<
             let table = full_rc_node(Table::new(name, roll, tags, rows), extra);
             full_rc_node(Statement::Table(table), extra)
         })
+        .labelled("Table Definition")
+        .as_context()
 }
 
 pub fn table_group<'src>() -> impl Parser<
@@ -108,6 +112,8 @@ pub fn table_group<'src>() -> impl Parser<
                 full_rc_node(TableGroup::new(name, tags, sub_tables), extra);
             Ok(full_rc_node(value, extra))
         })
+        .labelled("Table Group Definition")
+        .as_context()
 }
 
 fn sub_tables_row<'src>() -> impl Parser<
@@ -374,6 +380,7 @@ mod tests {
         state.add_source("test".into(), source.into());
         state.lex_current();
         let tokens = &state.get_tokens("test").unwrap();
+        println!("{:?}", tokens);
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!("Table: `keyed`, 1d7, 4 Rows", format!("{output}"));
     }
@@ -426,7 +433,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, table_group());
         assert_eq!(
-            "[Table Group rows must all have same number of columns at 0..23]",
+            "[Table Group rows must all have same number of columns at 0..23 in Table Group Definition at 0..23]",
             output
         );
     }
@@ -556,7 +563,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert_eq!(
-            "[found 'At' at 2..3 expected something else, or 'NewLines']",
+            "[found 'At' at 2..3 expected Identity, or 'NewLines']",
             output
         );
 
@@ -566,7 +573,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_headings());
         assert_eq!(
-            "[found 'At' at 2..3 expected 'Minus', something else, or 'LParens']",
+            "[found 'At' at 2..3 expected Arithmetic Expression]",
             output
         );
     }
