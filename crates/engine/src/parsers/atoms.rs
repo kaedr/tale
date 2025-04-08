@@ -253,14 +253,14 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
             r#""This is a test: Once upon a time...""#,
-            format!("{}", output)
+            format!("{output}")
         );
 
         table.add_source("test2".into(), r"Let's do this!".into());
         table.lex_current();
         let tokens = &table.get_tokens("test2").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
-        assert_eq!(r#""Let's do this!""#, format!("{}", output));
+        assert_eq!(r#""Let's do this!""#, format!("{output}"));
 
         table.add_source(
             "test3".into(),
@@ -269,7 +269,7 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test3").unwrap();
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
-        assert_eq!(r#""This is a (test):""#, format!("{}", output));
+        assert_eq!(r#""This is a (test):""#, format!("{output}"));
 
         table.add_source("test4".into(), r"This is a test: Reject @ once".into());
         table.lex_current();
@@ -277,7 +277,7 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, words::<Atom>());
         assert_eq!(
             "[found 'At' at 6..7 expected something else, or end of input]",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 

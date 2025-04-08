@@ -1,4 +1,6 @@
+set bird = 42
 Set the_word = bird
 Set the_word to "bird"
+Set the_word to `bird`
 force = mass * acceleration
 minutes to midnight

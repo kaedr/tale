@@ -31,7 +31,7 @@ pub(crate) mod tests {
     }
 
     /// Returns the path to the given sample file.
-    fn sample_path<P>(filename: P) -> PathBuf
+    pub fn sample_path<P>(filename: P) -> PathBuf
     where
         P: AsRef<Path>,
     {

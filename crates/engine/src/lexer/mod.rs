@@ -160,7 +160,7 @@ impl Token {
     /// Return a lowercased string representing the token.
     pub fn to_lowercase(&self) -> String {
         match self {
-            Self::DieRoll((num, sides)) => format!("{}d{}", num, sides),
+            Self::DieRoll((num, sides)) => format!("{num}d{sides}"),
             Self::Digits(num) => num.to_string(),
             Self::Word(word) => word.to_lowercase(),
             Self::String(string) => string.to_lowercase(),
@@ -887,6 +887,17 @@ pub(crate) mod tests {
                 token_vec[..5],
                 [
                     Token::Set,
+                    Token::Word("bird".into()),
+                    Token::Equals,
+                    Token::Digits(42),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[5..10],
+                [
+                    Token::Set,
                     Token::Word("the_word".into()),
                     Token::Equals,
                     Token::Word("bird".into()),
@@ -895,7 +906,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[5..10],
+                token_vec[10..15],
                 [
                     Token::Set,
                     Token::Word("the_word".into()),
@@ -906,7 +917,18 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[10..16],
+                token_vec[15..20],
+                [
+                    Token::Set,
+                    Token::Word("the_word".into()),
+                    Token::To,
+                    Token::String("bird".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[20..26],
                 [
                     Token::Word("force".into()),
                     Token::Equals,
@@ -918,7 +940,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[16..20],
+                token_vec[26..],
                 [
                     Token::Word("minutes".into()),
                     Token::To,
@@ -1446,7 +1468,7 @@ pub(crate) mod tests {
 
             assert_eq!(
                 token_vec[3..6],
-                [Token::Show, Token::Word("the_word".into()), Token::NewLines]
+                [Token::Show, Token::Word("midnight".into()), Token::NewLines]
             );
 
             assert_eq!(

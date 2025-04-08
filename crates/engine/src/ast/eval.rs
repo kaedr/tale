@@ -1,19 +1,31 @@
 use std::cell::RefCell;
 
-use crate::{SymbolTable, SymbolValue, ast::*};
+use crate::{
+    SymbolTable, SymbolValue,
+    ast::*,
+    error::{TaleError, TaleResultVec},
+};
 use rand::Rng;
 
 pub trait Eval {
     /// Evaluates the expression in the context of the provided symbol table.
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String>;
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue>;
 }
 
 impl<T> Eval for Node<T>
 where
     T: Eval,
 {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
-        self.inner_t().eval(symbols)
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
+        self.inner_t().eval(symbols).map_err(|mut errs| {
+            errs.iter_mut().for_each(|err| {
+                // Amend default spans with actual spans
+                if err.span.start() == 0 && err.span.end() == 0 {
+                    err.span = self.source_span();
+                }
+            });
+            errs
+        })
     }
 }
 
@@ -21,7 +33,7 @@ impl<T> Eval for Vec<T>
 where
     T: Eval,
 {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         self.iter()
             .fold(Ok(SymbolValue::List(Vec::new())), |prev, curr| {
                 match (prev, curr.eval(symbols)) {
@@ -32,7 +44,7 @@ where
                     (Ok(_), Err(e)) => Err(e), // Propagate the error from the current node
                     (Err(e), Ok(_)) => Err(e), // Keep the previous error
                     (Err(mut e1), Err(e2)) => {
-                        e1.push_str(&format!("\n{}", e2)); // Merge Errors
+                        e1.extend(e2); // Merge Errors
                         Err(e1)
                     }
                     _ => unreachable!(),
@@ -45,7 +57,7 @@ impl<T> Eval for Vec<RcNode<T>>
 where
     T: Eval,
 {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         self.iter()
             .fold(Ok(SymbolValue::List(Vec::new())), |prev, curr| {
                 match (prev, curr.eval(symbols)) {
@@ -56,7 +68,7 @@ where
                     (Ok(_), Err(e)) => Err(e), // Propagate the error from the current node
                     (Err(e), Ok(_)) => Err(e), // Keep the previous error
                     (Err(mut e1), Err(e2)) => {
-                        e1.push_str(&format!("\n{}", e2)); // Merge Errors
+                        e1.extend(e2); // Merge Errors
                         Err(e1)
                     }
                     _ => unreachable!(),
@@ -66,19 +78,19 @@ where
 }
 
 impl Eval for AST {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         self.nodes().eval(symbols)
     }
 }
 
 impl Eval for Script {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         self.name().eval(symbols)
     }
 }
 
 impl Eval for Table {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         let tags = match self.tags().eval(symbols)? {
             SymbolValue::List(tags) => tags.iter().map(SymbolValue::to_string).collect::<Vec<_>>(),
             _ => unreachable!(),
@@ -90,7 +102,7 @@ impl Eval for Table {
 }
 
 impl Eval for TableGroup {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         let tags = match self.tags().eval(symbols)? {
             SymbolValue::List(tags) => tags.iter().map(SymbolValue::to_string).collect::<Vec<_>>(),
             _ => unreachable!(),
@@ -102,7 +114,7 @@ impl Eval for TableGroup {
 }
 
 impl Eval for Statement {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         match self {
             Statement::Empty => Ok(SymbolValue::Placeholder),
             Statement::Script(script) => script_def(symbols, script),
@@ -115,7 +127,7 @@ impl Eval for Statement {
             Statement::Modify(modifier, target) => modify_stmt(symbols, modifier, target),
             Statement::Output(expr) => expr.eval(symbols),
             Statement::Show(node) => show_stmt(symbols, node),
-            Statement::Sequence(seq) => seq.inner_t().eval(symbols),
+            Statement::Sequence(seq) => seq.eval(symbols),
             Statement::Expr(expr) => expr.eval(symbols),
         }
     }
@@ -124,28 +136,27 @@ impl Eval for Statement {
 fn script_def(
     symbols: &RefCell<SymbolTable>,
     script: &RcNode<Script>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let name = script.eval(symbols)?.to_string();
     match symbols
         .borrow_mut()
         .insert(name.clone(), SymbolValue::Script(script.clone()))
     {
-        true => Ok(SymbolValue::String(format!(
-            "Overwriting previous value stored in {}",
-            name
+        false => Ok(SymbolValue::String(format!(
+            "Overwriting previous value stored in `{name}`"
         ))),
-        false => Ok(SymbolValue::Placeholder),
+        true => Ok(SymbolValue::Placeholder),
     }
 }
 
-fn table_def(symbols: &RefCell<SymbolTable>, table: &RcNode<Table>) -> Result<SymbolValue, String> {
+fn table_def(symbols: &RefCell<SymbolTable>, table: &RcNode<Table>) -> TaleResultVec<SymbolValue> {
     insert_table_def(symbols, table)
 }
 
 fn table_group_def(
     symbols: &RefCell<SymbolTable>,
     table_group: &RcNode<TableGroup>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let mut outcomes = Vec::new();
     for table in table_group.inner_t().sub_tables.iter() {
         outcomes.push(insert_table_def(symbols, table)?);
@@ -160,17 +171,16 @@ fn table_group_def(
 fn insert_table_def(
     symbols: &RefCell<SymbolTable>,
     table: &RcNode<Table>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let name = table.eval(symbols)?.to_string();
     match symbols
         .borrow_mut()
         .insert(name.clone(), SymbolValue::Table(table.clone()))
     {
-        true => Ok(SymbolValue::String(format!(
-            "Overwriting previous value stored in {}",
-            name
+        false => Ok(SymbolValue::String(format!(
+            "Overwriting previous value stored in `{name}`"
         ))),
-        false => Ok(SymbolValue::Placeholder),
+        true => Ok(SymbolValue::Placeholder),
     }
 }
 
@@ -178,15 +188,14 @@ fn assignment_stmt(
     symbols: &RefCell<SymbolTable>,
     name: &RcNode<Atom>,
     value: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let name = name.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let name = name.inner_t().to_string().trim_matches('`').to_string();
     let value = value.eval(symbols)?;
     match symbols.borrow_mut().insert(name.to_string(), value) {
-        true => Ok(SymbolValue::String(format!(
-            "Overwriting previous value stored in {}",
-            name
+        false => Ok(SymbolValue::String(format!(
+            "Overwriting previous value stored in `{name}`"
         ))),
-        false => Ok(SymbolValue::Placeholder),
+        true => Ok(SymbolValue::Placeholder),
     }
 }
 
@@ -194,28 +203,31 @@ fn clear_stmt(
     symbols: &RefCell<SymbolTable>,
     duration: &RcNode<Duration>,
     target: &RcNode<Atom>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let name = target.eval(symbols)?;
-    match symbols.borrow().get_table(name.to_string()) {
+    match symbols.borrow().get_table(&name.to_string()) {
         Some(table) => {
             table
                 .inner_t_mut()
                 .clear_modifier(duration.inner_t().clone());
             Ok(SymbolValue::Placeholder)
         }
-        None => Err(format!("No such Table: '{}'", target)),
+        None => Err(vec![TaleError::evaluator(
+            target.source_span(),
+            format!("Cannot clear modifiers for: '{name}' (Not a Table or Group name)"),
+        )]),
     }
 }
 
 fn invoke_stmt(
     symbols: &RefCell<SymbolTable>,
     target: &RcNode<Atom>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let name = target.eval(symbols)?;
     invoke_roll_or_err(symbols, name.to_string())
 }
 
-fn load_stmt(symbols: &RefCell<SymbolTable>, target: &RcNode<Atom>) -> Result<SymbolValue, String> {
+fn load_stmt(symbols: &RefCell<SymbolTable>, target: &RcNode<Atom>) -> TaleResultVec<SymbolValue> {
     todo!()
 }
 
@@ -223,21 +235,24 @@ fn modify_stmt(
     symbols: &RefCell<SymbolTable>,
     modifier: &RcNode<Modifier>,
     target: &RcNode<Atom>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let name = target.eval(symbols)?;
-    match symbols.borrow().get_table(name.to_string()) {
+    match symbols.borrow().get_table(&name.to_string()) {
         Some(table) => {
             table.inner_t_mut().add_modifier(modifier.inner_t().clone());
             Ok(SymbolValue::Placeholder)
         }
-        None => Err(format!("No such Table: '{}'", target)),
+        None => Err(vec![TaleError::evaluator(
+            target.source_span(),
+            format!("Cannot modify: '{name}' (Not a Table or Group name)"),
+        )]),
     }
 }
 
 fn show_stmt(
     symbols: &RefCell<SymbolTable>,
     node: &RcNode<(bool, Atom)>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let target = node.inner_t().1.eval(symbols)?;
     if node.inner_t().0 {
         Ok(symbols
@@ -245,26 +260,34 @@ fn show_stmt(
             .get_tags(target.to_string().split_whitespace().collect::<Vec<_>>()))
     } else {
         match target.to_string().as_str() {
-            "tables" | "table" => symbols.borrow().list_tables(),
-            "scripts" | "script" => symbols.borrow().list_scripts(),
-            "values" | "variables" | "names" => symbols.borrow().list_names(),
+            "tables" | "table" => symbols
+                .borrow()
+                .list_tables()
+                .map_err(|err| vec![TaleError::evaluator(node.source_span(), err)]),
+            "scripts" | "script" => symbols
+                .borrow()
+                .list_scripts()
+                .map_err(|err| vec![TaleError::evaluator(node.source_span(), err)]),
+            "values" | "variables" | "names" => symbols
+                .borrow()
+                .list_names()
+                .map_err(|err| vec![TaleError::evaluator(node.source_span(), err)]),
             other => symbols.borrow().show_value(other),
         }
     }
 }
 
 impl Eval for Expr {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         match self {
             Expr::Empty => Ok(SymbolValue::Placeholder),
             Expr::Atom(atom) => atom.eval(symbols),
             Expr::Neg(node) => match node.eval(symbols)? {
-                SymbolValue::Placeholder => Err("Cannot negate a placeholder value.".to_string()),
                 SymbolValue::Numeric(n) => Ok(SymbolValue::Numeric(-n)),
-                SymbolValue::String(_) => Err("Cannot negate a String.".to_string()),
-                SymbolValue::Script(_) => Err("Cannot negate a Script.".to_string()),
-                SymbolValue::Table(_) => Err("Cannot negate a Table.".to_string()),
-                SymbolValue::List(_) => Err("Cannot negate a List.".to_string()),
+                other => Err(vec![TaleError::evaluator(
+                    node.source_span(),
+                    format!("Cannot negate {:?}", other),
+                )]),
             },
             Expr::Add(lhs, rhs) => add_expr(symbols, lhs, rhs),
             Expr::Sub(lhs, rhs) => sub_expr(symbols, lhs, rhs),
@@ -275,7 +298,7 @@ impl Eval for Expr {
             Expr::Lookup(value, target) => lookup_expr(symbols, value, target),
             Expr::Roll(reps, target) => roll_expr(symbols, reps, target),
             Expr::Interpol(node) => interpol_expr(symbols, node),
-            Expr::List(node) => node.inner_t().eval(symbols),
+            Expr::List(node) => node.eval(symbols),
         }
     }
 }
@@ -284,13 +307,24 @@ fn add_expr(
     symbols: &RefCell<SymbolTable>,
     lhs: &RcNode<Expr>,
     rhs: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let left_value = lhs.eval(symbols)?;
-    let right_value = rhs.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let left_value = lhs.eval(symbols);
+    let right_value = rhs.eval(symbols);
 
     match (left_value, right_value) {
-        (SymbolValue::Numeric(l), SymbolValue::Numeric(r)) => Ok(SymbolValue::Numeric(l + r)),
-        _ => Err("Cannot add non-numeric values.".to_string()),
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
+            Ok(SymbolValue::Numeric(l + r))
+        }
+        (Err(err), Ok(_)) => Err(err),
+        (Ok(_), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
+        }
+        _ => Err(vec![TaleError::evaluator(
+            lhs.merge_source_span(rhs),
+            "Cannot add non-numeric values.".to_string(),
+        )]),
     }
 }
 
@@ -298,13 +332,24 @@ fn sub_expr(
     symbols: &RefCell<SymbolTable>,
     lhs: &RcNode<Expr>,
     rhs: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let left_value = lhs.eval(symbols)?;
-    let right_value = rhs.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let left_value = lhs.eval(symbols);
+    let right_value = rhs.eval(symbols);
 
     match (left_value, right_value) {
-        (SymbolValue::Numeric(l), SymbolValue::Numeric(r)) => Ok(SymbolValue::Numeric(l - r)),
-        _ => Err("Cannot subract non-numeric values.".to_string()),
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
+            Ok(SymbolValue::Numeric(l - r))
+        }
+        (Err(err), Ok(_)) => Err(err),
+        (Ok(_), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
+        }
+        _ => Err(vec![TaleError::evaluator(
+            lhs.merge_source_span(rhs),
+            "Cannot subract non-numeric values.".to_string(),
+        )]),
     }
 }
 
@@ -312,13 +357,24 @@ fn mul_expr(
     symbols: &RefCell<SymbolTable>,
     lhs: &RcNode<Expr>,
     rhs: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let left_value = lhs.eval(symbols)?;
-    let right_value = rhs.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let left_value = lhs.eval(symbols);
+    let right_value = rhs.eval(symbols);
 
     match (left_value, right_value) {
-        (SymbolValue::Numeric(l), SymbolValue::Numeric(r)) => Ok(SymbolValue::Numeric(l * r)),
-        _ => Err("Cannot multiply non-numeric values.".to_string()),
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
+            Ok(SymbolValue::Numeric(l * r))
+        }
+        (Err(err), Ok(_)) => Err(err),
+        (Ok(_), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
+        }
+        _ => Err(vec![TaleError::evaluator(
+            lhs.merge_source_span(rhs),
+            "Cannot multiply non-numeric values.".to_string(),
+        )]),
     }
 }
 
@@ -326,13 +382,24 @@ fn div_expr(
     symbols: &RefCell<SymbolTable>,
     lhs: &RcNode<Expr>,
     rhs: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let left_value = lhs.eval(symbols)?;
-    let right_value = rhs.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let left_value = lhs.eval(symbols);
+    let right_value = rhs.eval(symbols);
 
     match (left_value, right_value) {
-        (SymbolValue::Numeric(l), SymbolValue::Numeric(r)) => Ok(SymbolValue::Numeric(l / r)),
-        _ => Err("Cannot divide non-numeric values.".to_string()),
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
+            Ok(SymbolValue::Numeric(l / r))
+        }
+        (Err(err), Ok(_)) => Err(err),
+        (Ok(_), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
+        }
+        _ => Err(vec![TaleError::evaluator(
+            lhs.merge_source_span(rhs),
+            "Cannot divide non-numeric values.".to_string(),
+        )]),
     }
 }
 
@@ -340,13 +407,24 @@ fn mod_expr(
     symbols: &RefCell<SymbolTable>,
     lhs: &RcNode<Expr>,
     rhs: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let left_value = lhs.eval(symbols)?;
-    let right_value = rhs.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let left_value = lhs.eval(symbols);
+    let right_value = rhs.eval(symbols);
 
     match (left_value, right_value) {
-        (SymbolValue::Numeric(l), SymbolValue::Numeric(r)) => Ok(SymbolValue::Numeric(l % r)),
-        _ => Err("Cannot modulus non-numeric values.".to_string()),
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
+            Ok(SymbolValue::Numeric(l % r))
+        }
+        (Err(err), Ok(_)) => Err(err),
+        (Ok(_), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
+        }
+        _ => Err(vec![TaleError::evaluator(
+            lhs.merge_source_span(rhs),
+            "Cannot modulo non-numeric values.".to_string(),
+        )]),
     }
 }
 
@@ -354,15 +432,24 @@ fn pow_expr(
     symbols: &RefCell<SymbolTable>,
     lhs: &RcNode<Expr>,
     rhs: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
-    let left_value = lhs.eval(symbols)?;
-    let right_value = rhs.eval(symbols)?;
+) -> TaleResultVec<SymbolValue> {
+    let left_value = lhs.eval(symbols);
+    let right_value = rhs.eval(symbols);
 
     match (left_value, right_value) {
-        (SymbolValue::Numeric(l), SymbolValue::Numeric(r)) => {
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l.pow(r as u32)))
         }
-        _ => Err("Cannot exponentiate non-numeric values.".to_string()),
+        (Err(err), Ok(_)) => Err(err),
+        (Ok(_), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
+        }
+        _ => Err(vec![TaleError::evaluator(
+            lhs.merge_source_span(rhs),
+            "Cannot exponentiate non-numeric values.".to_string(),
+        )]),
     }
 }
 
@@ -370,22 +457,25 @@ fn lookup_expr(
     symbols: &RefCell<SymbolTable>,
     value: &RcNode<Expr>,
     target: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let key = value.eval(symbols)?;
     let target_val = target.eval(symbols)?;
-    match target_val {
-        SymbolValue::String(target) => {
-            if let Some(table) = symbols.borrow().get_table(target.clone()) {
+    match &target_val {
+        SymbolValue::String(name) => {
+            if let Some(table) = symbols.borrow().get_table(name) {
                 // Roll on the table
-                table.inner_t().lookup(key)
+                table.inner_t().lookup(symbols, key)
             } else {
-                Err(format!("No such Table: '{}'", target))
+                Err(vec![TaleError::evaluator(
+                    target.source_span(),
+                    format!("Cannot lookup on: '{target_val}' (Not a Table or Group name)"),
+                )])
             }
         }
-        _ => Err(format!(
-            "Cannot lookup on: '{}' (Not a Table or Group name)",
-            target_val
-        )),
+        _ => Err(vec![TaleError::evaluator(
+            target.source_span(),
+            format!("Cannot lookup on: '{target_val}' (Not a Table or Group name)"),
+        )]),
     }
 }
 
@@ -393,82 +483,93 @@ fn roll_expr(
     symbols: &RefCell<SymbolTable>,
     reps: &RcNode<Expr>,
     target: &RcNode<Expr>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     let reps_val = reps.eval(symbols)?;
     let target_val = target.eval(symbols)?;
     match (reps_val, target_val.clone()) {
-        (SymbolValue::Numeric(x), SymbolValue::Numeric(_)) => {
-            if x > 1 {
-                Ok(SymbolValue::List(
-                    (0..x).map(|_| target.eval(symbols).unwrap()).collect(),
-                ))
-            } else {
-                // TODO: Handle < 1 rolls in analysis
-                Ok(target_val)
-            }
-        }
-        (SymbolValue::Numeric(x), SymbolValue::String(target)) => {
-            if x > 1 {
-                Ok(SymbolValue::List(
-                    (0..x)
-                        .map(|_| roll_invoke_or_err(symbols, target.clone()))
-                        .collect::<Result<Vec<_>, _>>()?,
-                ))
-            } else {
-                // TODO: Handle < 1 rolls in analysis
-                roll_invoke_or_err(symbols, target)
-            }
-        }
-        _ => Err(format!(
-            "Invalid types for roll expression: {} and {}.",
-            reps, target
-        )),
+        (SymbolValue::Numeric(x), SymbolValue::Numeric(_)) => match x {
+            ..=0 => Ok(SymbolValue::Placeholder),
+            1..=1 => Ok(target_val),
+            2.. => Ok(SymbolValue::List(
+                (0..x).map(|_| target.eval(symbols).unwrap()).collect(),
+            )),
+        },
+        (SymbolValue::Numeric(x), SymbolValue::String(target)) => match x {
+            ..=0 => Ok(SymbolValue::Placeholder),
+            1..=1 => roll_invoke_or_err(symbols, target),
+            2.. => Ok(SymbolValue::List(
+                (0..x)
+                    .map(|_| roll_invoke_or_err(symbols, target.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
+        },
+        _ => Err(vec![TaleError::evaluator(
+            reps.merge_source_span(target),
+            format!("Invalid types for roll expression: {reps} and {target}."),
+        )]),
     }
 }
 
 fn roll_invoke_or_err(
     symbols: &RefCell<SymbolTable>,
     target: String,
-) -> Result<SymbolValue, String> {
-    if let Some(table) = symbols.borrow().get_table(target.clone()) {
+) -> TaleResultVec<SymbolValue> {
+    if let Some(table) = symbols.borrow().get_table(&target) {
         // Roll on the table
-        table.inner_t().roll()
-    } else if let Some(script) = symbols.borrow().get_script(target.clone()) {
+        table.inner_t().roll(symbols)
+    } else if let Some(script) = symbols.borrow().get_script(&target) {
         // Execute the script and return its result
-        script.inner_t().invoke()
+        script.inner_t().invoke(symbols)
     } else {
-        Err(format!("No such Table: '{}'", target))
+        Err(vec![TaleError::evaluator(
+            0..0,
+            format!("No such Table: '{target}'"),
+        )])
     }
 }
 
 fn invoke_roll_or_err(
     symbols: &RefCell<SymbolTable>,
     target: String,
-) -> Result<SymbolValue, String> {
-    if let Some(script) = symbols.borrow().get_script(target.clone()) {
+) -> TaleResultVec<SymbolValue> {
+    let maybe_script = symbols.borrow().get_script(&target).cloned();
+    let maybe_table = symbols.borrow().get_table(&target).cloned();
+    if let Some(script) = maybe_script {
         // Execute the script and return its result
-        script.inner_t().invoke()
-    } else if let Some(table) = symbols.borrow().get_table(target.clone()) {
+        script.inner_t().invoke(symbols)
+    } else if let Some(table) = maybe_table {
         // Roll on the table
-        table.inner_t().roll()
+        table.inner_t().roll(symbols)
     } else {
-        Err(format!("No such Script: '{}'", target))
+        Err(vec![TaleError::evaluator(
+            0..0,
+            format!("No such Script: '{target}'"),
+        )])
     }
 }
 
 fn interpol_expr(
     symbols: &RefCell<SymbolTable>,
     node: &RcNode<Vec<RcNode<Expr>>>,
-) -> Result<SymbolValue, String> {
+) -> TaleResultVec<SymbolValue> {
     node.inner_t()
         .iter()
-        .map(|expr| expr.eval(symbols).map(|value| value.to_string()))
-        .collect::<Result<Vec<_>, String>>()
-        .map(|values| SymbolValue::String(values.join(" ")))
+        .fold(Ok(SymbolValue::Placeholder), |acc, expr| {
+            match (acc, expr.eval(symbols)) {
+                (Ok(SymbolValue::Placeholder), Ok(value)) => Ok(value),
+                (Ok(lv), Ok(rv)) => Ok(SymbolValue::String(format!("{lv} {rv}"))),
+                (Ok(_), Err(err)) => Err(err),
+                (Err(err), Ok(_)) => Err(err),
+                (Err(mut l_err), Err(r_err)) => {
+                    l_err.extend(r_err);
+                    Err(l_err)
+                }
+            }
+        })
 }
 
 impl Eval for Atom {
-    fn eval(&self, symbols: &RefCell<SymbolTable>) -> Result<SymbolValue, String> {
+    fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         match self {
             Atom::Number(n) => Ok(SymbolValue::Numeric(*n as isize)),
             Atom::Dice(x, y) => roll_dice(*x, *y),
@@ -479,9 +580,12 @@ impl Eval for Atom {
     }
 }
 
-fn roll_dice(x: usize, y: usize) -> Result<SymbolValue, String> {
+fn roll_dice(x: usize, y: usize) -> TaleResultVec<SymbolValue> {
     if x == 0 || y == 0 {
-        return Err("Cannot roll zero dice or zero sides.".to_string());
+        return Err(vec![TaleError::evaluator(
+            0..0,
+            "Cannot roll zero dice or zero sides.".to_string(),
+        )]);
     }
 
     let mut rng = rand::rng();

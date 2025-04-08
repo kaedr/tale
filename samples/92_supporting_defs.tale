@@ -1,0 +1,41 @@
+mass = 100
+acceleration = 10
+midnight = 12
+
+Table: Quality
+good
+better
+best
+End Table
+
+Script: Some kind Of BIZARRE ritual
+	midnight = 13
+End Script
+Script: "last rites"
+End Script
+
+Table: TextKeys
+tags: desert
+a	1
+End Table
+Table: NumKeyed
+1	a
+2	b
+3	c
+End Table
+
+Table: Magic Item Table A
+Literally just a wand
+End Table
+
+Table: Farm Animals
+Cow
+Chicken
+Pig
+"Horse"
+End Table
+
+Table: Minimalism
+Roll: d20
+End Table
+

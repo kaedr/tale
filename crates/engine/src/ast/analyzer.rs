@@ -55,15 +55,30 @@ impl Analyze for Statement {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
             Statement::Empty => Ok(()),
-            Statement::Script(node) => node.inner_t().analyze(symbols),
-            Statement::Table(node) => node.inner_t().analyze(symbols),
-            Statement::TableGroup(node) => node.inner_t().analyze(symbols),
+            Statement::Script(node) => {
+                symbols
+                    .borrow_mut()
+                    .register(node.inner_t().name().inner_t().to_lowercase());
+                node.inner_t().analyze(symbols)
+            }
+            Statement::Table(node) => {
+                symbols
+                    .borrow_mut()
+                    .register(node.inner_t().name().inner_t().to_lowercase());
+                node.inner_t().analyze(symbols)
+            }
+            Statement::TableGroup(node) => {
+                symbols
+                    .borrow_mut()
+                    .register(node.inner_t().name().inner_t().to_lowercase());
+                node.inner_t().analyze(symbols)
+            }
             Statement::Assignment(name, value) => {
                 // For `Assignment`, we need to analyze both the name and the value
                 name.inner_t().analyze(symbols)?;
                 value.inner_t().analyze(symbols)?;
                 // Register the variable in the symbol table
-                symbols.borrow_mut().register(name.inner_t().to_string());
+                symbols.borrow_mut().register(name.inner_t().to_lowercase());
                 Ok(())
             }
             Statement::Clear(duration, target) => {
@@ -108,7 +123,18 @@ impl Analyze for Table {
 }
 
 impl Analyze for TableGroup {
-    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        for table in self.sub_tables.iter() {
+            symbols.borrow_mut().register(
+                table
+                    .inner_t()
+                    .name()
+                    .to_string()
+                    .trim_matches('`')
+                    .to_string(),
+            );
+            table.inner_t().analyze(symbols)?;
+        }
         Ok(())
     }
 }
@@ -148,14 +174,14 @@ fn analyze_roll(
                 }
                 (true, false) => Err(vec![TaleError::analyzer(
                     target.source_span(),
-                    format!("Roll target '{}' is not defined", rhs),
+                    format!("Roll target '{rhs}' is not defined"),
                 )]),
                 (false, true) => Err(vec![TaleError::analyzer(
                     reps.source_span(),
-                    format!("Roll reps '{}' is not defined", lhs),
+                    format!("Roll reps '{lhs}' is not defined"),
                 )]),
                 (false, false) => {
-                    let joined = format!("{} {}", lhs, rhs);
+                    let joined = format!("{lhs} {rhs}");
                     if symbols.borrow().is_def(&joined) {
                         *reps.inner_t_mut() = Expr::Atom(Atom::Number(1));
                         *target.inner_t_mut() = Expr::Atom(Atom::Ident(joined.clone()));
@@ -163,7 +189,7 @@ fn analyze_roll(
                     } else {
                         Err(vec![TaleError::analyzer(
                             reps.source_span(),
-                            format!("Roll: neither '{}' nor '{}' are defined", lhs, rhs),
+                            format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
                         )])
                     }
                 }

@@ -292,7 +292,7 @@ mod tests {
         for (index, line) in lookup_lines.enumerate() {
             let tokens = quick_tokens(line.unwrap().as_str());
             let output = stubbed_parser(&mut table, &tokens, roll());
-            assert_eq!(check_vals[index], format!("{}", output));
+            assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let tokens = quick_tokens("Roll 2 @");
@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(
             "[found 'At' at 2..3 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus'\
             , 'LParens', 'Time', 'Roll', 'On', something else, 'Table', or end of input]",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 
@@ -309,31 +309,31 @@ mod tests {
         let mut table = StateTable::new();
         let tokens = quick_tokens("On Table: Stuff");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("`stuff`", format!("{}", output));
+        assert_eq!("`stuff`", format!("{output}"));
 
         let tokens = quick_tokens(r#"On Table: "StringLike""#);
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("`stringlike`", format!("{}", output));
+        assert_eq!("`stringlike`", format!("{output}"));
 
         let tokens = quick_tokens("on `magic item table a`");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("`magic item table a`", format!("{}", output));
+        assert_eq!("`magic item table a`", format!("{output}"));
 
         let tokens = quick_tokens("On Major: Minor");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("`major minor`", format!("{}", output));
+        assert_eq!("`major minor`", format!("{output}"));
 
         let tokens = quick_tokens("10 gp gems");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("`10 gp gems`", format!("{}", output));
+        assert_eq!("`10 gp gems`", format!("{output}"));
 
         let tokens = quick_tokens("2d6 * 10");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("(2d6 * 10)", format!("{}", output));
+        assert_eq!("(2d6 * 10)", format!("{output}"));
 
         let tokens = quick_tokens("1");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("1", format!("{}", output));
+        assert_eq!("1", format!("{output}"));
 
         table.add_source(
             "test".into(),
@@ -344,19 +344,19 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
         assert_eq!(
             r#"!["Kingdom of", Roll 1, `current kingdom`]!"#,
-            format!("{}", output)
+            format!("{output}")
         );
 
         let tokens = quick_tokens("Table: [Food]");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
-        assert_eq!("![Roll 1, `food`]!", format!("{}", output));
+        assert_eq!("![Roll 1, `food`]!", format!("{output}"));
 
         let tokens = quick_tokens("Table: @");
         let output = stubbed_parser(&mut table, &tokens, roll_predicate());
         assert_eq!(
             "[found 'At' at 2..3 expected something else, 'Comma', 'Period', 'NewLines'\
         , 'RBracket', 'SemiColon', 'Tabs', end of input, or 'LBracket']",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 
@@ -365,45 +365,45 @@ mod tests {
         let mut table = StateTable::new();
         let tokens = quick_tokens("1");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("1", format!("{}", output));
+        assert_eq!("1", format!("{output}"));
 
         let tokens = quick_tokens("once");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("1", format!("{}", output));
+        assert_eq!("1", format!("{output}"));
 
         let tokens = quick_tokens("thrice");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("3", format!("{}", output));
+        assert_eq!("3", format!("{output}"));
 
         let tokens = quick_tokens("one time");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("1", format!("{}", output));
+        assert_eq!("1", format!("{output}"));
 
         let tokens = quick_tokens("nine times");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("9", format!("{}", output));
+        assert_eq!("9", format!("{output}"));
 
         let tokens = quick_tokens("1d8");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("1d8", format!("{}", output));
+        assert_eq!("1d8", format!("{output}"));
 
         let tokens = quick_tokens("1d2 rolls");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("1d2", format!("{}", output));
+        assert_eq!("1d2", format!("{output}"));
 
         let tokens = quick_tokens("1d4 times");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("1d4", format!("{}", output));
+        assert_eq!("1d4", format!("{output}"));
 
         let tokens = quick_tokens("1d6 + 1 (5)");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
-        assert_eq!("(1d6 + 1)", format!("{}", output));
+        assert_eq!("(1d6 + 1)", format!("{output}"));
 
         let tokens = quick_tokens("1d6 + 1 (@5)");
         let output = stubbed_parser(&mut table, &tokens, repetition_clause());
         assert_eq!(
             "[found 'At' at 4..5 expected something else]",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 
@@ -421,14 +421,14 @@ mod tests {
         for (index, line) in lookup_lines.enumerate() {
             let tokens = quick_tokens(line.unwrap().as_str());
             let output = stubbed_parser(&mut table, &tokens, lookup());
-            assert_eq!(check_vals[index], format!("{}", output));
+            assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let tokens = quick_tokens("Lookup 2 @ TextKeys");
         let output = stubbed_parser(&mut table, &tokens, lookup());
         assert_eq!(
             "[found 'At' at 2..3 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus', or 'On']",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 
@@ -439,40 +439,31 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
-        assert_eq!(r#"!["valid"]!"#, format!("{}", output));
+        assert_eq!(r#"!["valid"]!"#, format!("{output}"));
 
         table.add_source("test".into(), "`also valid`".into());
         table.lex_current();
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
-        assert_eq!(r#"!["also valid"]!"#, format!("{}", output));
+        assert_eq!(r#"!["also valid"]!"#, format!("{output}"));
 
         table.add_source("test".into(), "weirdly enough `also valid`".into());
         table.lex_current();
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
-        assert_eq!(
-            r#"!["weirdly enough", "also valid"]!"#,
-            format!("{}", output)
-        );
+        assert_eq!(r#"!["weirdly enough", "also valid"]!"#, format!("{output}"));
 
         table.add_source("test".into(), "simple expression: [1 + 2]".into());
         table.lex_current();
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
-        assert_eq!(
-            r#"!["simple expression:", (1 + 2)]!"#,
-            format!("{}", output)
-        );
+        assert_eq!(r#"!["simple expression:", (1 + 2)]!"#, format!("{output}"));
 
         table.add_source("test".into(), "another [1d4 + 3] things".into());
         table.lex_current();
         let tokens = &table.get_tokens("test").unwrap();
         let output = stubbed_parser(&mut table, &tokens, interpolation());
-        assert_eq!(
-            r#"!["another", (1d4 + 3), "things"]!"#,
-            format!("{}", output)
-        );
+        assert_eq!(r#"!["another", (1d4 + 3), "things"]!"#, format!("{output}"));
 
         table.add_source("test".into(), "what's in the [Box]?".into());
         table.lex_current();
@@ -480,7 +471,7 @@ mod tests {
         let output = stubbed_parser(&mut table, &tokens, interpolation());
         assert_eq!(
             r#"!["what's in the", Roll 1, `box`, "?"]!"#,
-            format!("{}", output)
+            format!("{output}")
         );
 
         table.add_source("test".into(), "[one @ two]".into());
@@ -491,7 +482,7 @@ mod tests {
             "[found 'At' at 2..3 expected something else, 'Colon', 'Comma', 'Period'\
         , 'NewLines', 'RBracket', 'SemiColon', 'Tabs', end of input, 'Caret', 'Asterisk', 'Slash'\
         , 'Modulo', 'Plus', or 'Minus']",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 
@@ -500,52 +491,52 @@ mod tests {
         let mut table = StateTable::new();
         let tokens = quick_tokens("1");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("1", format!("{}", output));
+        assert_eq!("1", format!("{output}"));
 
         let tokens = quick_tokens("-1");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("-1", format!("{}", output));
+        assert_eq!("-1", format!("{output}"));
 
         let tokens = quick_tokens("---1");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("---1", format!("{}", output));
+        assert_eq!("---1", format!("{output}"));
 
         let tokens = quick_tokens("-1 - 2");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("(-1 - 2)", format!("{}", output));
+        assert_eq!("(-1 - 2)", format!("{output}"));
 
         let tokens = quick_tokens("-(1 - 2)");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("-(1 - 2)", format!("{}", output));
+        assert_eq!("-(1 - 2)", format!("{output}"));
 
         let tokens = quick_tokens("2d6 + 3");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("(2d6 + 3)", format!("{}", output));
+        assert_eq!("(2d6 + 3)", format!("{output}"));
 
         let tokens = quick_tokens("one + two");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("(1 + 2)", format!("{}", output));
+        assert_eq!("(1 + 2)", format!("{output}"));
 
         let tokens = quick_tokens("99 * stored_value");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("(99 * `stored_value`)", format!("{}", output));
+        assert_eq!("(99 * `stored_value`)", format!("{output}"));
 
         let tokens = quick_tokens("no-spaces");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
-        assert_eq!("(`no` - `spaces`)", format!("{}", output));
+        assert_eq!("(`no` - `spaces`)", format!("{output}"));
 
         let tokens = quick_tokens("PEMDAS_test +1-2*3/4%5^6^(7+8)");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
         assert_eq!(
             "((`pemdas_test` + 1) - (((2 * 3) / 4) % (5 ^ (6 ^ (7 + 8)))))",
-            format!("{}", output)
+            format!("{output}")
         );
 
         let tokens = quick_tokens("one @ two");
         let output = stubbed_parser(&mut table, &tokens, arithmetic());
         assert_eq!(
             "[found 'At' at 1..2 expected 'Caret', 'Asterisk', 'Slash', 'Modulo', 'Plus', 'Minus', or end of input]",
-            format!("{}", output)
+            format!("{output}")
         );
     }
 
@@ -554,22 +545,22 @@ mod tests {
         let mut table = StateTable::new();
         let tokens = quick_tokens("1");
         let output = stubbed_parser(&mut table, &tokens, number_range_list());
-        assert_eq!("[1]", format!("{}", output));
+        assert_eq!("[1]", format!("{output}"));
 
         let tokens = quick_tokens("1-3");
         let output = stubbed_parser(&mut table, &tokens, number_range_list());
-        assert_eq!("[1, 2, 3]", format!("{}", output));
+        assert_eq!("[1, 2, 3]", format!("{output}"));
 
         let tokens = quick_tokens("97-00");
         let output = stubbed_parser(&mut table, &tokens, number_range_list());
-        assert_eq!("[97, 98, 99, 100]", format!("{}", output));
+        assert_eq!("[97, 98, 99, 100]", format!("{output}"));
 
         let tokens = quick_tokens("1,3");
         let output = stubbed_parser(&mut table, &tokens, number_range_list());
-        assert_eq!("[1, 3]", format!("{}", output));
+        assert_eq!("[1, 3]", format!("{output}"));
 
         let tokens = quick_tokens("1-3,5,8-10");
         let output = stubbed_parser(&mut table, &tokens, number_range_list());
-        assert_eq!("[1, 2, 3, 5, 8, 9, 10]", format!("{}", output));
+        assert_eq!("[1, 2, 3, 5, 8, 9, 10]", format!("{output}"));
     }
 }

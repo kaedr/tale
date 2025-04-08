@@ -7,7 +7,7 @@ use std::{
     ops::Range,
 };
 
-use ast::{Analyze, RcNode, Script, Table, rc_node};
+use ast::{Analyze, Eval as _, RcNode, Script, Table, rc_node};
 use chumsky::{Parser, extra::SimpleState};
 use error::{TaleError, TaleResult, TaleResultVec};
 use lexer::{Lexicon, Position, Token, tokenize};
@@ -139,6 +139,34 @@ impl StateTable {
         self.analyze_current()
     }
 
+    pub fn evaluate_current(&mut self) -> TaleResultVec<SymbolValue> {
+        let ast = self.asts.get_mut(&self.current).ok_or_else(|| {
+            TaleError::evaluator(0..0, format!("No source named: {}", &self.current))
+        })?;
+        ast.eval(&self.symbols)
+    }
+
+    pub fn evaluate_source(&mut self, name: String) -> TaleResultVec<SymbolValue> {
+        self.current = name.clone();
+        self.evaluate_current()
+    }
+
+    pub fn pipeline(&mut self, name: String, source: String) -> TaleResultVec<SymbolValue> {
+        self.add_source(name, source)?;
+        self.lex_current()?;
+        self.parse_current()?;
+        self.analyze_current()?;
+        self.evaluate_current()
+    }
+
+    pub fn pipeline_file(&mut self, name: String) -> TaleResultVec<SymbolValue> {
+        self.add_source_file(name)?;
+        self.lex_current()?;
+        self.parse_current()?;
+        self.analyze_current()?;
+        self.evaluate_current()
+    }
+
     fn get_tokens(&self, name: &str) -> TaleResult<Vec<Token>> {
         let lexicon = self.tokens.get(name).unwrap();
         let tokens: Vec<_> = lexicon.iter().map(|(token, _, _)| token.clone()).collect();
@@ -194,12 +222,28 @@ impl Default for StateTable {
     }
 }
 
+pub struct Scope {
+    numerics: HashMap<String, isize>,
+    strings: HashMap<String, String>,
+}
+
+impl Scope {
+    fn new() -> Self {
+        Self { numerics: HashMap::new(), strings: HashMap::new() }
+    }
+
+    fn resolve(&self, name: &str) -> TaleResultVec<SymbolValue> {
+        todo!()
+    }
+}
+
 pub struct SymbolTable {
     names: HashSet<String>,
     numerics: HashMap<String, isize>,
     strings: HashMap<String, String>,
-    scripts: HashSet<RcNode<Script>>,
-    tables: HashSet<RcNode<Table>>,
+    scopes: Vec<Scope>,
+    scripts: HashMap<String, RcNode<Script>>,
+    tables: HashMap<String, RcNode<Table>>,
     tags: HashMap<String, Vec<String>>,
 }
 
@@ -209,21 +253,22 @@ impl SymbolTable {
             names: HashSet::new(),
             numerics: HashMap::new(),
             strings: HashMap::new(),
-            scripts: HashSet::new(),
-            tables: HashSet::new(),
+            scripts: HashMap::new(),
+            scopes: Vec::new(),
+            tables: HashMap::new(),
             tags: HashMap::new(),
         }
     }
 
-    /// Inserts a value into the appropriate symbol table, returns true if
+    /// Inserts a value into the appropriate symbol table, returns false if
     /// overwriting a previously stored value.
     fn insert(&mut self, name: String, value: SymbolValue) -> bool {
         match value {
             SymbolValue::Placeholder => self.names.insert(name),
-            SymbolValue::Numeric(v) => self.numerics.insert(name, v).is_some(),
-            SymbolValue::String(v) => self.strings.insert(name, v).is_some(),
-            SymbolValue::Script(node) => self.scripts.insert(node),
-            SymbolValue::Table(node) => self.tables.insert(node),
+            SymbolValue::Numeric(v) => self.numerics.insert(name, v).is_none(),
+            SymbolValue::String(v) => self.strings.insert(name, v).is_none(),
+            SymbolValue::Script(node) => self.scripts.insert(name, node).is_none(),
+            SymbolValue::Table(node) => self.tables.insert(name, node).is_none(),
             SymbolValue::List(_) => todo!(),
         }
     }
@@ -273,12 +318,12 @@ impl SymbolTable {
         SymbolValue::List(
             intersection
                 .into_iter()
-                .map(|t| SymbolValue::String(self.get_table(t).unwrap().to_string()))
+                .map(|t| SymbolValue::String(self.get_table(&t).unwrap().to_string()))
                 .collect(),
         )
     }
 
-    pub fn get_value(&self, name: &str) -> Result<SymbolValue, String> {
+    pub fn get_value(&self, name: &str) -> TaleResultVec<SymbolValue> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.numerics.get(name) {
@@ -289,40 +334,44 @@ impl SymbolTable {
             }
             Ok(SymbolValue::String(name.to_string()))
         } else {
-            Err(format!(
-                "Identifier '{}' is not defined in the current symbol table.",
-                name
-            ))
+            Err(vec![TaleError::evaluator(
+                0..0,
+                format!("Identifier '{name}' is not defined in the current symbol table."),
+            )])
         }
     }
 
-    pub fn show_value(&self, name: &str) -> Result<SymbolValue, String> {
+    pub fn show_value(&self, name: &str) -> TaleResultVec<SymbolValue> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.numerics.get(name) {
                 Ok(SymbolValue::Numeric(*v))
             } else if let Some(v) = self.strings.get(name) {
                 Ok(SymbolValue::String(v.clone()))
-            } else if let Some(v) = self.scripts.get(&rc_node(Script::name_only(name.into()))) {
+            } else if let Some(v) = self.scripts.get(name) {
                 Ok(SymbolValue::String(v.to_string()))
-            } else if let Some(v) = self.tables.get(&rc_node(Table::name_only(name.into()))) {
+            } else if let Some(v) = self.tables.get(name) {
                 Ok(SymbolValue::String(v.to_string()))
             } else {
-                Err(format!("No value found for: {}", name))
+                Err(vec![TaleError::evaluator(
+                    0..0,
+                    format!("No value found for: {name}"),
+                )])
             }
         } else {
-            Err(format!("No value found for: {}", name))
+            Err(vec![TaleError::evaluator(
+                0..0,
+                format!("No value found for: {name}"),
+            )])
         }
     }
 
-    pub fn get_table(&self, name: String) -> Option<&RcNode<Table>> {
-        let value = rc_node(Table::name_only(name));
-        self.tables.get(&value)
+    pub fn get_table(&self, name: &str) -> Option<&RcNode<Table>> {
+        self.tables.get(name)
     }
 
-    pub fn get_script(&self, name: String) -> Option<&RcNode<Script>> {
-        let value = rc_node(Script::name_only(name));
-        self.scripts.get(&value)
+    pub fn get_script(&self, name: &str) -> Option<&RcNode<Script>> {
+        self.scripts.get(name)
     }
 
     pub fn list_names(&self) -> Result<SymbolValue, String> {
@@ -344,8 +393,8 @@ impl SymbolTable {
         } else {
             let scripts_list = self
                 .scripts
-                .iter()
-                .map(|t| SymbolValue::String(t.inner_t().name().to_string()))
+                .keys()
+                .map(|t| SymbolValue::String(t.clone()))
                 .collect();
             Ok(SymbolValue::List(scripts_list))
         }
@@ -357,11 +406,19 @@ impl SymbolTable {
         } else {
             let tables_list = self
                 .tables
-                .iter()
-                .map(|t| SymbolValue::String(t.inner_t().name().to_string()))
+                .keys()
+                .map(|t| SymbolValue::String(t.clone()))
                 .collect();
             Ok(SymbolValue::List(tables_list))
         }
+    }
+
+    pub fn push_scope(&mut self) {
+
+    }
+
+    pub fn pop_scope(&mut self) {
+
     }
 }
 
@@ -407,6 +464,8 @@ impl Display for SymbolValue {
 mod tests {
     use chumsky::prelude::*;
 
+    use crate::utils::tests::sample_path;
+
     use super::*;
 
     pub(crate) fn stubbed_parser<'src, T>(
@@ -424,7 +483,7 @@ mod tests {
     {
         let mut state = SimpleState::from(table);
         match parser.parse_with_state(&tokens, &mut state).into_result() {
-            Ok(output) => format!("{}", output),
+            Ok(output) => format!("{output}"),
             Err(err) => format!("{:?}", err),
         }
     }
@@ -450,5 +509,429 @@ mod tests {
     }
 
     #[test]
-    fn it_works() {}
+    fn pipeline_full_01() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("01_table_minimal.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert_eq!("Ok(List([Placeholder]))", output);
+    }
+
+    #[test]
+    fn pipeline_full_02() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("02_table_roll_def.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert_eq!("Ok(List([Placeholder]))", output);
+    }
+
+    #[test]
+    fn pipeline_full_03() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("03_table_list.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert_eq!("Ok(List([Placeholder]))", output);
+    }
+
+    #[test]
+    fn pipeline_full_04() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("04_table_keyed_numeric.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert_eq!("Ok(List([Placeholder]))", output);
+    }
+
+    #[test]
+    fn pipeline_full_05() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("05_table_keyed_word.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert_eq!("Ok(List([Placeholder]))", output);
+    }
+
+    #[test]
+    fn pipeline_full_06() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("06_table_group.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!(
+            "{}",
+            table
+                .asts
+                .get("/home/hcorse/Code/tale/samples/06_table_group.tale")
+                .unwrap()
+        );
+        assert_eq!(
+            "Ok(List([List([Placeholder, Placeholder, Placeholder])]))",
+            output
+        );
+    }
+
+    #[test]
+    fn pipeline_full_10() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("10_statement_expression.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Numeric("));
+        assert!(output.ends_with(")]))"));
+        assert_eq!(2, output.matches("Numeric(").count())
+    }
+
+    #[test]
+    fn pipeline_full_11() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("11_statement_assignment.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(3, output.matches("is not defined").count());
+    }
+
+    #[test]
+    fn pipeline_full_11_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("11_statement_assignment.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.ends_with("]))"));
+        assert_eq!(1, output.matches("Overwriting previous value").count());
+    }
+
+    #[test]
+    fn pipeline_full_12() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("12_statement_clear.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(4, output.matches("is not defined").count());
+    }
+
+    #[test]
+    fn pipeline_full_12_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("12_statement_clear.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.ends_with("]))"));
+        assert_eq!(4, output.matches("Placeholder").count());
+    }
+
+    #[test]
+    fn pipeline_full_13() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("13_statement_invoke.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(2, output.matches("is not defined").count());
+    }
+
+    #[test]
+    fn pipeline_full_13_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("13_statement_invoke.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([List([Placeholder"));
+        assert!(output.ends_with(")]))"));
+        assert_eq!(1, output.matches("Placeholder").count());
+        assert_eq!(3, output.matches("List").count());
+    }
+
+    #[test]
+    fn pipeline_full_14() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("14_statement_load.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_15() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("15_statement_lookup.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_15_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("15_statement_lookup.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_16() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("16_statement_modify.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_16_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("16_statement_modify.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_17() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("17_statement_output.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_18() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("18_statement_roll.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_18_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("18_statement_roll.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_19() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("19_statement_show.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_19_with_deps() {
+        let mut table = StateTable::new();
+        table.pipeline_file(
+            sample_path("92_supporting_defs.tale")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("19_statement_show.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_21() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(sample_path("21_script.tale").to_string_lossy().to_string())
+        );
+        println!("{}", output);
+        assert_eq!("", output)
+    }
+
+    #[test]
+    fn pipeline_full_92() {
+        let mut table = StateTable::new();
+        let output = format!(
+            "{:?}",
+            table.pipeline_file(
+                sample_path("92_supporting_defs.tale")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.ends_with("]))"));
+        assert_eq!(11, output.matches("Placeholder").count());
+    }
 }

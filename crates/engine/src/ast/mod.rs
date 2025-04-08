@@ -3,10 +3,11 @@ use std::fmt::Display;
 use std::hash::Hash;
 use std::{ops::Range, rc::Rc};
 
+use crate::error::TaleResultVec;
 use crate::lexer::{Position, Token};
 use chumsky::prelude::*;
 use chumsky::span::Span;
-use eval::Eval;
+pub use eval::Eval;
 
 use crate::{SimpleStateTable, SymbolTable, SymbolValue};
 
@@ -100,11 +101,11 @@ impl Display for Statement {
                 let statements = statements
                     .inner_t()
                     .iter()
-                    .map(|stmt| format!("{}", stmt))
+                    .map(|stmt| format!("{stmt}"))
                     .collect::<Vec<_>>();
                 write!(f, "Sequence: [\n\t{}\n]", statements.join(",\n\t"))
             }
-            Statement::Expr(expr) => write!(f, "{}", expr),
+            Statement::Expr(expr) => write!(f, "{expr}"),
         }
     }
 }
@@ -219,7 +220,7 @@ impl Atom {
     pub fn to_lowercase(&self) -> String {
         match self {
             Self::Number(num) => num.to_string(),
-            Self::Dice(num, sides) => format!("{}d{}", num, sides),
+            Self::Dice(num, sides) => format!("{num}d{sides}"),
             Self::Str(s) => s.to_lowercase(),
             Self::Ident(s) => s.to_lowercase(),
             Self::Raw(token) => token.to_lowercase(),
@@ -294,7 +295,6 @@ where
     O: From<I>,
     I: std::fmt::Debug,
 {
-    //println!("full_rc_node: {:?}", value);
     let span: std::ops::Range<usize> = extra.span().into_range();
     let spanslation = extra.state().spanslate(&span);
     let full_info = (value.into(), span, spanslation);
@@ -330,7 +330,11 @@ impl<T> Node<T> {
     }
 
     pub fn source_span(&self) -> Range<usize> {
-        self.source_span.start()..self.source_span.end()
+        self.source_span.start..self.source_span.end
+    }
+
+    pub fn merge_source_span(&self, other: &Self) -> Range<usize> {
+        self.source_span.start..other.source_span.end
     }
 }
 
@@ -480,8 +484,8 @@ impl Script {
         &self.name
     }
 
-    pub fn invoke(&self) -> Result<SymbolValue, String> {
-        todo!()
+    pub fn invoke(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
+        self.statements.eval(symbols)
     }
 }
 
@@ -494,12 +498,6 @@ impl Display for Script {
             self.statements.len(),
             if self.statements.len() == 1 { "" } else { "s" }
         )
-    }
-}
-
-impl Hash for Script {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
     }
 }
 
@@ -546,11 +544,11 @@ impl Table {
         &self.tags
     }
 
-    pub fn roll(&self) -> Result<SymbolValue, String> {
+    pub fn roll(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         todo!()
     }
 
-    pub fn lookup(&self, key: SymbolValue) -> Result<SymbolValue, String> {
+    pub fn lookup(&self, symbols: &RefCell<SymbolTable>, key: SymbolValue) -> TaleResultVec<SymbolValue> {
         todo!()
     }
 
@@ -582,12 +580,6 @@ impl Table {
                 }
             }
         }
-    }
-}
-
-impl Hash for Table {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
     }
 }
 
@@ -766,9 +758,9 @@ impl Display for Modifier {
         let value = if value.starts_with('-') {
             value
         } else {
-            format!("+{}", value)
+            format!("+{value}")
         };
-        write!(f, "{} {}", value, self.duration)
+        write!(f, "{value} {}", self.duration)
     }
 }
 
