@@ -2,7 +2,7 @@ use crate::lexer::Token;
 use chumsky::prelude::*;
 
 use crate::{
-    SimpleStateTable,
+    state::SimpleStateTable,
     ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
 };
 
@@ -318,7 +318,7 @@ fn row_key<'src>() -> impl Parser<
 #[allow(unused_must_use)]
 mod tests {
     use crate::{
-        StateTable,
+        state::StateTable,
         tests::{grubbed_parser, stubbed_parser},
     };
 

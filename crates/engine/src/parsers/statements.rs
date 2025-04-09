@@ -2,7 +2,7 @@ use crate::lexer::Token;
 use chumsky::prelude::*;
 
 use crate::{
-    SimpleStateTable,
+    state::SimpleStateTable,
     ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node},
 };
 
@@ -285,7 +285,7 @@ pub fn show<'src>() -> impl Parser<
 mod tests {
     use crate::lexer::tests::quick_tokens;
 
-    use crate::{StateTable, tests::stubbed_parser, utils::tests::read_sample_lines};
+    use crate::{state::StateTable, tests::stubbed_parser, utils::tests::read_sample_lines};
 
     use super::*;
 

@@ -2,7 +2,7 @@ use crate::lexer::Token;
 use chumsky::{pratt::*, prelude::*};
 
 use crate::{
-    SimpleStateTable,
+    state::SimpleStateTable,
     ast::{Atom, Expr, RcNode, full_rc_node},
 };
 
@@ -272,7 +272,7 @@ mod tests {
     use crate::lexer::tests::quick_tokens;
 
     use crate::{
-        StateTable, parsers::expressions::arithmetic, tests::stubbed_parser,
+        state::StateTable, parsers::expressions::arithmetic, tests::stubbed_parser,
         utils::tests::read_sample_lines,
     };
 

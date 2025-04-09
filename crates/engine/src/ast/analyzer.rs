@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    SymbolTable,
+    state::SymbolTable,
     error::{TaleError, TaleResultVec},
 };
 
@@ -98,7 +98,7 @@ impl Analyze for Statement {
             Statement::Output(node) => node.inner_t().analyze(symbols),
             Statement::Show(node) => {
                 if node.inner_t().0 {
-                    Ok(()) // When showing tags, no analysis is needed, just return Ok
+                    Ok(())
                 } else {
                     // TODO: make sure there's something to show
                     node.inner_t().1.analyze(symbols)
@@ -225,7 +225,7 @@ impl Analyze for Duration {
 mod tests {
     use crate::utils::tests::read_sample_file_to_string;
 
-    use crate::StateTable;
+    use crate::state::StateTable;
 
     #[test]
     fn analyze_roll() {
@@ -238,8 +238,7 @@ mod tests {
         assert_eq!(format!("{:?}", errors), "Ok(())");
 
         table
-            .symbols
-            .borrow_mut()
+            .symbols_mut()
             .register("farm animals".to_string());
 
         let outcome = table.analyze_current();
@@ -267,7 +266,7 @@ mod tests {
                 Roll 1d6, 1d6,\n\t\
                 Roll 6, 3d6\n\
             ]",
-            table.asts.get(&table.current).unwrap().to_string()
+            table.asts().get(table.current()).unwrap().to_string()
         )
     }
 }

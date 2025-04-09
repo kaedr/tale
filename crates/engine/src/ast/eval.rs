@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::{
-    SymbolTable, SymbolValue,
+    state::SymbolTable, state::SymbolValue,
     ast::*,
     error::{TaleError, TaleResultVec},
 };
@@ -258,12 +258,13 @@ fn show_stmt(
     symbols: &RefCell<SymbolTable>,
     node: &RcNode<(bool, Atom)>,
 ) -> TaleResultVec<SymbolValue> {
-    let target = node.inner_t().1.eval(symbols)?;
     if node.inner_t().0 {
+        let target = node.inner_t().1.to_lowercase();
         Ok(symbols
             .borrow()
             .get_tags(target.to_string().split_whitespace().collect::<Vec<_>>()))
     } else {
+        let target = node.inner_t().1.eval(symbols)?;
         match target.to_string().as_str() {
             "tables" | "table" => symbols.borrow().list_tables().map_err(|err| {
                 vec![TaleError::evaluator(

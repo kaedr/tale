@@ -4,7 +4,7 @@ use definitions::{script, table, table_group};
 use statements::seq_or_statement;
 
 use crate::{
-    SimpleStateTable,
+    state::SimpleStateTable,
     ast::{RcNode, Statement, full_rc_node},
 };
 
@@ -43,7 +43,7 @@ pub fn parser<'src>() -> impl Parser<
 mod tests {
     use crate::utils::tests::read_sample_file_to_string;
 
-    use crate::StateTable;
+    use crate::state::StateTable;
 
     #[test]
     fn parse_full_01() {
@@ -196,7 +196,7 @@ mod tests {
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
-        println!("{}", table.asts.get("17_statement_output.tale").unwrap());
+        println!("{}", table.asts().get("17_statement_output.tale").unwrap());
         assert_eq!(format!("{:?}", errors), "Ok(())");
     }
 

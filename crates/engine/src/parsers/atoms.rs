@@ -1,6 +1,6 @@
 use crate::lexer::Token;
 use crate::{
-    SimpleStateTable,
+    state::SimpleStateTable,
     ast::{Atom, Expr, RcNode, full_rc_node},
 };
 use chumsky::prelude::*;
@@ -254,7 +254,7 @@ pub fn ident_normalize(l: Atom, r: Atom) -> Atom {
 mod tests {
     use crate::lexer::tests::quick_tokens;
 
-    use crate::{StateTable, tests::stubbed_parser};
+    use crate::{state::StateTable, tests::stubbed_parser};
 
     use super::*;
 

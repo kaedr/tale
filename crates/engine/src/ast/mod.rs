@@ -9,7 +9,7 @@ use chumsky::prelude::*;
 use chumsky::span::Span;
 pub use eval::Eval;
 
-use crate::{SimpleStateTable, SymbolTable, SymbolValue};
+use crate::{state::SimpleStateTable, state::SymbolTable, state::SymbolValue};
 
 mod analyzer;
 mod eval;
