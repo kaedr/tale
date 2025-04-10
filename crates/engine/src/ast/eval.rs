@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 
 use crate::{
-    state::SymbolTable, state::SymbolValue,
     ast::*,
     error::{TaleError, TaleResultVec},
+    state::SymbolTable,
+    state::SymbolValue,
 };
 use rand::Rng;
 
@@ -207,18 +208,18 @@ fn clear_stmt(
     duration: &RcNode<Duration>,
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
-    let name = target.eval(symbols)?;
-    match symbols.borrow().get_table(&name.to_string()) {
-        Some(table) => {
+    let value = target.eval(symbols)?;
+    match value {
+        SymbolValue::Table(table) => {
             table
                 .inner_t_mut()
                 .clear_modifier(duration.inner_t().clone());
             Ok(SymbolValue::Placeholder)
         }
-        None => Err(vec![TaleError::evaluator(
+        _ => Err(vec![TaleError::evaluator(
             target.source_span(),
             target.position(),
-            format!("Cannot clear modifiers for: '{name}' (Not a Table or Group name)"),
+            format!("Cannot clear modifiers for: '{value}' (Not a Table or Group name)"),
         )]),
     }
 }
@@ -227,8 +228,8 @@ fn invoke_stmt(
     symbols: &RefCell<SymbolTable>,
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
-    let name = target.eval(symbols)?;
-    invoke_roll_or_err(symbols, name.to_string())
+    let value = target.eval(symbols)?;
+    roll_invoke_or_err(symbols, value)
 }
 
 fn load_stmt(symbols: &RefCell<SymbolTable>, target: &RcNode<Atom>) -> TaleResultVec<SymbolValue> {
@@ -240,16 +241,16 @@ fn modify_stmt(
     modifier: &RcNode<Modifier>,
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
-    let name = target.eval(symbols)?;
-    match symbols.borrow().get_table(&name.to_string()) {
-        Some(table) => {
+    let value = target.eval(symbols)?;
+    match value {
+        SymbolValue::Table(table) => {
             table.inner_t_mut().add_modifier(modifier.inner_t().clone());
             Ok(SymbolValue::Placeholder)
         }
-        None => Err(vec![TaleError::evaluator(
+        _ => Err(vec![TaleError::evaluator(
             target.source_span(),
             target.position(),
-            format!("Cannot modify: '{name}' (Not a Table or Group name)"),
+            format!("Cannot modify: '{value}' (Not a Table or Group name)"),
         )]),
     }
 }
@@ -264,31 +265,7 @@ fn show_stmt(
             .borrow()
             .get_tags(target.to_string().split_whitespace().collect::<Vec<_>>()))
     } else {
-        let target = node.inner_t().1.eval(symbols)?;
-        match target.to_string().as_str() {
-            "tables" | "table" => symbols.borrow().list_tables().map_err(|err| {
-                vec![TaleError::evaluator(
-                    node.source_span(),
-                    node.position(),
-                    err,
-                )]
-            }),
-            "scripts" | "script" => symbols.borrow().list_scripts().map_err(|err| {
-                vec![TaleError::evaluator(
-                    node.source_span(),
-                    node.position(),
-                    err,
-                )]
-            }),
-            "values" | "variables" | "names" => symbols.borrow().list_names().map_err(|err| {
-                vec![TaleError::evaluator(
-                    node.source_span(),
-                    node.position(),
-                    err,
-                )]
-            }),
-            other => symbols.borrow().show_value(other),
-        }
+        node.inner_t().1.eval(symbols)
     }
 }
 
@@ -483,17 +460,8 @@ fn lookup_expr(
     let key = value.eval(symbols)?;
     let target_val = target.eval(symbols)?;
     match &target_val {
-        SymbolValue::String(name) => {
-            if let Some(table) = symbols.borrow().get_table(name) {
-                // Roll on the table
-                table.inner_t().lookup(symbols, key)
-            } else {
-                Err(vec![TaleError::evaluator(
-                    target.source_span(),
-                    target.position(),
-                    format!("Cannot lookup on: '{target_val}' (Not a Table or Group name)"),
-                )])
-            }
+        SymbolValue::Table(table) => {
+            table.inner_t().lookup(symbols, key)
         }
         _ => Err(vec![TaleError::evaluator(
             target.source_span(),
@@ -518,7 +486,7 @@ fn roll_expr(
                 (0..x).map(|_| target.eval(symbols).unwrap()).collect(),
             )),
         },
-        (SymbolValue::Numeric(x), SymbolValue::String(target)) => match x {
+        (SymbolValue::Numeric(x), target) => match x {
             ..=0 => Ok(SymbolValue::Placeholder),
             1..=1 => roll_invoke_or_err(symbols, target),
             2.. => Ok(SymbolValue::List(
@@ -537,41 +505,16 @@ fn roll_expr(
 
 fn roll_invoke_or_err(
     symbols: &RefCell<SymbolTable>,
-    target: String,
+    target: SymbolValue,
 ) -> TaleResultVec<SymbolValue> {
-    if let Some(table) = symbols.borrow().get_table(&target) {
-        // Roll on the table
-        table.inner_t().roll(symbols)
-    } else if let Some(script) = symbols.borrow().get_script(&target) {
-        // Execute the script and return its result
-        script.inner_t().invoke(symbols)
-    } else {
-        Err(vec![TaleError::evaluator(
-            0..0,
-            (0, 0),
-            format!("No such Table: '{target}'"),
-        )])
-    }
-}
-
-fn invoke_roll_or_err(
-    symbols: &RefCell<SymbolTable>,
-    target: String,
-) -> TaleResultVec<SymbolValue> {
-    let maybe_script = symbols.borrow().get_script(&target).cloned();
-    let maybe_table = symbols.borrow().get_table(&target).cloned();
-    if let Some(script) = maybe_script {
-        // Execute the script and return its result
-        script.inner_t().invoke(symbols)
-    } else if let Some(table) = maybe_table {
-        // Roll on the table
-        table.inner_t().roll(symbols)
-    } else {
-        Err(vec![TaleError::evaluator(
+    match target {
+        SymbolValue::Script(script) => script.inner_t().invoke(symbols),
+        SymbolValue::Table(table) => table.inner_t().roll(symbols),
+        _ => Err(vec![TaleError::evaluator(
             0..0,
             (0, 0),
             format!("No such Script: '{target}'"),
-        )])
+        )]),
     }
 }
 

@@ -1,0 +1,14 @@
+Set scope_tracker = 1
+
+Table: Please Continue
+1-127	Invoke Recursive
+128		"Done"
+End Table
+
+Script: Recursive
+	Set scope_tracker = scope_tracker + 1
+	Show scope_tracker
+	Lookup scope_tracker on Please Continue
+End Script
+
+Invoke Recursive

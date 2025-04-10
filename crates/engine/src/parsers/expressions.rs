@@ -2,8 +2,8 @@ use crate::lexer::Token;
 use chumsky::{pratt::*, prelude::*};
 
 use crate::{
-    state::SimpleStateTable,
     ast::{Atom, Expr, RcNode, full_rc_node},
+    state::SimpleStateTable,
 };
 
 use super::atoms::{self, ident_maybe_sub, number, qstring, terminator, words};
@@ -95,8 +95,12 @@ fn repetition_clause<'src>() -> impl Parser<
                     .delimited_by(just(Token::LParens), just(Token::RParens))
                     .or_not(),
             )
-            .then_ignore(just(Token::Time).or(just(Token::Roll)).or_not().labelled("'Times/Rolls'"))
-            )
+            .then_ignore(
+                just(Token::Time)
+                    .or(just(Token::Roll))
+                    .or_not()
+                    .labelled("'Times/Rolls'"),
+            ))
         .boxed()
         .labelled("Repetition Clause")
 }
@@ -272,7 +276,7 @@ mod tests {
     use crate::lexer::tests::quick_tokens;
 
     use crate::{
-        state::StateTable, parsers::expressions::arithmetic, tests::stubbed_parser,
+        parsers::expressions::arithmetic, state::StateTable, tests::stubbed_parser,
         utils::tests::read_sample_lines,
     };
 

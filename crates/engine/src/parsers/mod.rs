@@ -4,8 +4,8 @@ use definitions::{script, table, table_group};
 use statements::seq_or_statement;
 
 use crate::{
-    state::SimpleStateTable,
     ast::{RcNode, Statement, full_rc_node},
+    state::SimpleStateTable,
 };
 
 mod atoms;

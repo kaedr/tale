@@ -1491,7 +1491,12 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[12..],
+                token_vec[12..15],
+                [Token::Show, Token::Script, Token::NewLines]
+            );
+
+            assert_eq!(
+                token_vec[15..],
                 [
                     Token::Show,
                     Token::Tag,

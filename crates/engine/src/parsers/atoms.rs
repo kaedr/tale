@@ -1,7 +1,7 @@
 use crate::lexer::Token;
 use crate::{
-    state::SimpleStateTable,
     ast::{Atom, Expr, RcNode, full_rc_node},
+    state::SimpleStateTable,
 };
 use chumsky::prelude::*;
 
@@ -154,6 +154,7 @@ pub fn raw_keywords<'src>()
         Token::Output => Atom::Raw(Token::Output),
         // TODO: Figure out how to allow roll in some places without breaking a bunch of crap
         // Token::Roll => Atom::Raw(Token::Roll),
+        Token::Script => Atom::Raw(Token::Script),
         Token::Set => Atom::Raw(Token::Set),
         Token::Show => Atom::Raw(Token::Show),
         Token::Table => Atom::Raw(Token::Table),
@@ -234,15 +235,17 @@ pub fn terminator<'src>()
 -> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
 + Clone {
     one_of([
-            Token::Comma,
-            Token::Period,
-            Token::NewLines,
-            Token::RBracket,
-            Token::SemiColon,
-            Token::Tabs,
-        ]).ignored()
-        .or(end()).rewind()
-        .labelled("Terminator")
+        Token::Comma,
+        Token::Period,
+        Token::NewLines,
+        Token::RBracket,
+        Token::SemiColon,
+        Token::Tabs,
+    ])
+    .ignored()
+    .or(end())
+    .rewind()
+    .labelled("Terminator")
 }
 
 pub fn ident_normalize(l: Atom, r: Atom) -> Atom {

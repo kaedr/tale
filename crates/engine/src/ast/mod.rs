@@ -1,9 +1,10 @@
 use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::{ops::Range, rc::Rc};
 
-use crate::error::TaleResultVec;
+use crate::error::{TaleError, TaleResultVec};
 use crate::lexer::{Position, Token};
 use chumsky::prelude::*;
 use chumsky::span::Span;
@@ -321,8 +322,16 @@ impl<T> Node<T> {
         self.actual.borrow_mut()
     }
 
-    pub fn details(&self) -> (&MetaData, &SpanInfo, &SpanInfo) {
+    pub fn info(&self) -> (&MetaData, &SpanInfo, &SpanInfo) {
         (&self.meta, &self.token_span, &self.source_span)
+    }
+
+    fn add_detail(&self, k: String, v: String) {
+        self.meta.add_detail(k, v);
+    }
+
+    fn get_detail(&self, k: &str) -> Option<String> {
+        self.meta.get_detail(k)
     }
 
     pub fn position(&self) -> Position {
@@ -361,7 +370,25 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         // Compare the actual values inside the nodes
-        *self.inner_t() == *other.inner_t()
+        self.actual == other.actual
+    }
+}
+
+impl<T> Ord for Node<T>
+where
+    T: Ord,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.actual.cmp(&other.actual)
+    }
+}
+
+impl<T> PartialOrd for Node<T>
+where
+    T: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.actual.partial_cmp(&other.actual)
     }
 }
 
@@ -415,11 +442,23 @@ impl<T> From<(T, Range<usize>, SourceInfo)> for Node<T> {
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct MetaData {
     position: Position,
+    details: RefCell<HashMap<String, String>>,
 }
 
 impl MetaData {
     fn new(position: Position) -> Self {
-        Self { position }
+        Self {
+            position,
+            ..Default::default()
+        }
+    }
+
+    fn add_detail(&self, k: String, v: String) {
+        self.details.borrow_mut().insert(k, v);
+    }
+
+    fn get_detail(&self, k: &str) -> Option<String> {
+        self.details.borrow().get(k).cloned()
     }
 }
 
@@ -466,7 +505,7 @@ impl Span for SpanInfo {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Script {
     name: RcNode<Atom>,
     statements: Vec<RcNode<Statement>>,
@@ -489,10 +528,19 @@ impl Script {
     }
 
     pub fn invoke(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
-        symbols.borrow_mut().push_scope();
-        let output = self.statements.eval(symbols);
-        symbols.borrow_mut().pop_scope();
-        output
+        let stack_happy = symbols.borrow_mut().push_scope();
+        match stack_happy {
+            Ok(_) => {
+                let output = self.statements.eval(symbols);
+                symbols.borrow_mut().pop_scope();
+                output
+            }
+            Err(_) => Err(vec![TaleError::evaluator(
+                0..0,
+                (0, 0),
+                format!("Recursive Script: {} hit stack guard!", self.name),
+            )]),
+        }
     }
 }
 
@@ -508,7 +556,27 @@ impl Display for Script {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+impl Eq for Script {}
+
+impl PartialEq for Script {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Ord for Script {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+impl PartialOrd for Script {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Table {
     name: RcNode<Atom>,
     roll: RcNode<Expr>,
@@ -560,7 +628,21 @@ impl Table {
         symbols: &RefCell<SymbolTable>,
         key: SymbolValue,
     ) -> TaleResultVec<SymbolValue> {
-        todo!()
+        match &*self.rows.inner_t() {
+            TableRows::Empty => Ok(key),
+            TableRows::List(atoms) => list_form_match(key, atoms),
+            TableRows::Flat(nodes) => flat_form_match(symbols, key, nodes),
+            TableRows::Keyed(items) => {
+                match self.rows.get_detail("key_type").expect("Analyzer Bug: Missing table key type!").as_str() {
+                    "numeric" => num_keyed_form_match(symbols, key, items),
+                    "text" => text_keyed_form_match(symbols, key, items),
+                    _ => unreachable!("Analyzer Bug: Invalid table key type!"),
+                }
+            },
+            TableRows::SubTables(nodes) => {
+                nodes.iter().map(|node| node.inner_t().lookup(symbols, key.clone())).collect()
+            },
+        }
     }
 
     pub fn add_modifier(&mut self, modifier: Modifier) {
@@ -594,9 +676,119 @@ impl Table {
     }
 }
 
+fn list_form_match(key: SymbolValue, atoms: &Vec<Atom>) -> TaleResultVec<SymbolValue> {
+    match key {
+        SymbolValue::Numeric(n) if n < 1 => Ok(SymbolValue::String(atoms[0].to_string())),
+        SymbolValue::Numeric(n) if n > 0 && (n as usize) < atoms.len() => {
+            Ok(SymbolValue::String(atoms[n as usize - 1].to_string()))
+        }
+        SymbolValue::Numeric(n) if n >= atoms.len() as isize => {
+            Ok(SymbolValue::String(atoms.last().unwrap().to_string()))
+        }
+        _ => Ok(SymbolValue::Placeholder),
+    }
+}
+
+fn flat_form_match(
+    symbols: &RefCell<SymbolTable>,
+    key: SymbolValue,
+    nodes: &Vec<RcNode<Statement>>,
+) -> TaleResultVec<SymbolValue> {
+    match key {
+        SymbolValue::Numeric(n) if n < 1 => nodes[0].eval(symbols),
+        SymbolValue::Numeric(n) if n > 0 && (n as usize) < nodes.len() => {
+            nodes[n as usize - 1].eval(symbols)
+        }
+        SymbolValue::Numeric(n) if n >= nodes.len() as isize => nodes.last().unwrap().eval(symbols),
+        _ => Ok(SymbolValue::Placeholder),
+    }
+}
+
+fn num_keyed_form_match(
+    symbols: &RefCell<SymbolTable>,
+    key: SymbolValue,
+    items: &Vec<(RcNode<Expr>, RcNode<Statement>)>,
+) -> TaleResultVec<SymbolValue> {
+    match key {
+        SymbolValue::Numeric(key) => {
+            let mut closest = (usize::MAX, 0usize);
+            for (idx, (row_keys, _)) in items.iter().enumerate() {
+                match row_keys.eval(symbols)? {
+                    SymbolValue::List(candidates) => {
+                        let closest_this_row = num_key_matcher(key, candidates);
+                        closest = if closest.0 > closest_this_row { (closest_this_row, idx) } else { closest }
+                    }
+                    other => unreachable!("Analyzer/Evaluator Bug: table key type mismatch! ({})", other),
+                }
+            }
+            items[closest.1].1.eval(symbols)
+        }
+        _ => Ok(SymbolValue::Placeholder),
+    }
+}
+
+fn num_key_matcher(key: isize, candidates: Vec<SymbolValue>) -> usize {
+    let mut distance = usize::MAX;
+    for candidate in candidates {
+        match candidate {
+            SymbolValue::Numeric(n) => {
+                let new_distance = (n - key).abs() as usize;
+                if new_distance < distance {
+                    distance = new_distance;
+                }
+            },
+            other => unreachable!("Analyzer/Evaluator Bug: table key type mismatch! ({})", other),
+        }
+    }
+    distance
+}
+
+fn text_keyed_form_match(
+    symbols: &RefCell<SymbolTable>,
+    key: SymbolValue,
+    items: &Vec<(RcNode<Expr>, RcNode<Statement>)>,
+) -> TaleResultVec<SymbolValue> {
+    match key {
+        SymbolValue::String(key) => {
+            for (row_keys, stmt) in items.iter() {
+                match row_keys.eval(symbols)? {
+                    SymbolValue::String(candidate) => {
+                        if key == candidate {
+                            return stmt.eval(symbols);
+                        }
+                    }
+                    other => unreachable!("Analyzer/Evaluator Bug: table key type mismatch! ({})", other),
+                }
+            }
+            Ok(SymbolValue::Placeholder)
+        }
+        _ => Ok(SymbolValue::Placeholder),
+    }
+}
+
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}, {}, {} Rows", self.name, self.roll, self.rows)
+    }
+}
+
+impl Eq for Table {}
+
+impl PartialEq for Table {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Ord for Table {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+impl PartialOrd for Table {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.name.partial_cmp(&other.name)
     }
 }
 
@@ -722,8 +914,8 @@ fn calc_keyed_roll<T>(rows: &Vec<(RcNode<Expr>, T)>) -> Expr {
         bottom = bottom.min(low);
         top = top.max(high);
     }
-    let first = rows.first().unwrap().0.details();
-    let last = rows.last().unwrap().0.details();
+    let first = rows.first().unwrap().0.info();
+    let last = rows.last().unwrap().0.info();
     let offset = bottom.saturating_sub(1);
     if offset != 0 {
         let die_roll = Rc::new(Node {

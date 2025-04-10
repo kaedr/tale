@@ -2,8 +2,8 @@ use crate::lexer::Token;
 use chumsky::prelude::*;
 
 use crate::{
-    state::SimpleStateTable,
     ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node},
+    state::SimpleStateTable,
 };
 
 use super::{
@@ -267,6 +267,7 @@ pub fn show<'src>() -> impl Parser<
 > + Clone {
     just(Token::Show)
         .ignore_then(just(Token::Tag).or_not())
+        .then_ignore(just(Token::Colon).or_not())
         .then(ident_maybe_sub())
         .then_ignore(terminator())
         .map_with(|(tags, value), extra| {
@@ -539,6 +540,7 @@ mod tests {
             "Show `midnight`",
             "Show `variables`",
             "Show `tables`",
+            "Show `script`",
             "Show Tag `desert`",
         ];
 

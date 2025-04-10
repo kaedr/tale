@@ -1,15 +1,19 @@
 use std::{
     cell::{Ref, RefCell, RefMut},
     cmp::min,
-    collections::{HashSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
-    fs::read_to_string,
+    io::Write,
     ops::Range,
 };
 
 use chumsky::{Parser, extra::SimpleState};
 
-use crate::{ast::{rc_node, RcNode, Script, Statement, Table}, lexer::{tokenize, Lexicon, Position, Token}, parsers::parser};
+use crate::{
+    ast::{RcNode, Script, Statement, Table, rc_node},
+    lexer::{Lexicon, Position, Token, tokenize},
+    parsers::parser,
+};
 
 use crate::error::TaleResultVec;
 
@@ -17,7 +21,7 @@ use crate::error::TaleError;
 
 use crate::error::TaleResult;
 
-use crate::ast::{AST, Analyze, Eval as _, };
+use crate::ast::{AST, Analyze, Eval as _};
 
 pub type SimpleStateTable<'src> = SimpleState<&'src mut StateTable>;
 
@@ -84,7 +88,10 @@ impl StateTable {
             Some(_) => Err(TaleError::lexer(
                 0..0,
                 (0, 0),
-                format!("Attempted to overwrite previous lexicon of: {}", &self.current),
+                format!(
+                    "Attempted to overwrite previous lexicon of: {}",
+                    &self.current
+                ),
             )
             .into()),
             None => Ok(()),
@@ -236,21 +243,21 @@ impl Default for StateTable {
 
 #[derive(Debug)]
 pub struct SymbolTable {
-    pub names: HashSet<String>,
+    pub names: BTreeSet<String>,
     pub scopes: Scopes,
-    pub scripts: HashMap<String, RcNode<Script>>,
-    pub tables: HashMap<String, RcNode<Table>>,
-    pub tags: HashMap<String, Vec<String>>,
+    pub scripts: BTreeMap<String, RcNode<Script>>,
+    pub tables: BTreeMap<String, RcNode<Table>>,
+    pub tags: BTreeMap<String, Vec<String>>,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         Self {
-            names: HashSet::new(),
-            scripts: HashMap::new(),
+            names: BTreeSet::new(),
             scopes: Scopes::new(),
-            tables: HashMap::new(),
-            tags: HashMap::new(),
+            scripts: BTreeMap::new(),
+            tables: BTreeMap::new(),
+            tags: BTreeMap::new(),
         }
     }
 
@@ -322,40 +329,23 @@ impl SymbolTable {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.scopes.resolve(name) {
                 Ok(v)
+            } else if let Some(v) = self.scripts.get(name) {
+                Ok(SymbolValue::Script(v.clone()))
+            } else if let Some(v) = self.tables.get(name) {
+                Ok(SymbolValue::Table(v.clone()))
             } else {
                 Ok(SymbolValue::String(name.to_string()))
             }
         } else {
-            Err(vec![TaleError::evaluator(
-                0..0,
-                (0, 0),
-                format!("Identifier '{name}' is not defined in the current symbol table."),
-            )])
-        }
-    }
-
-    pub fn show_value(&self, name: &str) -> TaleResultVec<SymbolValue> {
-        if self.names.contains(name) {
-            // If the name exists, return the corresponding value if it exists
-            if let Some(v) = self.scopes.resolve(name) {
-                Ok(v)
-            } else if let Some(v) = self.scripts.get(name) {
-                Ok(SymbolValue::String(v.to_string()))
-            } else if let Some(v) = self.tables.get(name) {
-                Ok(SymbolValue::String(v.to_string()))
-            } else {
-                Err(vec![TaleError::evaluator(
-                    0..0,
-                    (0, 0),
-                    format!("No value found for: {name}"),
-                )])
-            }
-        } else {
-            Err(vec![TaleError::evaluator(
-                0..0,
-                (0, 0),
-                format!("No value found for: {name}"),
-            )])
+            let result = match name {
+                "tables" | "table" => self.list_tables(),
+                "scripts" | "script" => self.list_scripts(),
+                "values" | "variables" | "names" | "identifiers" => self.list_names(),
+                other => Err(format!(
+                    "Identifier '{other}' is not defined in the current symbol table."
+                )),
+            };
+            result.map_err(|err| vec![TaleError::evaluator(0..0, (0, 0), err)])
         }
     }
 
@@ -368,46 +358,38 @@ impl SymbolTable {
     }
 
     pub fn list_names(&self) -> Result<SymbolValue, String> {
-        if self.names.is_empty() {
-            Err("No identifiers are defined in the symbol table.".to_string())
-        } else {
-            let names_list = self
-                .names
-                .iter()
-                .map(|n| SymbolValue::String(n.clone()))
-                .collect();
-            Ok(SymbolValue::List(names_list))
-        }
+        let mut names_list = vec![SymbolValue::String("Defined Identifiers:".into())];
+        names_list.extend(self.names.iter().map(|n| SymbolValue::String(n.clone())));
+        Ok(SymbolValue::List(names_list))
     }
 
     pub fn list_scripts(&self) -> Result<SymbolValue, String> {
-        if self.scripts.is_empty() {
-            Err("No Tables are defined!".to_string())
-        } else {
-            let scripts_list = self
-                .scripts
-                .keys()
-                .map(|t| SymbolValue::String(t.clone()))
-                .collect();
-            Ok(SymbolValue::List(scripts_list))
-        }
+        let mut scripts_list = vec![SymbolValue::String("Defined Scripts:".into())];
+        scripts_list.extend(
+            self.scripts
+                .values()
+                .map(|n| SymbolValue::String(n.to_string())),
+        );
+        Ok(SymbolValue::List(scripts_list))
     }
 
     pub fn list_tables(&self) -> Result<SymbolValue, String> {
-        if self.tables.is_empty() {
-            Err("No Tables are defined!".to_string())
-        } else {
-            let tables_list = self
-                .tables
-                .keys()
-                .map(|t| SymbolValue::String(t.clone()))
-                .collect();
-            Ok(SymbolValue::List(tables_list))
-        }
+        let mut tables_list = vec![SymbolValue::String("Defined Tables:".into())];
+        tables_list.extend(
+            self.tables
+                .values()
+                .map(|n| SymbolValue::String(n.to_string())),
+        );
+        Ok(SymbolValue::List(tables_list))
     }
 
-    pub fn push_scope(&mut self) {
-        self.scopes.push();
+    pub fn push_scope(&mut self) -> Result<(), ()> {
+        if self.scopes.len() < 128 {
+            self.scopes.push();
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 
     pub fn pop_scope(&mut self) {
@@ -421,7 +403,7 @@ impl Default for SymbolTable {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SymbolValue {
     Placeholder,
     Numeric(isize),
@@ -449,6 +431,13 @@ impl Display for SymbolValue {
                     .join(", ")
             ),
         }
+    }
+}
+
+impl FromIterator<SymbolValue> for SymbolValue {
+    fn from_iter<T: IntoIterator<Item = SymbolValue>>(iter: T) -> Self {
+
+        SymbolValue::List(iter.into_iter().collect())
     }
 }
 

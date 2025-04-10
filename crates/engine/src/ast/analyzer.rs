@@ -1,12 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    state::SymbolTable,
     error::{TaleError, TaleResultVec},
+    state::{SymbolTable, SymbolValue},
 };
 
 use super::{
-    AST, Atom, Duration, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
+    AST, Atom, Duration, Eval, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
 };
 
 pub trait Analyze {
@@ -117,22 +117,78 @@ impl Analyze for Script {
 }
 
 impl Analyze for Table {
-    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
-        Ok(())
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        match &*self.rows.inner_t() {
+            super::TableRows::Keyed(items) => {
+                for (key, stmt) in items.iter() {
+                    let key_copy = key.inner_t().clone();
+                    match key_copy {
+                        Expr::Atom(Atom::Ident(id)) => {
+                            *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                        }
+                        _ => (),
+                    }
+                    match &*stmt.inner_t() {
+                        Statement::Expr(expr) => {
+                            let expr_copy = expr.inner_t().clone();
+                            match expr_copy {
+                                Expr::Atom(Atom::Ident(id)) => {
+                                    if symbols.borrow().is_def(&id) {
+                                        ()
+                                    } else {
+                                        *expr.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                                        ()
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+            }
+            _ => (),
+        };
+        match &*self.rows.inner_t() {
+            super::TableRows::Keyed(items) => {
+                match items.iter().try_fold(SymbolValue::Placeholder, |prev, row| {
+                    match (&prev, row.0.inner_t().eval(symbols)?) {
+                        (SymbolValue::Placeholder, other) => Ok(other),
+                        (SymbolValue::List(_), SymbolValue::List(item)) => Ok(SymbolValue::List(item)),
+                        (SymbolValue::String(_), SymbolValue::String(item)) => Ok(SymbolValue::String(item)),
+                        _ => Err(vec![TaleError::analyzer(
+                            row.0.source_span(), row.0.position(),
+                            format!("Keyed rows must all have the same key type.\n(Previous row was: {})", prev)
+                        )]),
+                    }
+                }) {
+                    Ok(key_kind) => {
+                        match key_kind {
+                            SymbolValue::List(_) => {
+                                self.rows.add_detail("key_type".into(), "numeric".into());
+                                Ok(())
+                            },
+                            SymbolValue::String(_) => {
+                                self.rows.add_detail("key_type".into(), "text".into());
+                                Ok(())
+                            },
+                            _ => unreachable!("Parser bug, row keys should only be textual or numeric"),
+                        }
+                    },
+                    Err(err) => Err(err),
+                }
+            }
+            _ => Ok(()),
+        }
     }
 }
 
 impl Analyze for TableGroup {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         for table in self.sub_tables.iter() {
-            symbols.borrow_mut().register(
-                table
-                    .inner_t()
-                    .name()
-                    .to_string()
-                    .trim_matches('`')
-                    .to_string(),
-            );
+            symbols
+                .borrow_mut()
+                .register(table.inner_t().name().inner_t().to_lowercase());
             table.inner_t().analyze(symbols)?;
         }
         Ok(())
@@ -151,11 +207,30 @@ impl Analyze for Expr {
             Expr::Div(_lhs, _rhs) => Ok(()),
             Expr::Mod(_lhs, _rhs) => Ok(()),
             Expr::Pow(_lhs, _rhs) => Ok(()),
-            Expr::Lookup(_lhs, _rhs) => Ok(()),
+            Expr::Lookup(key, target) => analyze_lookup(symbols, key, target),
             Expr::Roll(reps, target) => analyze_roll(symbols, reps, target),
             Expr::Interpol(_exprs) => Ok(()),
             Expr::List(_atoms) => Ok(()),
         }
+    }
+}
+
+fn analyze_lookup(
+    symbols: &RefCell<SymbolTable>,
+    key: &RcNode<Expr>,
+    _target: &RcNode<Expr>,
+) -> TaleResultVec<()> {
+    let key_copy = key.inner_t().clone();
+    match key_copy {
+        Expr::Atom(Atom::Ident(id)) => {
+            if symbols.borrow().is_def(&id) {
+                Ok(())
+            } else {
+                *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                Ok(())
+            }
+        }
+        _ => Ok(()),
     }
 }
 
@@ -237,9 +312,7 @@ mod tests {
         let errors = table.parse_current();
         assert_eq!(format!("{:?}", errors), "Ok(())");
 
-        table
-            .symbols_mut()
-            .register("farm animals".to_string());
+        table.symbols_mut().register("farm animals".to_string());
 
         let outcome = table.analyze_current();
         assert!(

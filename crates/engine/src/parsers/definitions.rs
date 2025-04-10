@@ -2,8 +2,8 @@ use crate::lexer::Token;
 use chumsky::prelude::*;
 
 use crate::{
-    state::SimpleStateTable,
     ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
+    state::SimpleStateTable,
 };
 
 use super::{
