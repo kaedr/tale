@@ -15,7 +15,7 @@ pub trait Eval {
 
 impl<T> Eval for Node<T>
 where
-    T: Eval,
+    T: Eval + TypedNode,
 {
     fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         self.inner_t().eval(symbols).map_err(|mut errs| {
@@ -23,6 +23,7 @@ where
                 // Amend default spans with actual spans
                 if err.start() == 0 && err.end() == 0 {
                     err.update_span(self.source_span());
+                    err.append_message(&format!(" ({:?})", self.node_type()));
                 }
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
@@ -59,7 +60,7 @@ where
 
 impl<T> Eval for Vec<RcNode<T>>
 where
-    T: Eval,
+    T: Eval + TypedNode,
 {
     fn eval(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         self.iter()
@@ -460,9 +461,7 @@ fn lookup_expr(
     let key = value.eval(symbols)?;
     let target_val = target.eval(symbols)?;
     match &target_val {
-        SymbolValue::Table(table) => {
-            table.inner_t().lookup(symbols, key)
-        }
+        SymbolValue::Table(table) => table.inner_t().lookup(symbols, key),
         _ => Err(vec![TaleError::evaluator(
             target.source_span(),
             target.position(),
@@ -509,11 +508,11 @@ fn roll_invoke_or_err(
 ) -> TaleResultVec<SymbolValue> {
     match target {
         SymbolValue::Script(script) => script.inner_t().invoke(symbols),
-        SymbolValue::Table(table) => table.inner_t().roll(symbols),
+        SymbolValue::Table(table) => table.inner_t().roll_on(symbols),
         _ => Err(vec![TaleError::evaluator(
             0..0,
             (0, 0),
-            format!("No such Script: '{target}'"),
+            format!("No such Table or Script: '{target}'"),
         )]),
     }
 }
@@ -572,7 +571,6 @@ fn roll_dice(x: usize, y: usize) -> TaleResultVec<SymbolValue> {
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
-    use super::*;
 
     #[test]
     fn it_works() {

@@ -7,6 +7,7 @@ use crate::{
 
 use super::{
     AST, Atom, Duration, Eval, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
+    TableRows, TypedNode,
 };
 
 pub trait Analyze {
@@ -21,7 +22,7 @@ impl Analyze for AST {
 
 impl<T> Analyze for Node<T>
 where
-    T: Analyze,
+    T: Analyze + TypedNode,
 {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.inner_t().analyze(symbols)
@@ -30,7 +31,7 @@ where
 
 impl<T> Analyze for Vec<Rc<Node<T>>>
 where
-    T: Analyze,
+    T: Analyze + TypedNode,
 {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.iter()
@@ -118,39 +119,9 @@ impl Analyze for Script {
 
 impl Analyze for Table {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        self.rows.analyze(symbols)?;
         match &*self.rows.inner_t() {
-            super::TableRows::Keyed(items) => {
-                for (key, stmt) in items.iter() {
-                    let key_copy = key.inner_t().clone();
-                    match key_copy {
-                        Expr::Atom(Atom::Ident(id)) => {
-                            *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
-                        }
-                        _ => (),
-                    }
-                    match &*stmt.inner_t() {
-                        Statement::Expr(expr) => {
-                            let expr_copy = expr.inner_t().clone();
-                            match expr_copy {
-                                Expr::Atom(Atom::Ident(id)) => {
-                                    if symbols.borrow().is_def(&id) {
-                                        ()
-                                    } else {
-                                        *expr.inner_t_mut() = Expr::Atom(Atom::Str(id));
-                                        ()
-                                    }
-                                }
-                                _ => (),
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-            }
-            _ => (),
-        };
-        match &*self.rows.inner_t() {
-            super::TableRows::Keyed(items) => {
+            TableRows::Keyed(items) => {
                 match items.iter().try_fold(SymbolValue::Placeholder, |prev, row| {
                     match (&prev, row.0.inner_t().eval(symbols)?) {
                         (SymbolValue::Placeholder, other) => Ok(other),
@@ -166,20 +137,21 @@ impl Analyze for Table {
                         match key_kind {
                             SymbolValue::List(_) => {
                                 self.rows.add_detail("key_type".into(), "numeric".into());
-                                Ok(())
+                                ()
                             },
                             SymbolValue::String(_) => {
                                 self.rows.add_detail("key_type".into(), "text".into());
-                                Ok(())
+                                ()
                             },
                             _ => unreachable!("Parser bug, row keys should only be textual or numeric"),
                         }
                     },
-                    Err(err) => Err(err),
+                    Err(err) => return Err(err),
                 }
             }
-            _ => Ok(()),
-        }
+            _ => (),
+        };
+        Ok(())
     }
 }
 
@@ -192,6 +164,67 @@ impl Analyze for TableGroup {
             table.inner_t().analyze(symbols)?;
         }
         Ok(())
+    }
+}
+
+impl Analyze for TableRows {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        match self {
+            TableRows::Keyed(items) => {
+                for (key, stmt) in items.iter() {
+                    let key_copy = key.inner_t().clone();
+                    match key_copy {
+                        Expr::Atom(Atom::Ident(id)) => {
+                            *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                        }
+                        _ => (),
+                    }
+                    match &*stmt.inner_t() {
+                        Statement::Expr(expr) => ammend_id_to_str(symbols, expr)?,
+                        other => other.analyze(symbols)?,
+                    }
+                }
+                Ok(())
+            }
+            TableRows::Flat(items) => {
+                for item in items.iter() {
+                    match &*item.inner_t() {
+                        Statement::Expr(expr) => ammend_id_to_str(symbols, expr)?,
+                        other => other.analyze(symbols)?,
+                    }
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> TaleResultVec<()> {
+    let expr_copy = expr.inner_t().clone();
+    match expr_copy {
+        Expr::Atom(Atom::Ident(id)) => {
+            if symbols.borrow().is_def(&id) {
+                Ok(())
+            } else {
+                *expr.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                Ok(())
+            }
+        }
+        Expr::Roll(reps, target) => match (&*reps.inner_t(), &*target.inner_t()) {
+            (Expr::Atom(Atom::Ident(idl)), Expr::Atom(Atom::Ident(idr))) => {
+                if symbols.borrow().is_def(&idl) || symbols.borrow().is_def(&idr) {
+                    Ok(())
+                } else {
+                    if let Some(sauce) = expr.get_detail("words_only") {
+                        *expr.inner_t_mut() = Expr::Atom(Atom::Str(sauce));
+                    }
+                    Ok(())
+                }
+            }
+            _ => Ok(()),
+        },
+        other => other.analyze(symbols),
     }
 }
 
@@ -220,18 +253,7 @@ fn analyze_lookup(
     key: &RcNode<Expr>,
     _target: &RcNode<Expr>,
 ) -> TaleResultVec<()> {
-    let key_copy = key.inner_t().clone();
-    match key_copy {
-        Expr::Atom(Atom::Ident(id)) => {
-            if symbols.borrow().is_def(&id) {
-                Ok(())
-            } else {
-                *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
-                Ok(())
-            }
-        }
-        _ => Ok(()),
-    }
+    ammend_id_to_str(symbols, key)
 }
 
 fn analyze_roll(

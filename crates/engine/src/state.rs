@@ -10,9 +10,9 @@ use std::{
 use chumsky::{Parser, extra::SimpleState};
 
 use crate::{
-    ast::{RcNode, Script, Statement, Table, rc_node},
+    ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
     lexer::{Lexicon, Position, Token, tokenize},
-    parsers::parser,
+    parsers::{Op, parser},
 };
 
 use crate::error::TaleResultVec;
@@ -219,19 +219,18 @@ impl StateTable {
         }
     }
 
-    pub fn spanslate(&self, span: &Range<usize>) -> (String, Range<usize>, Position) {
+    pub fn spanslate(&self, span: &Range<usize>) -> SourceInfo {
         if let Some(tokens) = self.tokens.get(&self.current) {
             if tokens.len() > 0 {
                 // TODO: Clean up once https://github.com/rust-lang/rust/issues/53667
                 // is stabilized
                 return (
-                    self.current.clone(),
                     tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end,
                     tokens[span.start].2,
                 );
             }
         }
-        (self.current.clone(), 0..0, (0, 0))
+        (0..0, (0, 0))
     }
 }
 
@@ -413,6 +412,22 @@ pub enum SymbolValue {
     List(Vec<SymbolValue>),
 }
 
+impl SymbolValue {
+    pub fn operation(&self, op: Op, other: &Self) -> TaleResultVec<SymbolValue> {
+        match (self, other) {
+            (SymbolValue::Numeric(lhs), SymbolValue::Numeric(rhs)) => match op {
+                Op::Add => Ok(SymbolValue::Numeric(lhs + rhs)),
+                Op::Sub => Ok(SymbolValue::Numeric(lhs - rhs)),
+                Op::Mul => Ok(SymbolValue::Numeric(lhs * rhs)),
+                Op::Div => Ok(SymbolValue::Numeric(lhs / rhs)),
+                Op::Mod => Ok(SymbolValue::Numeric(lhs % rhs)),
+                Op::Pow => Ok(SymbolValue::Numeric(lhs.pow(*rhs as u32))),
+            },
+            _ => unimplemented!("operations are only valid for numeric values!"),
+        }
+    }
+}
+
 impl Display for SymbolValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -436,7 +451,6 @@ impl Display for SymbolValue {
 
 impl FromIterator<SymbolValue> for SymbolValue {
     fn from_iter<T: IntoIterator<Item = SymbolValue>>(iter: T) -> Self {
-
         SymbolValue::List(iter.into_iter().collect())
     }
 }

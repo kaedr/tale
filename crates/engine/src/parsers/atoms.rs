@@ -1,3 +1,4 @@
+use crate::ast::TypedNode;
 use crate::lexer::Token;
 use crate::{
     ast::{Atom, Expr, RcNode, full_rc_node},
@@ -64,7 +65,7 @@ pub fn words<'src, T>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
 > + Clone
 where
-    T: From<Atom> + 'src,
+    T: From<Atom> + TypedNode + 'src,
 {
     wordlike()
         .or(typical_punctuation())

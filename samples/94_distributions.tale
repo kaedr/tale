@@ -1,36 +1,36 @@
 Table: Flat Test
-one tenth
-two tenths
-three tenths
-four tenths
-five tenths
-six tenths
-seven tenths
-eight tenths
-nine tenths
-one whole
+"one tenth"
+"two tenths"
+"three tenths"
+"four tenths"
+"five tenths"
+"six tenths"
+"seven tenths"
+"eight tenths"
+"nine tenths"
+"one whole"
 End Table
 
 Roll 10000 Times on Flat Test
 
 Table: Curve Test
 Roll: 3d6
-lower zero point four six
-lower one point three nine
-lower two point seven eight
-lower four point six three
-lower six point nine four
-lower nine point seven two
-lower eleven point five seven
-lower twelve point five
-upper twelve point five
-upper eleven point five seven
-upper nine point seven two
-upper six point nine four
-upper four point six three
-upper two point seven eight
-upper one point three nine
-upper zero point four six
+"lower zero point four six"
+"lower one point three nine"
+"lower two point seven eight"
+"lower four point six three"
+"lower six point nine four"
+"lower nine point seven two"
+"lower eleven point five seven"
+"lower twelve point five"
+"upper twelve point five"
+"upper eleven point five seven"
+"upper nine point seven two"
+"upper six point nine four"
+"upper four point six three"
+"upper two point seven eight"
+"upper one point three nine"
+"upper zero point four six"
 End Table
 
-roll 10000 times on Curve Test
+roll 100000 times on Curve Test

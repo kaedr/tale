@@ -44,7 +44,21 @@ pub fn roll<'src>() -> impl Parser<
             }
         })
         .or(optional_roll.then(roll_predicate()))
-        .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Roll(lhs, rhs), extra))
+        .map_with(|(lhs, rhs), extra| {
+            let roll_expr_node = full_rc_node(Expr::Roll(lhs, rhs), extra);
+            if extra
+                .slice()
+                .iter()
+                .all(|token| matches!(token, Token::Word(_)))
+            {
+                let span = extra.span().into_range();
+                roll_expr_node.add_detail(
+                    "words_only".into(),
+                    extra.state().get_source_slice(&span).to_string(),
+                )
+            }
+            roll_expr_node
+        })
         .boxed()
         .labelled("Roll Expression")
 }

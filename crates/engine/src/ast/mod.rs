@@ -6,6 +6,7 @@ use std::{ops::Range, rc::Rc};
 
 use crate::error::{TaleError, TaleResultVec};
 use crate::lexer::{Position, Token};
+use crate::parsers::Op;
 use chumsky::prelude::*;
 use chumsky::span::Span;
 pub use eval::Eval;
@@ -16,6 +17,38 @@ mod analyzer;
 mod eval;
 
 pub use analyzer::Analyze;
+
+pub trait TypedNode {
+    fn node_type(&self) -> String;
+}
+
+impl<T> TypedNode for Rc<T>
+where
+    T: TypedNode,
+{
+    fn node_type(&self) -> String {
+        self.as_ref().node_type()
+    }
+}
+
+impl<T> TypedNode for Vec<T>
+where
+    T: TypedNode,
+{
+    fn node_type(&self) -> String {
+        match self.first() {
+            Some(t) => format!("Vec<{}>", t.node_type()),
+            None => "Vec<Unknown>".into(),
+        }
+    }
+}
+
+// This is a one off, maybe there's a better way, but this is quick and easy
+impl TypedNode for (bool, Atom) {
+    fn node_type(&self) -> String {
+        "Show Statement Target".into()
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct AST {
@@ -111,6 +144,26 @@ impl Display for Statement {
     }
 }
 
+impl TypedNode for Statement {
+    fn node_type(&self) -> String {
+        match self {
+            Statement::Empty => "Empty Statement".into(),
+            Statement::Script(_) => "Script Definition".into(),
+            Statement::Table(_) => "Table Definition".into(),
+            Statement::TableGroup(_) => "TableGroup Definition".into(),
+            Statement::Assignment(_, _) => "Assignment Statement".into(),
+            Statement::Clear(_, _) => "Clear Statement".into(),
+            Statement::Invoke(_) => "Invoke Statement".into(),
+            Statement::Load(_) => "Load Statement".into(),
+            Statement::Modify(_, _) => "Modify Statement".into(),
+            Statement::Output(_) => "Output Statement".into(),
+            Statement::Show(_) => "Show Statement".into(),
+            Statement::Sequence(_) => "Statement Sequence".into(),
+            Statement::Expr(_) => "Expression Statement".into(),
+        }
+    }
+}
+
 impl From<RcNode<Expr>> for Statement {
     fn from(value: RcNode<Expr>) -> Self {
         Self::Expr(value)
@@ -202,6 +255,26 @@ impl Display for Expr {
     }
 }
 
+impl TypedNode for Expr {
+    fn node_type(&self) -> String {
+        match self {
+            Expr::Empty => "Empty Statement".into(),
+            Expr::Atom(_) => "Atom Expression".into(),
+            Expr::Neg(_) => "Negation Expression".into(),
+            Expr::Add(_, _) => "Add Expression".into(),
+            Expr::Sub(_, _) => "Subraction Expression".into(),
+            Expr::Mul(_, _) => "Multiplication Expression".into(),
+            Expr::Div(_, _) => "Division Expression".into(),
+            Expr::Mod(_, _) => "Modulus Expression".into(),
+            Expr::Pow(_, _) => "Exponent Expression".into(),
+            Expr::Lookup(_, _) => "Lookup Expression".into(),
+            Expr::Roll(_, _) => "Roll Expression".into(),
+            Expr::Interpol(_) => "Interpolation Expression".into(),
+            Expr::List(_) => "List Expression".into(),
+        }
+    }
+}
+
 impl From<Atom> for Expr {
     fn from(value: Atom) -> Self {
         Self::Atom(value)
@@ -254,6 +327,18 @@ impl Display for Atom {
     }
 }
 
+impl TypedNode for Atom {
+    fn node_type(&self) -> String {
+        match self {
+            Atom::Number(_) => "Number Atom".into(),
+            Atom::Dice(_, _) => "Dice Atom".into(),
+            Atom::Str(_) => "String Atom".into(),
+            Atom::Ident(_) => "Identity Atom".into(),
+            Atom::Raw(_) => "Raw Token Atom".into(),
+        }
+    }
+}
+
 impl PartialOrd for Atom {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -279,7 +364,10 @@ impl Ord for Atom {
 
 pub type RcNode<T> = Rc<Node<T>>;
 
-pub fn rc_node<T>(value: T) -> RcNode<T> {
+pub fn rc_node<T>(value: T) -> RcNode<T>
+where
+    T: TypedNode,
+{
     Rc::new(Node::from(value))
 }
 
@@ -293,7 +381,7 @@ pub fn full_rc_node<'src, I, O>(
     >,
 ) -> RcNode<O>
 where
-    O: From<I>,
+    O: From<I> + TypedNode,
     I: std::fmt::Debug,
 {
     let span: std::ops::Range<usize> = extra.span().into_range();
@@ -303,17 +391,23 @@ where
     Rc::new(Node::from(full_info))
 }
 
-type SourceInfo = (String, Range<usize>, Position);
+pub type SourceInfo = (Range<usize>, Position);
 
 #[derive(Debug, Clone)]
-pub struct Node<T> {
+pub struct Node<T>
+where
+    T: TypedNode,
+{
     actual: RefCell<T>,
     meta: MetaData,
     token_span: SpanInfo,
     source_span: SpanInfo,
 }
 
-impl<T> Node<T> {
+impl<T> Node<T>
+where
+    T: TypedNode,
+{
     pub fn inner_t(&self) -> Ref<T> {
         self.actual.borrow()
     }
@@ -326,11 +420,11 @@ impl<T> Node<T> {
         (&self.meta, &self.token_span, &self.source_span)
     }
 
-    fn add_detail(&self, k: String, v: String) {
+    pub fn add_detail(&self, k: String, v: String) {
         self.meta.add_detail(k, v);
     }
 
-    fn get_detail(&self, k: &str) -> Option<String> {
+    pub fn get_detail(&self, k: &str) -> Option<String> {
         self.meta.get_detail(k)
     }
 
@@ -353,7 +447,7 @@ impl<T> Node<T> {
 
 impl<T> Hash for Node<T>
 where
-    T: Hash,
+    T: Hash + TypedNode,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // Hash the actual value inside the node
@@ -362,11 +456,11 @@ where
     }
 }
 
-impl<T> Eq for Node<T> where T: PartialEq {}
+impl<T> Eq for Node<T> where T: PartialEq + TypedNode {}
 
 impl<T> PartialEq for Node<T>
 where
-    T: PartialEq,
+    T: PartialEq + TypedNode,
 {
     fn eq(&self, other: &Self) -> bool {
         // Compare the actual values inside the nodes
@@ -376,7 +470,7 @@ where
 
 impl<T> Ord for Node<T>
 where
-    T: Ord,
+    T: Ord + TypedNode,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.actual.cmp(&other.actual)
@@ -385,7 +479,7 @@ where
 
 impl<T> PartialOrd for Node<T>
 where
-    T: PartialOrd,
+    T: PartialOrd + TypedNode,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.actual.partial_cmp(&other.actual)
@@ -394,7 +488,7 @@ where
 
 impl<T> Default for Node<T>
 where
-    T: Default,
+    T: Default + TypedNode,
 {
     fn default() -> Self {
         Self {
@@ -408,14 +502,26 @@ where
 
 impl<T> Display for Node<T>
 where
-    T: Display,
+    T: Display + TypedNode,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner_t())
     }
 }
 
-impl<T> From<T> for Node<T> {
+impl<T> TypedNode for Node<T>
+where
+    T: TypedNode,
+{
+    fn node_type(&self) -> String {
+        self.inner_t().node_type()
+    }
+}
+
+impl<T> From<T> for Node<T>
+where
+    T: TypedNode,
+{
     fn from(value: T) -> Self {
         Self {
             actual: RefCell::new(value),
@@ -426,15 +532,19 @@ impl<T> From<T> for Node<T> {
     }
 }
 
-impl<T> From<(T, Range<usize>, SourceInfo)> for Node<T> {
+impl<T> From<(T, Range<usize>, SourceInfo)> for Node<T>
+where
+    T: TypedNode,
+{
     fn from(value: (T, Range<usize>, SourceInfo)) -> Self {
         let (actual, range, src_info) = value;
-        let (src_name, src_span, position) = src_info;
+        let (src_span, position) = src_info;
+        let node_type = actual.node_type();
         Self {
             actual: RefCell::new(actual),
             meta: MetaData::new(position),
-            token_span: SpanInfo::new(src_name.clone(), range.start, range.end),
-            source_span: SpanInfo::new(src_name, src_span.start, src_span.end),
+            token_span: SpanInfo::new(node_type.clone(), range.start, range.end),
+            source_span: SpanInfo::new(node_type, src_span.start, src_span.end),
         }
     }
 }
@@ -556,6 +666,12 @@ impl Display for Script {
     }
 }
 
+impl TypedNode for Script {
+    fn node_type(&self) -> String {
+        "Script Definition".into()
+    }
+}
+
 impl Eq for Script {}
 
 impl PartialEq for Script {
@@ -619,8 +735,83 @@ impl Table {
         &self.tags
     }
 
-    pub fn roll(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
-        todo!()
+    pub fn roll_on(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
+        let roll_value = self.roll.eval(symbols)?;
+        match &*self.rows.inner_t() {
+            TableRows::Empty => Ok(roll_value),
+            TableRows::List(atoms) => {
+                list_form_match(self.roll_offset(symbols, roll_value)?, atoms)
+            }
+            TableRows::Flat(nodes) => {
+                flat_form_match(symbols, self.roll_offset(symbols, roll_value)?, nodes)
+            }
+            TableRows::Keyed(items) => {
+                match self
+                    .rows
+                    .get_detail("key_type")
+                    .expect("Analyzer Bug: Missing table key type!")
+                    .as_str()
+                {
+                    "numeric" => num_keyed_form_match(symbols, roll_value, items),
+                    "text" => text_keyed_form_match(
+                        symbols,
+                        self.roll_offset(symbols, roll_value)?,
+                        items,
+                    ),
+                    _ => unreachable!("Analyzer Bug: Invalid table key type!"),
+                }
+            }
+            TableRows::SubTables(nodes) => nodes
+                .iter()
+                .map(|node| node.inner_t().roll_on(symbols))
+                .collect(),
+        }
+    }
+
+    fn roll_offset(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        val: SymbolValue,
+    ) -> TaleResultVec<SymbolValue> {
+        let offset = Self::calc_floor(symbols, &self.roll)?;
+        match val {
+            SymbolValue::Numeric(_) => val.operation(Op::Sub, &offset),
+            other => Ok(other),
+        }
+    }
+
+    fn calc_floor(
+        symbols: &RefCell<SymbolTable>,
+        expr: &RcNode<Expr>,
+    ) -> TaleResultVec<SymbolValue> {
+        match &*expr.inner_t() {
+            Expr::Atom(atom) => match atom {
+                Atom::Number(_) => atom.eval(symbols),
+                Atom::Dice(x, _) => Ok(SymbolValue::Numeric((*x - 1) as isize)),
+                Atom::Ident(_) => atom.eval(symbols),
+                _ => unimplemented!("calc_floor is only valid for arithmetic expressions!"),
+            },
+            Expr::Neg(node) => Self::calc_floor(symbols, node),
+            Expr::Add(lhs, rhs) => {
+                Self::calc_floor(symbols, lhs)?.operation(Op::Add, &Self::calc_floor(symbols, rhs)?)
+            }
+            Expr::Sub(lhs, rhs) => {
+                Self::calc_floor(symbols, lhs)?.operation(Op::Sub, &Self::calc_floor(symbols, rhs)?)
+            }
+            Expr::Mul(lhs, rhs) => {
+                Self::calc_floor(symbols, lhs)?.operation(Op::Mul, &Self::calc_floor(symbols, rhs)?)
+            }
+            Expr::Div(lhs, rhs) => {
+                Self::calc_floor(symbols, lhs)?.operation(Op::Div, &Self::calc_floor(symbols, rhs)?)
+            }
+            Expr::Mod(lhs, rhs) => {
+                Self::calc_floor(symbols, lhs)?.operation(Op::Mod, &Self::calc_floor(symbols, rhs)?)
+            }
+            Expr::Pow(lhs, rhs) => {
+                Self::calc_floor(symbols, lhs)?.operation(Op::Pow, &Self::calc_floor(symbols, rhs)?)
+            }
+            _ => unimplemented!("calc_floor is only valid for arithmetic expressions!"),
+        }
     }
 
     pub fn lookup(
@@ -633,15 +824,21 @@ impl Table {
             TableRows::List(atoms) => list_form_match(key, atoms),
             TableRows::Flat(nodes) => flat_form_match(symbols, key, nodes),
             TableRows::Keyed(items) => {
-                match self.rows.get_detail("key_type").expect("Analyzer Bug: Missing table key type!").as_str() {
+                match self
+                    .rows
+                    .get_detail("key_type")
+                    .expect("Analyzer Bug: Missing table key type!")
+                    .as_str()
+                {
                     "numeric" => num_keyed_form_match(symbols, key, items),
                     "text" => text_keyed_form_match(symbols, key, items),
                     _ => unreachable!("Analyzer Bug: Invalid table key type!"),
                 }
-            },
-            TableRows::SubTables(nodes) => {
-                nodes.iter().map(|node| node.inner_t().lookup(symbols, key.clone())).collect()
-            },
+            }
+            TableRows::SubTables(nodes) => nodes
+                .iter()
+                .map(|node| node.inner_t().lookup(symbols, key.clone()))
+                .collect(),
         }
     }
 
@@ -716,9 +913,16 @@ fn num_keyed_form_match(
                 match row_keys.eval(symbols)? {
                     SymbolValue::List(candidates) => {
                         let closest_this_row = num_key_matcher(key, candidates);
-                        closest = if closest.0 > closest_this_row { (closest_this_row, idx) } else { closest }
+                        closest = if closest.0 > closest_this_row {
+                            (closest_this_row, idx)
+                        } else {
+                            closest
+                        }
                     }
-                    other => unreachable!("Analyzer/Evaluator Bug: table key type mismatch! ({})", other),
+                    other => unreachable!(
+                        "Analyzer/Evaluator Bug: table key type mismatch! ({})",
+                        other
+                    ),
                 }
             }
             items[closest.1].1.eval(symbols)
@@ -736,8 +940,11 @@ fn num_key_matcher(key: isize, candidates: Vec<SymbolValue>) -> usize {
                 if new_distance < distance {
                     distance = new_distance;
                 }
-            },
-            other => unreachable!("Analyzer/Evaluator Bug: table key type mismatch! ({})", other),
+            }
+            other => unreachable!(
+                "Analyzer/Evaluator Bug: table key type mismatch! ({})",
+                other
+            ),
         }
     }
     distance
@@ -757,10 +964,20 @@ fn text_keyed_form_match(
                             return stmt.eval(symbols);
                         }
                     }
-                    other => unreachable!("Analyzer/Evaluator Bug: table key type mismatch! ({})", other),
+                    other => unreachable!(
+                        "Analyzer/Evaluator Bug: table key type mismatch! ({})",
+                        other
+                    ),
                 }
             }
             Ok(SymbolValue::Placeholder)
+        }
+        SymbolValue::Numeric(n) if n < 1 => items[0].1.eval(symbols),
+        SymbolValue::Numeric(n) if n > 0 && (n as usize) < items.len() => {
+            items[n as usize - 1].1.eval(symbols)
+        }
+        SymbolValue::Numeric(n) if n >= items.len() as isize => {
+            items.last().unwrap().1.eval(symbols)
         }
         _ => Ok(SymbolValue::Placeholder),
     }
@@ -769,6 +986,12 @@ fn text_keyed_form_match(
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}, {}, {} Rows", self.name, self.roll, self.rows)
+    }
+}
+
+impl TypedNode for Table {
+    fn node_type(&self) -> String {
+        "Table Definition".into()
     }
 }
 
@@ -844,6 +1067,12 @@ impl Display for TableGroup {
     }
 }
 
+impl TypedNode for TableGroup {
+    fn node_type(&self) -> String {
+        "Table Group Definition".into()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TableRows {
     Empty,
@@ -881,6 +1110,18 @@ impl Display for TableRows {
             TableRows::SubTables(nodes) => nodes.len(),
         };
         write!(f, "{}", num_rows)
+    }
+}
+
+impl TypedNode for TableRows {
+    fn node_type(&self) -> String {
+        match self {
+            TableRows::Empty => "Empty Table Rows".into(),
+            TableRows::List(_) => "List Form Table Rows".into(),
+            TableRows::Flat(_) => "Flat Table Rows".into(),
+            TableRows::Keyed(_) => "Keyed Table Rows".into(),
+            TableRows::SubTables(_) => "Sub Tables Definition".into(),
+        }
     }
 }
 
@@ -967,6 +1208,12 @@ impl Display for Modifier {
     }
 }
 
+impl TypedNode for Modifier {
+    fn node_type(&self) -> String {
+        "Modifier".into()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Duration {
     All,
@@ -1011,5 +1258,11 @@ impl Display for Duration {
             Duration::All => write!(f, "All"),
             Duration::Next(expr) => write!(f, "Next({})", expr),
         }
+    }
+}
+
+impl TypedNode for Duration {
+    fn node_type(&self) -> String {
+        "Duration".into()
     }
 }

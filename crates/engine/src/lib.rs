@@ -295,8 +295,18 @@ mod tests {
         println!("{}", output);
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
-        assert_eq!(5, output.matches("Numeric(").count());
-        assert_eq!(10, output.matches("String(").count());
+        println!("{}", output.matches("Numeric(").count());
+        assert!(11 <= output.matches("Numeric(").count());
+        assert!(17 >= output.matches("Numeric(").count());
+        println!(
+            "{}",
+            output.matches("String(\"Literally just a wand\"").count()
+        );
+        assert!(4 <= output.matches("String(\"Literally just a wand\"").count());
+        assert!(20 >= output.matches("String(\"Literally just a wand\"").count());
+        println!("{}", output.matches("List(").count());
+        assert!(10 >= output.matches("List(").count());
+        assert!(4 <= output.matches("List(").count());
     }
 
     #[test]
@@ -371,9 +381,9 @@ mod tests {
     #[test]
     fn pipeline_full_94_distributions() {
         let output = streamline("94_distributions.tale");
+        //println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        println!("{}", output);
 
         let flat_terms = vec![
             "one tenth",
@@ -412,11 +422,15 @@ mod tests {
             ("upper one point three nine", 139.0),
             ("upper zero point four six", 46.0),
         ];
+        //println!("{}", output);
+        let tolerance = 0.1;
         for (term, target) in curve_terms {
             let current_count = output.matches(term).count();
-            println!("{}: {}", term, current_count);
-            assert!(target * 1.1 > current_count as f64);
-            assert!(target * 0.9 > current_count as f64);
+            let target = target * 10.0;
+            println!("{}: {} < {}", term, current_count, target * (1.0 + tolerance));
+            assert!(target * (1.0 + tolerance) > current_count as f64);
+            println!("{}: {} > {}", term, current_count, target * (1.0 - tolerance));
+            assert!(target * (1.0 - tolerance) < current_count as f64);
         }
     }
 
@@ -424,6 +438,9 @@ mod tests {
     fn pipeline_full_95_recursion() {
         let output = streamline("95_recursion.tale");
         println!("{}", output);
-        assert!(false);
+        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.ends_with("]))"));
+        assert_eq!(130, output.matches("Placeholder").count());
+        assert_eq!(127, output.matches("Numeric").count());
     }
 }

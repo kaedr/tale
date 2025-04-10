@@ -8,6 +8,8 @@ use crate::{
     state::SimpleStateTable,
 };
 
+pub use atoms::Op;
+
 mod atoms;
 mod definitions;
 mod expressions;

@@ -380,7 +380,6 @@ mod tests {
         state.add_source("test".into(), source.into());
         state.lex_current();
         let tokens = &state.get_tokens("test").unwrap();
-        println!("{:?}", tokens);
         let output = stubbed_parser(&mut state, &tokens, table());
         assert_eq!("Table: `keyed`, 1d7, 4 Rows", format!("{output}"));
     }
@@ -464,8 +463,9 @@ mod tests {
         table.lex_current();
         let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_group_rows());
+        println!("{}", output);
         // Assert we parsed 1 column and 3 rows.
-        assert_eq!(1, output.matches("Keyed").count());
+        assert_eq!(1, output.matches("Keyed(").count());
         assert_eq!(3, output.matches("List(").count());
         assert_eq!(3, output.matches("Atom(Ident").count());
 
@@ -478,7 +478,7 @@ mod tests {
         let tokens = &table.get_tokens("test").unwrap();
         let output = grubbed_parser(&mut table, &tokens, table_group_rows());
         // Assert we parsed 1 column and 3 rows.
-        assert_eq!(3, output.matches("Keyed").count());
+        assert_eq!(3, output.matches("Keyed(").count());
         assert_eq!(9, output.matches("List(").count());
         assert_eq!(9, output.matches("Atom(Ident").count());
 

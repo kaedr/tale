@@ -92,6 +92,10 @@ impl TaleError {
     pub fn update_position(&mut self, position: Position) {
         self.position = position;
     }
+
+    pub fn append_message(&mut self, add_msg: &str) {
+        self.msg.push_str(add_msg);
+    }
 }
 
 impl From<std::io::Error> for TaleError {
