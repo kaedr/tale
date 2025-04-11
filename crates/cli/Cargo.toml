@@ -1,0 +1,12 @@
+[package]
+name = "tale"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.35", features = ["derive"] }
+rustyline = "15.0.0"
+tale_lib ={ path = "../engine"}
+
+[features]
+with-file-history = []

@@ -100,11 +100,26 @@ impl StateTable {
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
-        if let Some(output) = self.outputs.borrow().get(&*self.current()) {
+        self.output_of(&*self.current())
+    }
+
+    pub fn output_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
+        if let Some(output) = self.outputs.borrow().get(name) {
             output.clone()
         } else {
             Err(
-                TaleError::system(format!("No current output for source: {}", self.current()))
+                TaleError::system(format!("No output for source: {}", self.current()))
+                    .into(),
+            )
+        }
+    }
+
+    pub fn source_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
+        if let Some(source) = self.sources.borrow().get(name) {
+            Ok(SymbolValue::String(source.clone()))
+        } else {
+            Err(
+                TaleError::system(format!("No source named: {}", self.current()))
                     .into(),
             )
         }
@@ -161,11 +176,6 @@ impl StateTable {
             .into()),
             None => Ok(()),
         }
-    }
-
-    pub fn lex_source(&self, name: String) -> TaleResultVec<()> {
-        *self.current.borrow_mut() = name;
-        self.lex_current()
     }
 
     pub fn parse_current(&self) -> TaleResultVec<()> {
@@ -231,11 +241,6 @@ impl StateTable {
         }
     }
 
-    pub fn parse_source(&self, name: String) -> TaleResultVec<()> {
-        *self.current.borrow_mut() = name.clone();
-        self.parse_current()
-    }
-
     pub fn analyze_current(&self) -> TaleResultVec<()> {
         if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
             ast.analyze(&self.symbols)
@@ -247,11 +252,6 @@ impl StateTable {
         }
     }
 
-    pub fn analyze_source(&self, name: String) -> TaleResultVec<()> {
-        *self.current.borrow_mut() = name.clone();
-        self.analyze_current()
-    }
-
     pub fn evaluate_current(&self) -> TaleResultVec<SymbolValue> {
         if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
             ast.eval(&self.symbols)
@@ -261,11 +261,6 @@ impl StateTable {
                     .into(),
             )
         }
-    }
-
-    pub fn evaluate_source(&self, name: String) -> TaleResultVec<SymbolValue> {
-        *self.current.borrow_mut() = name.clone();
-        self.evaluate_current()
     }
 
     pub fn pipeline(&self, name: String, source: String) -> TaleResultVec<SymbolValue> {
@@ -493,6 +488,23 @@ impl SymbolValue {
                 Op::Pow => Ok(SymbolValue::Numeric(lhs.pow(*rhs as u32))),
             },
             _ => unimplemented!("operations are only valid for numeric values!"),
+        }
+    }
+
+    pub fn render(&self, prefix: &str) {
+        match self {
+            SymbolValue::Placeholder => (),
+            SymbolValue::Numeric(n) => println!("{prefix}{n}"),
+            SymbolValue::String(s) => println!("{prefix}{s}"),
+            SymbolValue::Script(script) => println!("{prefix}{script}"),
+            SymbolValue::Table(table) => println!("{prefix}{table}"),
+            SymbolValue::List(symbol_values) => {
+                //println!("[");
+                for value in symbol_values {
+                    value.render(&format!("{prefix}    "));
+                }
+                //println!("]");
+            },
         }
     }
 }

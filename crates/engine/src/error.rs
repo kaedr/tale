@@ -19,7 +19,7 @@ pub enum TaleErrorKind {
     Lexical,
     Parse,
     Analysis,
-    Eval,
+    Evaluation,
     System,
 }
 
@@ -62,7 +62,7 @@ impl TaleError {
 
     pub fn evaluator(span: Range<usize>, position: Position, msg: String) -> Self {
         Self {
-            kind: TaleErrorKind::Eval,
+            kind: TaleErrorKind::Evaluation,
             span,
             position,
             msg,
@@ -95,6 +95,14 @@ impl TaleError {
 
     pub fn append_message(&mut self, add_msg: &str) {
         self.msg.push_str(add_msg);
+    }
+
+    pub fn kind(&self) -> &TaleErrorKind {
+        &self.kind
+    }
+
+    pub fn msg(&self) -> &String {
+        &self.msg
     }
 }
 

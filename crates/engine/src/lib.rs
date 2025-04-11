@@ -5,32 +5,40 @@ mod utils;
 
 use std::{fs::read_to_string, io, path::Path};
 
-pub use ast::AST;
-use error::TaleResultVec;
+use ariadne::{Color, Label, Report, Source};
+
+use error::{TaleError, TaleResultVec};
 use state::{StateTable, SymbolValue};
 
-pub mod error;
-
+mod error;
 mod state;
+
+pub mod prelude {
+    pub use crate::Interpreter;
+    pub use crate::state::SymbolValue;
+    pub use crate::error::TaleResultVec;
+}
 
 pub struct Interpreter {
     state: StateTable,
+    repl_count: usize,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
             state: StateTable::new(),
+            repl_count: 0,
         }
     }
 
     pub fn new_with_source_string(source: String) -> Self {
         let state = StateTable::new();
         state.captured_pipeline("InitialInput".into(), source);
-        Self { state }
+        Self { state, repl_count: 0 }
     }
 
-    pub fn new_with_files<P>(file_names: Vec<P>) -> io::Result<Self>
+    pub fn new_with_files<P>(file_names: &Vec<P>) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
@@ -39,19 +47,62 @@ impl Interpreter {
             let source = read_to_string(&file_name)?;
             state.captured_pipeline(file_name.to_string(), source);
         }
-        Ok(Self { state })
+        Ok(Self { state, repl_count: 0 })
     }
 
     pub fn new_with_file<P>(file_name: P) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
-        Self::new_with_files(vec![file_name])
+        Self::new_with_files(&vec![file_name])
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
         self.state.current_output()
     }
+
+    pub fn output_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
+        self.state.output_of(name)
+    }
+
+    pub fn source_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
+        self.state.source_of(name)
+    }
+
+    pub fn render_output_of(&self, prefix: &str, name: &str) -> TaleResultVec<SymbolValue> {
+        let source = self.source_of(name)?.to_string();
+        let trv = self.output_of(name);
+        render_tale_result_vec(prefix, name, source, trv)
+    }
+
+    pub fn execute(&mut self, prefix: &str, source: String) -> TaleResultVec<SymbolValue> {
+        self.repl_count += 1;
+        let source_name = format!("REPL:{}", self.repl_count);
+        let trv = self.state.pipeline(source_name.clone(), source.clone());
+        render_tale_result_vec(prefix, &source_name, source, trv)
+    }
+}
+
+pub fn render_tale_result_vec(prefix: &str, source_name: &str, source: String, trv: TaleResultVec<SymbolValue>) -> TaleResultVec<SymbolValue> {
+    match trv {
+        Ok(value) => {
+            value.render(prefix);
+            Ok(SymbolValue::Placeholder)
+        },
+        Err(tev) => render_tale_error_vec(tev, source_name, source),
+    }
+}
+
+pub fn render_tale_error_vec(tev: Vec<TaleError>, source_name: &str, source: String) -> TaleResultVec<SymbolValue> {
+    for error in tev {
+        Report::build(ariadne::ReportKind::Error, (source_name, error.span()))
+            .with_message(format!("{:?} Error: {}", error.kind(), error.msg()))
+            .with_label(Label::new((source_name, error.span()))
+            .with_message("Problem occurred here.")
+            .with_color(Color::Red)
+        ).finish().eprint((source_name, Source::from(&source))).map_err(|err| TaleError::from(err))?;
+    }
+    Ok(SymbolValue::Placeholder)
 }
 
 #[cfg(test)]
@@ -114,7 +165,7 @@ mod tests {
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        let terp = Interpreter::new_with_files(file_names).unwrap();
+        let terp = Interpreter::new_with_files(&file_names).unwrap();
         format!("{:?}", terp.current_output())
     }
 
