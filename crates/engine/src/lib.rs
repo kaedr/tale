@@ -25,7 +25,7 @@ impl Interpreter {
     }
 
     pub fn new_with_source_string(source: String) -> Self {
-        let mut state = StateTable::new();
+        let state = StateTable::new();
         state.captured_pipeline("InitialInput".into(), source);
         Self { state }
     }
@@ -34,7 +34,7 @@ impl Interpreter {
     where
         P: AsRef<Path> + ToString,
     {
-        let mut state = StateTable::new();
+        let state = StateTable::new();
         for file_name in file_names {
             let source = read_to_string(&file_name)?;
             state.captured_pipeline(file_name.to_string(), source);
@@ -49,7 +49,7 @@ impl Interpreter {
         Self::new_with_files(vec![file_name])
     }
 
-    pub fn current_output(&self) -> Option<&TaleResultVec<SymbolValue>> {
+    pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
         self.state.current_output()
     }
 }
@@ -59,24 +59,24 @@ impl Interpreter {
 mod tests {
     use chumsky::{extra::SimpleState, prelude::*};
 
-    use crate::{lexer::Token, state::SimpleStateTable, utils::tests::sample_path};
+    use crate::{lexer::Token, state::SimpleParserState, utils::tests::sample_path};
 
     use super::*;
 
     pub fn stubbed_parser<'src, T>(
-        table: &'src mut state::StateTable,
+        state: &'src mut state::ParserState,
         tokens: &'src [Token],
         parser: impl Parser<
             'src,
             &'src [Token],
             T,
-            extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+            extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
         > + Clone,
     ) -> String
     where
         T: std::fmt::Display,
     {
-        let mut state = SimpleState::from(table);
+        let mut state = SimpleState::from(state);
         match parser.parse_with_state(&tokens, &mut state).into_result() {
             Ok(output) => format!("{output}"),
             Err(err) => format!("{:?}", err),
@@ -84,19 +84,19 @@ mod tests {
     }
 
     pub fn grubbed_parser<'src, T>(
-        table: &'src mut state::StateTable,
+        state: &'src mut state::ParserState,
         tokens: &'src [Token],
         parser: impl Parser<
             'src,
             &'src [Token],
             T,
-            extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+            extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
         > + Clone,
     ) -> String
     where
         T: std::fmt::Debug,
     {
-        let mut state = SimpleState::from(table);
+        let mut state = SimpleState::from(state);
         match parser.parse_with_state(&tokens, &mut state).into_result() {
             Ok(output) => format!("{:?}", output),
             Err(err) => format!("{:?}", err),
@@ -106,7 +106,7 @@ mod tests {
     fn streamline(file_name: &str) -> String {
         let file_name = sample_path(file_name);
         let terp = Interpreter::new_with_file(file_name.to_str().unwrap()).unwrap();
-        format!("{:?}", terp.current_output().unwrap())
+        format!("{:?}", terp.current_output())
     }
 
     fn streamlinest(file_names: Vec<&str>) -> String {
@@ -115,7 +115,7 @@ mod tests {
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
         let terp = Interpreter::new_with_files(file_names).unwrap();
-        format!("{:?}", terp.current_output().unwrap())
+        format!("{:?}", terp.current_output())
     }
 
     #[test]
@@ -356,7 +356,7 @@ mod tests {
     fn pipeline_full_21_scripts() {
         let output = streamline("21_script.tale");
         println!("{}", output);
-        assert_eq!("", output)
+        assert_eq!("Ok(List([Placeholder, Placeholder, Placeholder]))", output)
     }
 
     #[test]
@@ -427,9 +427,19 @@ mod tests {
         for (term, target) in curve_terms {
             let current_count = output.matches(term).count();
             let target = target * 10.0;
-            println!("{}: {} < {}", term, current_count, target * (1.0 + tolerance));
+            println!(
+                "{}: {} < {}",
+                term,
+                current_count,
+                target * (1.0 + tolerance)
+            );
             assert!(target * (1.0 + tolerance) > current_count as f64);
-            println!("{}: {} > {}", term, current_count, target * (1.0 - tolerance));
+            println!(
+                "{}: {} > {}",
+                term,
+                current_count,
+                target * (1.0 - tolerance)
+            );
             assert!(target * (1.0 - tolerance) < current_count as f64);
         }
     }

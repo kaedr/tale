@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 
 use crate::{
     ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node},
-    state::SimpleStateTable,
+    state::SimpleParserState,
 };
 
 use super::{
@@ -15,7 +15,7 @@ pub fn seq_or_statement<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     statement_sequence().or(any_statement()).boxed()
 }
@@ -24,7 +24,7 @@ pub fn any_statement<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     nonce()
         .or(load())
@@ -44,7 +44,7 @@ fn nonce<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     one_of([Token::Dash, Token::Minus])
         .then(terminator())
@@ -57,7 +57,7 @@ pub fn chainable_statement<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     assignment()
         .or(clear())
@@ -72,7 +72,7 @@ pub fn statement_sequence<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let chained = chainable_statement()
         .separated_by(just(Token::Comma).then(just(Token::And).or_not()).ignored())
@@ -96,7 +96,7 @@ pub fn assignment<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Set)
         .or_not()
@@ -114,7 +114,7 @@ pub fn expression<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     any_expr()
         .map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra))
@@ -125,7 +125,7 @@ pub fn clear<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Clear)
         .ignore_then(duration().map_with(full_rc_node))
@@ -145,7 +145,7 @@ pub fn invoke<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Invoke)
         .then(just(Token::Colon).or_not())
@@ -161,7 +161,7 @@ pub fn load<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Load)
         .then(just(Token::Colon).or_not())
@@ -182,7 +182,7 @@ pub fn modify<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let keyword_form = just(Token::Modify)
         .ignore_then(duration())
@@ -218,7 +218,7 @@ pub fn modify<'src>() -> impl Parser<
 }
 
 fn duration<'src>()
--> impl Parser<'src, &'src [Token], Duration, extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Duration, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
 + Clone {
     just(Token::All)
         .map(|_| Duration::All)
@@ -232,7 +232,7 @@ pub fn mod_by<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     one_of([Token::Plus, Token::Minus])
         .then(number().map_with(full_rc_node))
@@ -248,7 +248,7 @@ pub fn output<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Output)
         .ignore_then(just(Token::Colon).or_not())
@@ -263,7 +263,7 @@ pub fn show<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Show)
         .ignore_then(just(Token::Tag).or_not())
@@ -284,38 +284,32 @@ pub fn show<'src>() -> impl Parser<
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
-    use crate::lexer::tests::quick_tokens;
 
-    use crate::{state::StateTable, tests::stubbed_parser, utils::tests::read_sample_lines};
+    use crate::state::ParserState;
+    use crate::{tests::stubbed_parser, utils::tests::read_sample_lines};
 
     use super::*;
 
     #[test]
     fn parse_nonce() {
-        let mut table = StateTable::new();
-
-        table.add_source("test".into(), r"-".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        let mut p_state = ParserState::from_source(r"-".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
         assert_eq!("Empty", format!("{output}"));
 
-        table.add_source("test".into(), r"–".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        let mut p_state = ParserState::from_source(r"–".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
         assert_eq!("Empty", format!("{output}"));
 
-        table.add_source("test".into(), r"—".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        let mut p_state = ParserState::from_source(r"—".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
         assert_eq!("Empty", format!("{output}"));
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, any_statement());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
         assert_eq!(
             "[found end of input at 0..0 expected Statement]",
             format!("{output}")
@@ -324,45 +318,38 @@ mod tests {
 
     #[test]
     fn parse_sequence() {
-        let mut table = StateTable::new();
-
-        table.add_source("test".into(), r"[Easy Peasy]".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        let mut p_state = ParserState::from_source(r"[Easy Peasy]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
             "Sequence: [\n\tRoll `easy`, `peasy`\n]",
             format!("{output}")
         );
 
-        table.add_source("test".into(), r"[1d6 + 7]".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        let mut p_state = ParserState::from_source(r"[1d6 + 7]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!("Sequence: [\n\t(1d6 + 7)\n]", format!("{output}"));
 
-        table.add_source("test".into(), r"[Invoke taco, Invoke burrito]".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        let mut p_state = ParserState::from_source(r"[Invoke taco, Invoke burrito]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
             "Sequence: [\n\tInvoke: `taco`,\n\tInvoke: `burrito`\n]",
             format!("{output}")
         );
 
-        table.add_source("test".into(), r"A + B".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        let mut p_state = ParserState::from_source(r"A + B".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
             "[found 'Word(\"A\")' at 0..1 expected 'LBracket']",
             format!("{output}")
         );
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, statement_sequence());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
             "[found end of input at 0..0 expected 'LBracket']",
             format!("{output}")
@@ -371,7 +358,6 @@ mod tests {
 
     #[test]
     fn parse_assignment() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             "Assignment: `bird` = 42",
             "Assignment: `the_word` = `bird`",
@@ -383,15 +369,15 @@ mod tests {
 
         let lines = read_sample_lines("11_statement_assignment.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, assignment());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, assignment());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, assignment());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, assignment());
         assert_eq!(
             "[found end of input at 0..0 expected Assignment Statement]",
             format!("{output}")
@@ -400,7 +386,6 @@ mod tests {
 
     #[test]
     fn parse_clear() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             "Clear Next(10) `quality`",
             "Clear All `quality`",
@@ -410,15 +395,15 @@ mod tests {
 
         let lines = read_sample_lines("12_statement_clear.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, clear());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, clear());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, clear());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, clear());
         assert_eq!(
             "[found end of input at 0..0 expected Clear Statement]",
             format!("{output}")
@@ -427,7 +412,6 @@ mod tests {
 
     #[test]
     fn parse_invoke() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             "Invoke: `some kind of bizarre ritual`",
             "Invoke: `last rites`",
@@ -435,15 +419,15 @@ mod tests {
 
         let lines = read_sample_lines("13_statement_invoke.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, invoke());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, invoke());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, invoke());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, invoke());
         assert_eq!(
             "[found end of input at 0..0 expected Invoke Statement]",
             format!("{output}")
@@ -452,7 +436,6 @@ mod tests {
 
     #[test]
     fn parse_load() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             r#"Load: "01_table_minimal.tale""#,
             r#"Load: "../../tons of _odd-characters_.tale""#,
@@ -461,17 +444,15 @@ mod tests {
 
         let lines = read_sample_lines("14_statement_load.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            table.add_source("test".into(), line.unwrap());
-            table.lex_current();
-            let tokens = &table.get_tokens("test").unwrap();
-            let output = stubbed_parser(&mut table, &tokens, load());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, load());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, load());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, load());
         assert_eq!(
             "[found end of input at 0..0 expected Load Statement]",
             format!("{output}")
@@ -480,7 +461,6 @@ mod tests {
 
     #[test]
     fn parse_modify() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             "Modify +2 All `quality`",
             "Modify +3 Next(7) `quality`",
@@ -490,15 +470,15 @@ mod tests {
 
         let lines = read_sample_lines("16_statement_modify.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, modify());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, modify());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, modify());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, modify());
         assert_eq!(
             "[found end of input at 0..0 expected Modify Statement]",
             format!("{output}")
@@ -507,7 +487,6 @@ mod tests {
 
     #[test]
     fn parse_output() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             r#"Output: !["There are", (1d6 - 1), "lights illuminated out of a total of 5."]!"#,
             r#"Output: !["A lovely string"]!"#,
@@ -515,17 +494,15 @@ mod tests {
 
         let lines = read_sample_lines("17_statement_output.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            table.add_source("test".into(), line.unwrap());
-            table.lex_current();
-            let tokens = &table.get_tokens("test").unwrap();
-            let output = stubbed_parser(&mut table, &tokens, output());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, output());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, output());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, output());
         assert_eq!(
             "[found end of input at 0..0 expected Output Statement]",
             format!("{output}")
@@ -534,7 +511,6 @@ mod tests {
 
     #[test]
     fn parse_show() {
-        let mut table = StateTable::new();
         let check_vals = vec![
             "Show `minimalism`",
             "Show `midnight`",
@@ -546,15 +522,15 @@ mod tests {
 
         let lines = read_sample_lines("19_statement_show.tale").unwrap();
         for (index, line) in lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, show());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, show());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        table.add_source("test".into(), "".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, show());
+        let mut p_state = ParserState::from_source("".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, show());
         assert_eq!(
             "[found end of input at 0..0 expected Show Statement]",
             format!("{output}")

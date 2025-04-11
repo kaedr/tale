@@ -3,8 +3,8 @@ use std::{
     cmp::min,
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
-    io::Write,
     ops::Range,
+    rc::Rc,
 };
 
 use chumsky::{Parser, extra::SimpleState};
@@ -23,36 +23,91 @@ use crate::error::TaleResult;
 
 use crate::ast::{AST, Analyze, Eval as _};
 
-pub type SimpleStateTable<'src> = SimpleState<&'src mut StateTable>;
+pub type SimpleParserState<'src> = SimpleState<&'src mut ParserState>;
+
+pub type StateCellMap<T> = Rc<RefCell<HashMap<String, T>>>;
+
+pub struct ParserState {
+    source: String,
+    lexicon: Lexicon,
+}
+
+impl ParserState {
+    fn new(source: String, lexicon: Lexicon) -> Self {
+        Self { source, lexicon }
+    }
+
+    pub fn from_source(source: String) -> Self {
+        let lexicon = tokenize(&source).unwrap();
+        Self { source, lexicon }
+    }
+
+    pub fn tokens(&self) -> Vec<Token> {
+        self.lexicon.iter().map(|(token, _, _)| token.clone()).collect()
+    }
+
+    pub fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
+        let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
+        self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
+    }
+
+    pub fn get_source_position(&self, span: &Range<usize>) -> Position {
+        let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
+        self.lexicon[start].2
+    }
+
+    pub fn get_source_slice(&self, span: &Range<usize>) -> String {
+        let source_span = self.get_source_span(span);
+        self.source[source_span].into()
+    }
+
+    pub fn spanslate(&self, span: &Range<usize>) -> SourceInfo {
+        (
+            self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
+            self.lexicon[span.start].2,
+        )
+    }
+}
 
 #[derive(Debug)]
 pub struct StateTable {
-    current: String,
-    sources: HashMap<String, String>,
-    tokens: HashMap<String, Lexicon>,
-    asts: HashMap<String, AST>,
-    outputs: HashMap<String, TaleResultVec<SymbolValue>>,
+    current: RefCell<String>,
+    sources: StateCellMap<String>,
+    tokens: StateCellMap<Lexicon>,
+    asts: StateCellMap<AST>,
+    outputs: StateCellMap<TaleResultVec<SymbolValue>>,
     symbols: RefCell<SymbolTable>,
 }
 
 impl StateTable {
     pub fn new() -> Self {
         Self {
-            current: String::new(),
-            sources: HashMap::new(),
-            tokens: HashMap::new(),
-            asts: HashMap::new(),
-            outputs: HashMap::new(),
-            symbols: RefCell::new(SymbolTable::new()),
+            current: Default::default(),
+            sources: Default::default(),
+            tokens: Default::default(),
+            asts: Default::default(),
+            outputs: Default::default(),
+            symbols: Default::default(),
         }
     }
 
-    pub fn current(&self) -> &str {
-        &self.current
+    pub fn current(&self) -> Ref<String> {
+        self.current.borrow()
     }
 
-    pub fn current_output(&self) -> Option<&TaleResultVec<SymbolValue>> {
-        self.outputs.get(&self.current)
+    pub fn current_clone(&self) -> String {
+        self.current.borrow().clone()
+    }
+
+    pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
+        if let Some(output) = self.outputs.borrow().get(&*self.current()) {
+            output.clone()
+        } else {
+            Err(
+                TaleError::system(format!("No current output for source: {}", self.current()))
+                    .into(),
+            )
+        }
     }
 
     pub fn symbols(&self) -> Ref<SymbolTable> {
@@ -63,34 +118,44 @@ impl StateTable {
         self.symbols.borrow_mut()
     }
 
-    pub fn asts(&self) -> &HashMap<String, AST> {
-        &self.asts
+    pub fn asts(&self) -> StateCellMap<AST> {
+        self.asts.clone()
     }
 
-    pub fn add_source(&mut self, name: String, source: String) -> TaleResult<()> {
-        self.current = name.clone();
-        match self.sources.insert(name, source) {
+    pub fn add_source(&self, name: String, source: String) -> TaleResult<()> {
+        *self.current.borrow_mut() = name.clone();
+        match self.sources.borrow_mut().insert(name, source) {
             Some(overwritten) => Err(TaleError::system(format!(
                 "Attempted to overwrite previous source: {}\nWith: {}",
-                &self.current,
+                self.current(),
                 overwritten.chars().take(50).collect::<Box<str>>()
             ))),
             None => Ok(()),
         }
     }
 
-    pub fn lex_current(&mut self) -> TaleResultVec<()> {
-        let source = self.sources.get(&self.current).ok_or_else(|| {
-            TaleError::lexer(0..0, (0, 0), format!("No source named: {}", &self.current))
-        })?;
-        let lexicon = tokenize(source)?;
-        match self.tokens.insert(self.current.clone(), lexicon) {
+    pub fn lex_current(&self) -> TaleResultVec<()> {
+        let lexicon = if let Some(source) = self.sources.borrow().get(&*self.current()) {
+            tokenize(source)?
+        } else {
+            return Err(TaleError::lexer(
+                0..0,
+                (0, 0),
+                format!("No source named: {}", self.current()),
+            )
+            .into());
+        };
+        match self
+            .tokens
+            .borrow_mut()
+            .insert(self.current_clone(), lexicon)
+        {
             Some(_) => Err(TaleError::lexer(
                 0..0,
                 (0, 0),
                 format!(
                     "Attempted to overwrite previous lexicon of: {}",
-                    &self.current
+                    self.current()
                 ),
             )
             .into()),
@@ -98,16 +163,35 @@ impl StateTable {
         }
     }
 
-    pub fn lex_source(&mut self, name: String) -> TaleResultVec<()> {
-        self.current = name;
+    pub fn lex_source(&self, name: String) -> TaleResultVec<()> {
+        *self.current.borrow_mut() = name;
         self.lex_current()
     }
 
-    pub fn parse_current(&mut self) -> TaleResultVec<()> {
+    pub fn parse_current(&self) -> TaleResultVec<()> {
         let the_errs;
-        let tokens = self.get_tokens(&self.current)?;
+        let tokens = self.get_tokens(&*self.current())?;
+        let source = self
+            .sources
+            .borrow()
+            .get(&*self.current())
+            .ok_or(TaleError::system(format!(
+                "No source for: {}",
+                self.current()
+            )))?
+            .clone();
+        let lexicon = self
+            .tokens
+            .borrow()
+            .get(&*self.current())
+            .ok_or(TaleError::system(format!(
+                "No source for: {}",
+                self.current()
+            )))?
+            .clone();
+        let mut state_inner = ParserState::new(source, lexicon);
         let output = {
-            let mut parse_state = SimpleState::from(&mut *self);
+            let mut parse_state = SimpleState::from(&mut state_inner);
             let parse_result = parser().parse_with_state(&tokens, &mut parse_state);
             match parse_result.into_output_errors() {
                 (Some(output), errs) => {
@@ -126,16 +210,20 @@ impl StateTable {
                 .map(|err| TaleError::parser(err.span().into_range(), (0, 0), err.to_string()))
                 .collect::<Vec<_>>();
             err_breakout.iter_mut().for_each(|err| {
-                err.update_span(self.get_source_span(&err.span()));
-                err.update_position(self.get_source_position(&err.span()));
+                err.update_span(state_inner.get_source_span(&err.span()));
+                err.update_position(state_inner.get_source_position(&err.span()));
             });
             Err(err_breakout)
         } else {
-            match self.asts.insert(self.current.clone(), AST::new(output)) {
+            match self
+                .asts
+                .borrow_mut()
+                .insert(self.current_clone(), AST::new(output))
+            {
                 Some(_) => Err(TaleError::parser(
                     0..0,
                     (0, 0),
-                    format!("Attempted to overwrite previous AST of: {}", &self.current),
+                    format!("Attempted to overwrite previous AST of: {}", self.current()),
                 )
                 .into()),
                 None => Ok(()),
@@ -143,36 +231,44 @@ impl StateTable {
         }
     }
 
-    pub fn parse_source(&mut self, name: String) -> TaleResultVec<()> {
-        self.current = name.clone();
+    pub fn parse_source(&self, name: String) -> TaleResultVec<()> {
+        *self.current.borrow_mut() = name.clone();
         self.parse_current()
     }
 
-    pub fn analyze_current(&mut self) -> TaleResultVec<()> {
-        let ast = self.asts.get_mut(&self.current).ok_or_else(|| {
-            TaleError::analyzer(0..0, (0, 0), format!("No source named: {}", &self.current))
-        })?;
-        ast.analyze(&self.symbols)
+    pub fn analyze_current(&self) -> TaleResultVec<()> {
+        if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
+            ast.analyze(&self.symbols)
+        } else {
+            Err(
+                TaleError::analyzer(0..0, (0, 0), format!("No AST named: {}", self.current()))
+                    .into(),
+            )
+        }
     }
 
-    pub fn analyze_source(&mut self, name: String) -> TaleResultVec<()> {
-        self.current = name.clone();
+    pub fn analyze_source(&self, name: String) -> TaleResultVec<()> {
+        *self.current.borrow_mut() = name.clone();
         self.analyze_current()
     }
 
-    pub fn evaluate_current(&mut self) -> TaleResultVec<SymbolValue> {
-        let ast = self.asts.get_mut(&self.current).ok_or_else(|| {
-            TaleError::evaluator(0..0, (0, 0), format!("No source named: {}", &self.current))
-        })?;
-        ast.eval(&self.symbols)
+    pub fn evaluate_current(&self) -> TaleResultVec<SymbolValue> {
+        if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
+            ast.eval(&self.symbols)
+        } else {
+            Err(
+                TaleError::analyzer(0..0, (0, 0), format!("No AST named: {}", self.current()))
+                    .into(),
+            )
+        }
     }
 
-    pub fn evaluate_source(&mut self, name: String) -> TaleResultVec<SymbolValue> {
-        self.current = name.clone();
+    pub fn evaluate_source(&self, name: String) -> TaleResultVec<SymbolValue> {
+        *self.current.borrow_mut() = name.clone();
         self.evaluate_current()
     }
 
-    pub fn pipeline(&mut self, name: String, source: String) -> TaleResultVec<SymbolValue> {
+    pub fn pipeline(&self, name: String, source: String) -> TaleResultVec<SymbolValue> {
         self.add_source(name, source)?;
         self.lex_current()?;
         self.parse_current()?;
@@ -180,57 +276,30 @@ impl StateTable {
         self.evaluate_current()
     }
 
-    pub fn captured_pipeline(&mut self, name: String, source: String) {
+    pub fn captured_pipeline(&self, name: String, source: String) {
         let output = self.pipeline(name, source);
-        self.outputs.insert(self.current.clone(), output);
+        self.outputs
+            .borrow_mut()
+            .insert(self.current_clone(), output);
+    }
+
+    pub fn nested_pipeline(&self, name: String, source: String) -> TaleResultVec<SymbolValue> {
+        let outer_name = self.current.clone();
+        match self.symbols.borrow_mut().push_scope() {
+            Ok(_) => todo!(),
+            Err(_) => Err(vec![TaleError::system(format!(
+                "Hit stack guard while loading: {}",
+                name
+            ))]),
+        }
     }
 
     pub fn get_tokens(&self, name: &str) -> TaleResult<Vec<Token>> {
-        let lexicon = self.tokens.get(name).unwrap();
-        let tokens: Vec<_> = lexicon.iter().map(|(token, _, _)| token.clone()).collect();
-        Ok(tokens)
-    }
-
-    pub fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
-        if let Some(tokens) = self.tokens.get(&self.current) {
-            let start = min(span.start, tokens.len().saturating_sub(1)); // Avoid out of bounds
-            tokens[start].1.start..tokens[span.end.saturating_sub(1)].1.end
+        if let Some(lexicon) = self.tokens.borrow().get(name) {
+            Ok(lexicon.iter().map(|(token, _, _)| token.clone()).collect())
         } else {
-            0..0
+            Err(TaleError::system(format!("No Lexicon for source: {}", name)).into())
         }
-    }
-
-    pub fn get_source_position(&self, span: &Range<usize>) -> Position {
-        if let Some(tokens) = self.tokens.get(&self.current) {
-            let start = min(span.start, tokens.len().saturating_sub(1)); // Avoid out of bounds
-            tokens[start].2
-        } else {
-            (0, 0)
-        }
-    }
-
-    pub fn get_source_slice(&self, span: &Range<usize>) -> &str {
-        let source_span = self.get_source_span(span);
-        if let Some(source) = self.sources.get(&self.current) {
-            &source[source_span]
-        } else {
-            eprintln!("NO SOURCE FOUND!");
-            "NO SOURCE FOUND!"
-        }
-    }
-
-    pub fn spanslate(&self, span: &Range<usize>) -> SourceInfo {
-        if let Some(tokens) = self.tokens.get(&self.current) {
-            if tokens.len() > 0 {
-                // TODO: Clean up once https://github.com/rust-lang/rust/issues/53667
-                // is stabilized
-                return (
-                    tokens[span.start].1.start..tokens[span.end.saturating_sub(1)].1.end,
-                    tokens[span.start].2,
-                );
-            }
-        }
-        (0..0, (0, 0))
     }
 }
 

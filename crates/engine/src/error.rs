@@ -6,7 +6,7 @@ pub type TaleResult<T> = Result<T, TaleError>;
 
 pub type TaleResultVec<T> = Result<T, Vec<TaleError>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TaleError {
     kind: TaleErrorKind,
     span: Range<usize>,
@@ -14,7 +14,7 @@ pub struct TaleError {
     msg: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TaleErrorKind {
     Lexical,
     Parse,

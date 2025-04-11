@@ -11,7 +11,7 @@ use chumsky::prelude::*;
 use chumsky::span::Span;
 pub use eval::Eval;
 
-use crate::{state::SimpleStateTable, state::SymbolTable, state::SymbolValue};
+use crate::{state::SimpleParserState, state::SymbolTable, state::SymbolValue};
 
 mod analyzer;
 mod eval;
@@ -377,7 +377,7 @@ pub fn full_rc_node<'src, I, O>(
         'src,
         '_,
         &'src [Token],
-        extra::Full<Rich<'src, Token>, SimpleStateTable, ()>,
+        extra::Full<Rich<'src, Token>, SimpleParserState, ()>,
     >,
 ) -> RcNode<O>
 where

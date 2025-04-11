@@ -3,7 +3,7 @@ use chumsky::{pratt::*, prelude::*};
 
 use crate::{
     ast::{Atom, Expr, RcNode, full_rc_node},
-    state::SimpleStateTable,
+    state::SimpleParserState,
 };
 
 use super::atoms::{self, ident_maybe_sub, number, qstring, terminator, words};
@@ -12,7 +12,7 @@ pub fn any_expr<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     roll()
         .or(lookup())
@@ -26,7 +26,7 @@ pub fn roll<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let optional_roll = just(Token::Roll).or_not().ignore_then(repetition_clause());
     let optional_repetition =
@@ -67,7 +67,7 @@ fn roll_predicate<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let pred_one = just(Token::On).or_not().ignore_then(arithmetic());
     let pred_two = just(Token::On)
@@ -94,7 +94,7 @@ fn repetition_clause<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let repetition_word = select! {
         Token::Once => Atom::Number(1),
@@ -123,7 +123,7 @@ pub fn lookup<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Lookup)
         .ignore_then(arithmetic().or(words()))
@@ -139,7 +139,7 @@ pub fn interpolation<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let qstr_map = qstring().map_with(full_rc_node);
 
@@ -162,7 +162,7 @@ fn embed_expr<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     implied_roll_expr()
         .then_ignore(terminator())
@@ -175,7 +175,7 @@ pub fn implied_roll_expr<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     ident_maybe_sub()
         .map_with(full_rc_node)
@@ -189,7 +189,7 @@ pub fn arithmetic<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     recursive(|arith| {
         let term = atoms::term().or(arith.delimited_by(just(Token::LParens), just(Token::RParens)));
@@ -219,7 +219,7 @@ fn fold_prefix<'src>(
         'src,
         '_,
         &'src [Token],
-        extra::Full<Rich<'src, Token>, SimpleStateTable, ()>,
+        extra::Full<Rich<'src, Token>, SimpleParserState, ()>,
     >,
 ) -> RcNode<Expr> {
     match op {
@@ -236,7 +236,7 @@ fn fold_infix<'src>(
         'src,
         '_,
         &'src [Token],
-        extra::Full<Rich<'src, Token>, SimpleStateTable, ()>,
+        extra::Full<Rich<'src, Token>, SimpleParserState, ()>,
     >,
 ) -> RcNode<Expr> {
     match op {
@@ -253,7 +253,7 @@ pub fn number_range_list<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let num_range = number()
         .then(
@@ -287,16 +287,15 @@ pub fn number_range_list<'src>() -> impl Parser<
 mod tests {
     use super::*;
 
-    use crate::lexer::tests::quick_tokens;
-
+    use crate::state::ParserState;
     use crate::{
-        parsers::expressions::arithmetic, state::StateTable, tests::stubbed_parser,
+        parsers::expressions::arithmetic, tests::stubbed_parser,
         utils::tests::read_sample_lines,
     };
 
     #[test]
     fn parse_roll() {
-        let mut table = StateTable::new();
+
         let check_vals = vec![
             "Roll 1, 3d6",
             "Roll 1, (1d20 + 7)",
@@ -319,13 +318,15 @@ mod tests {
 
         let lookup_lines = read_sample_lines("18_statement_roll.tale").unwrap();
         for (index, line) in lookup_lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, roll());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, roll());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let tokens = quick_tokens("Roll 2 @");
-        let output = stubbed_parser(&mut table, &tokens, roll());
+        let mut p_state = ParserState::from_source("Roll 2 @".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll());
         assert_eq!(
             "[found 'At' at 2..3 expected Arithmetic Operator, 'LParens', 'Times/Rolls', Roll Predicate, or end of input in Arithmetic Expression at 1..2]",
             format!("{output}")
@@ -334,53 +335,57 @@ mod tests {
 
     #[test]
     fn parse_roll_predicate() {
-        let mut table = StateTable::new();
-        let tokens = quick_tokens("On Table: Stuff");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+        let mut p_state = ParserState::from_source("On Table: Stuff".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`stuff`", format!("{output}"));
 
-        let tokens = quick_tokens(r#"On Table: "StringLike""#);
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+            let mut p_state = ParserState::from_source(r#"On Table: "StringLike""#.into());
+            let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`stringlike`", format!("{output}"));
 
-        let tokens = quick_tokens("on `magic item table a`");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+            let mut p_state = ParserState::from_source("on `magic item table a`".into());
+            let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`magic item table a`", format!("{output}"));
 
-        let tokens = quick_tokens("On Major: Minor");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+            let mut p_state = ParserState::from_source("On Major: Minor".into());
+            let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`major minor`", format!("{output}"));
 
-        let tokens = quick_tokens("10 gp gems");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+            let mut p_state = ParserState::from_source("10 gp gems".into());
+            let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`10 gp gems`", format!("{output}"));
 
-        let tokens = quick_tokens("2d6 * 10");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+            let mut p_state = ParserState::from_source("2d6 * 10".into());
+            let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("(2d6 * 10)", format!("{output}"));
 
-        let tokens = quick_tokens("1");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+            let mut p_state = ParserState::from_source("1".into());
+            let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("1", format!("{output}"));
 
-        table.add_source(
-            "test".into(),
-            "On Table: Kingdom of [Current Kingdom]".into(),
-        );
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+        let mut p_state = ParserState::from_source("On Table: Kingdom of [Current Kingdom]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!(
             r#"!["Kingdom of", Roll 1, `current kingdom`]!"#,
             format!("{output}")
         );
 
-        let tokens = quick_tokens("Table: [Food]");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+        let mut p_state = ParserState::from_source("Table: [Food]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("![Roll 1, `food`]!", format!("{output}"));
 
-        let tokens = quick_tokens("Table: @");
-        let output = stubbed_parser(&mut table, &tokens, roll_predicate());
+        let mut p_state = ParserState::from_source("Table: @".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!(
             "[found 'At' at 2..3 expected Identity, Terminator, or Interpolation]",
             format!("{output}")
@@ -389,51 +394,60 @@ mod tests {
 
     #[test]
     fn parse_repetition_clause() {
-        let mut table = StateTable::new();
-        let tokens = quick_tokens("1");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("1".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("1", format!("{output}"));
 
-        let tokens = quick_tokens("once");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("once".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("1", format!("{output}"));
 
-        let tokens = quick_tokens("thrice");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("thrice".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("3", format!("{output}"));
 
-        let tokens = quick_tokens("one time");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("one time".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("1", format!("{output}"));
 
-        let tokens = quick_tokens("nine times");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("nine times".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("9", format!("{output}"));
 
-        let tokens = quick_tokens("1d8");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("1d8".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("1d8", format!("{output}"));
 
-        let tokens = quick_tokens("1d2 rolls");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("1d2 rolls".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("1d2", format!("{output}"));
 
-        let tokens = quick_tokens("1d4 times");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("1d4 times".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("1d4", format!("{output}"));
 
-        let tokens = quick_tokens("1d6 + 1 (5)");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("1d6 + 1 (5)".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("(1d6 + 1)", format!("{output}"));
 
-        let tokens = quick_tokens("1d6 + 1 (@5)");
-        let output = stubbed_parser(&mut table, &tokens, repetition_clause());
+        let mut p_state = ParserState::from_source("1d6 + 1 (@5)".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!("[found 'At' at 4..5 expected Numeric]", format!("{output}"));
     }
 
     #[test]
     fn parse_lookup() {
-        let mut table = StateTable::new();
+
         let check_vals = vec![
             "Lookup `a` on `textkeys`",
             "Lookup 3 on `numkeyed`",
@@ -443,13 +457,15 @@ mod tests {
 
         let lookup_lines = read_sample_lines("15_statement_lookup.tale").unwrap();
         for (index, line) in lookup_lines.enumerate() {
-            let tokens = quick_tokens(line.unwrap().as_str());
-            let output = stubbed_parser(&mut table, &tokens, lookup());
+            let mut p_state = ParserState::from_source(line.unwrap());
+            let tokens = p_state.tokens();
+            let output = stubbed_parser(&mut p_state, &tokens, lookup());
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let tokens = quick_tokens("Lookup 2 @ TextKeys");
-        let output = stubbed_parser(&mut table, &tokens, lookup());
+        let mut p_state = ParserState::from_source("Lookup 2 @ TextKeys".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, lookup());
         assert_eq!(
             "[found 'At' at 2..3 expected Arithmetic Operator, or 'On' in Arithmetic Expression at 1..2]",
             format!("{output}")
@@ -458,50 +474,42 @@ mod tests {
 
     #[test]
     fn parse_interpolation() {
-        let mut table = StateTable::new();
-        table.add_source("test".into(), "valid".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("valid".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(r#"!["valid"]!"#, format!("{output}"));
 
-        table.add_source("test".into(), "`also valid`".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("`also valid`".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(r#"!["also valid"]!"#, format!("{output}"));
 
-        table.add_source("test".into(), "weirdly enough `also valid`".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("weirdly enough `also valid`".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(r#"!["weirdly enough", "also valid"]!"#, format!("{output}"));
 
-        table.add_source("test".into(), "simple expression: [1 + 2]".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("simple expression: [1 + 2]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(r#"!["simple expression:", (1 + 2)]!"#, format!("{output}"));
 
-        table.add_source("test".into(), "another [1d4 + 3] things".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("another [1d4 + 3] things".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(r#"!["another", (1d4 + 3), "things"]!"#, format!("{output}"));
 
-        table.add_source("test".into(), "what's in the [Box]?".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("what's in the [Box]?".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(
             r#"!["what's in the", Roll 1, `box`, "?"]!"#,
             format!("{output}")
         );
 
-        table.add_source("test".into(), "[one @ two]".into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, interpolation());
+        let mut p_state = ParserState::from_source("[one @ two]".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(
             "[found 'At' at 2..3 expected Wordlike, 'Colon', Identity, Terminator, or Arithmetic Operator]",
             format!("{output}")
@@ -510,52 +518,63 @@ mod tests {
 
     #[test]
     fn parse_arithmetic() {
-        let mut table = StateTable::new();
-        let tokens = quick_tokens("1");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+
+        let mut p_state = ParserState::from_source("1".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("1", format!("{output}"));
 
-        let tokens = quick_tokens("-1");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("-1".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("-1", format!("{output}"));
 
-        let tokens = quick_tokens("---1");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("---1".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("---1", format!("{output}"));
 
-        let tokens = quick_tokens("-1 - 2");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("-1 - 2".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("(-1 - 2)", format!("{output}"));
 
-        let tokens = quick_tokens("-(1 - 2)");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("-(1 - 2)".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("-(1 - 2)", format!("{output}"));
 
-        let tokens = quick_tokens("2d6 + 3");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("2d6 + 3".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("(2d6 + 3)", format!("{output}"));
 
-        let tokens = quick_tokens("one + two");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("one + two".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("(1 + 2)", format!("{output}"));
 
-        let tokens = quick_tokens("99 * stored_value");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("99 * stored_value".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("(99 * `stored_value`)", format!("{output}"));
 
-        let tokens = quick_tokens("no-spaces");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("no-spaces".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!("(`no` - `spaces`)", format!("{output}"));
 
-        let tokens = quick_tokens("PEMDAS_test +1-2*3/4%5^6^(7+8)");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("PEMDAS_test +1-2*3/4%5^6^(7+8)".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!(
             "((`pemdas_test` + 1) - (((2 * 3) / 4) % (5 ^ (6 ^ (7 + 8)))))",
             format!("{output}")
         );
 
-        let tokens = quick_tokens("one @ two");
-        let output = stubbed_parser(&mut table, &tokens, arithmetic());
+        let mut p_state = ParserState::from_source("one @ two".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!(
             "[found 'At' at 1..2 expected Arithmetic Operator, or end of input in Arithmetic Expression at 0..1]",
             format!("{output}")
@@ -564,29 +583,35 @@ mod tests {
 
     #[test]
     fn parse_number_range_list() {
-        let mut table = StateTable::new();
-        let tokens = quick_tokens("1");
-        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+
+        let mut p_state = ParserState::from_source("1".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!("[1]", format!("{output}"));
 
-        let tokens = quick_tokens("1-3");
-        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        let mut p_state = ParserState::from_source("1-3".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!("[1, 2, 3]", format!("{output}"));
 
-        let tokens = quick_tokens("97-00");
-        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        let mut p_state = ParserState::from_source("97-00".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!("[97, 98, 99, 100]", format!("{output}"));
 
-        let tokens = quick_tokens("1,3");
-        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        let mut p_state = ParserState::from_source("1,3".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!("[1, 3]", format!("{output}"));
 
-        let tokens = quick_tokens("1-3,5,8-10");
-        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        let mut p_state = ParserState::from_source("1-3,5,8-10".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!("[1, 2, 3, 5, 8, 9, 10]", format!("{output}"));
 
-        let tokens = quick_tokens("bacon");
-        let output = stubbed_parser(&mut table, &tokens, number_range_list());
+        let mut p_state = ParserState::from_source("bacon".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!(
             "[found 'Word(\"bacon\")' at 0..1 expected Number, Range, List]",
             format!("{output}")

@@ -328,7 +328,7 @@ mod tests {
     fn analyze_roll() {
         let name = "18_statement_roll.tale";
         let source = read_sample_file_to_string(name);
-        let mut table = StateTable::new();
+        let table = StateTable::new();
         table.add_source(name.to_string(), source);
         table.lex_current();
         let errors = table.parse_current();
@@ -361,7 +361,12 @@ mod tests {
                 Roll 1d6, 1d6,\n\t\
                 Roll 6, 3d6\n\
             ]",
-            table.asts().get(table.current()).unwrap().to_string()
+            table
+                .asts()
+                .borrow()
+                .get(&*table.current())
+                .unwrap()
+                .to_string()
         )
     }
 }

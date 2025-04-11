@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 
 use crate::{
     ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
-    state::SimpleStateTable,
+    state::SimpleParserState,
 };
 
 use super::{
@@ -16,7 +16,7 @@ pub fn script<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Script)
         .then(just(Token::Colon))
@@ -45,7 +45,7 @@ pub fn table<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Table)
         .then(just(Token::Colon))
@@ -71,7 +71,7 @@ pub fn table_group<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Table)
         .then(just(Token::Group))
@@ -120,7 +120,7 @@ fn sub_tables_row<'src>() -> impl Parser<
     'src,
     &'src [Token],
     (RcNode<Expr>, Vec<Atom>),
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     dice()
         .map_with(full_rc_node)
@@ -133,7 +133,7 @@ fn table_group_rows<'src>() -> impl Parser<
     'src,
     &'src [Token],
     Vec<RcNode<TableRows>>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     row_key()
         .then(
@@ -191,7 +191,7 @@ fn table_rows<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<TableRows>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let list_form = just(Token::List)
         .then(just(Token::Colon))
@@ -235,7 +235,7 @@ fn table_headings<'src>() -> impl Parser<
     'src,
     &'src [Token],
     (RcNode<Expr>, RcNode<Vec<Atom>>),
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     let roll_directive = just(Token::Roll)
         .then(just(Token::Colon))
@@ -285,7 +285,7 @@ fn tags_directive<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Vec<Atom>>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     just(Token::Tag)
         .then(just(Token::Colon))
@@ -305,7 +305,7 @@ fn row_key<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleStateTable<'src>, ()>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     number_range_list()
         .then_ignore(just(Token::Tabs))
@@ -318,7 +318,7 @@ fn row_key<'src>() -> impl Parser<
 #[allow(unused_must_use)]
 mod tests {
     use crate::{
-        state::StateTable,
+        state::ParserState,
         tests::{grubbed_parser, stubbed_parser},
     };
 
@@ -326,37 +326,34 @@ mod tests {
 
     #[test]
     fn parse_script() {
-        let mut table = StateTable::new();
+
         let source = "Script: Example
                             Set Phasers to stun
                             End Script";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, script());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, script());
         assert_eq!("Script: `example`, 1 Statement", format!("{output}"));
     }
 
     #[test]
     fn parse_table() {
-        let mut state = StateTable::new();
+
         let source = "Table: Colors
                             List: Red, Orange, Yellow, Green, Blue, Purple
                             ";
-        state.add_source("test".into(), source.into());
-        state.lex_current();
-        let tokens = &state.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut state, &tokens, table());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table());
         assert_eq!("Table: `colors`, 1d6, 6 Rows", format!("{output}"));
 
         let source = "Table: Stub
                             Roll: d20
                             End Table
                             ";
-        state.add_source("test".into(), source.into());
-        state.lex_current();
-        let tokens = &state.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut state, &tokens, table());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table());
         assert_eq!("Table: `stub`, 1d20, 0 Rows", format!("{output}"));
 
         let source = "Table: Basic
@@ -365,10 +362,9 @@ mod tests {
                             Chicken
                             End Table
                             ";
-        state.add_source("test".into(), source.into());
-        state.lex_current();
-        let tokens = &state.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut state, &tokens, table());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table());
         assert_eq!("Table: `basic`, 1d3, 3 Rows", format!("{output}"));
 
         let source = "Table: keyed
@@ -377,16 +373,15 @@ mod tests {
                             3-5,7\tProbably pretty garbage too...
                             6\tlastly
                             End Table";
-        state.add_source("test".into(), source.into());
-        state.lex_current();
-        let tokens = &state.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut state, &tokens, table());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table());
         assert_eq!("Table: `keyed`, 1d7, 4 Rows", format!("{output}"));
     }
 
     #[test]
     fn parse_table_group() {
-        let mut table = StateTable::new();
+
 
         let source = "Table Group: minimal
                             1d3\texample
@@ -394,10 +389,9 @@ mod tests {
                             2\tb
                             3\tc
                             End Table Group\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, table_group());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_group());
         assert_eq!(
             "TableGroup: `minimal`\n\
             \t`minimal example`, 1d3, 3 Rows\n",
@@ -411,10 +405,9 @@ mod tests {
                             2\tDog\tHorse\tRabbit
                             3\tMouse\tPig\tDeer
                             End Table Group\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, table_group());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_group());
         assert_eq!(
             "TableGroup: `animals`\n\
             \t`animals house`, 1d3, 3 Rows\n\
@@ -427,10 +420,9 @@ mod tests {
                             1d1\ttwo\theadings
                             1\tThree\tRow\tItems
                             End Table Group\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, table_group());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_group());
         assert_eq!(
             "[Table Group rows must all have same number of columns at 0..23 in Table Group Definition at 0..23]",
             output
@@ -439,13 +431,12 @@ mod tests {
 
     #[test]
     fn parse_sub_tables_row() {
-        let mut table = StateTable::new();
+
 
         let source = "1d6\tColor\tShape\tSize\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, sub_tables_row());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, sub_tables_row());
         // Assert we parsed a single die roll and 3 columns.
         assert_eq!(1, output.matches("Dice(1, 6)").count());
         assert_eq!(3, output.matches("Ident(").count());
@@ -453,16 +444,15 @@ mod tests {
 
     #[test]
     fn parse_table_group_rows() {
-        let mut table = StateTable::new();
+
 
         let source = "1\ta
                             2\tb
                             3\tc
                             ";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_group_rows());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_group_rows());
         println!("{}", output);
         // Assert we parsed 1 column and 3 rows.
         assert_eq!(1, output.matches("Keyed(").count());
@@ -473,10 +463,9 @@ mod tests {
                             2\tDog\tHorse\tRabbit
                             3\tMouse\tPig\tDeer
                             ";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_group_rows());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_group_rows());
         // Assert we parsed 1 column and 3 rows.
         assert_eq!(3, output.matches("Keyed(").count());
         assert_eq!(9, output.matches("List(").count());
@@ -486,10 +475,9 @@ mod tests {
                             2\tb
                             3\tc
                             ";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_group_rows());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_group_rows());
         // Check the uneven rows case:
         assert_eq!(
             "[Table Group rows must all have same number of columns, row 2 has 1 columns but expected 2 at 14..14]",
@@ -499,32 +487,29 @@ mod tests {
 
     #[test]
     fn parse_table_headings() {
-        let mut table = StateTable::new();
+
         let source = "";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("value: Empty"));
         assert!(output.contains("value: []"));
         assert!(output.ends_with("} })"));
 
         let source = "Roll: 1d8\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 8))"));
         assert!(output.contains("value: []"));
         assert!(output.ends_with("} })"));
 
         let source = "Tags: Dark, Stormy\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         println!("{}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("value: Empty"));
@@ -533,10 +518,9 @@ mod tests {
         assert!(output.ends_with("} })"));
 
         let source = "Roll: 1d6\nTags: This, That, The Other Thing\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         println!("{}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 6))"));
@@ -546,10 +530,9 @@ mod tests {
         assert!(output.ends_with("} })"));
 
         let source = "Tags: the other, way around\nRoll: 2d20\n";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         println!("{}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(2, 20)"));
@@ -558,20 +541,18 @@ mod tests {
         assert!(output.ends_with("} })"));
 
         let source = "Tag: @";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert_eq!(
             "[found 'At' at 2..3 expected Identity, or 'NewLines']",
             output
         );
 
         let source = "roll: @";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = grubbed_parser(&mut table, &tokens, table_headings());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert_eq!(
             "[found 'At' at 2..3 expected Arithmetic Expression]",
             output
@@ -580,47 +561,41 @@ mod tests {
 
     #[test]
     fn parse_row_key() {
-        let mut table = StateTable::new();
+
         let source = "22\t";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, row_key());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!("[22]", format!("{output}"));
 
         let source = "4,6-8\t";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, row_key());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!("[4, 6, 7, 8]", format!("{output}"));
 
         let source = "Elves\t";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, row_key());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!("`elves`", format!("{output}"));
 
         let source = "`Dwarves`\t";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, row_key());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!("`dwarves`", format!("{output}"));
 
         let source = "4 Non Blondes\t";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, row_key());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!("`4 non blondes`", format!("{output}"));
 
         let source = "3-4 Business Days\t";
-        table.add_source("test".into(), source.into());
-        table.lex_current();
-        let tokens = &table.get_tokens("test").unwrap();
-        let output = stubbed_parser(&mut table, &tokens, row_key());
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!(
             "[found 'Word(\"Business\")' at 3..4 expected 'Comma', or 'Tabs']",
             format!("{output}")
