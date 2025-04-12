@@ -16,7 +16,7 @@ pub trait Analyze {
 
 impl Analyze for AST {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
-        self.nodes.inner_t().analyze(symbols)
+        self.nodes.analyze(symbols)
     }
 }
 
@@ -49,7 +49,7 @@ where
         self.iter()
             .map(|node| {
                 // Call analyze on each node in the vector
-                node.inner_t().analyze(symbols)
+                node.analyze(symbols)
             })
             .reduce(|acc, item| match (acc, item) {
                 (Ok(()), Ok(())) => Ok(()),
@@ -72,43 +72,43 @@ impl Analyze for Statement {
                 symbols
                     .borrow_mut()
                     .register(node.inner_t().name().inner_t().to_lowercase());
-                node.inner_t().analyze(symbols)
+                node.analyze(symbols)
             }
             Statement::Table(node) => {
                 symbols
                     .borrow_mut()
                     .register(node.inner_t().name().inner_t().to_lowercase());
-                node.inner_t().analyze(symbols)
+                node.analyze(symbols)
             }
             Statement::TableGroup(node) => {
                 symbols
                     .borrow_mut()
                     .register(node.inner_t().name().inner_t().to_lowercase());
-                node.inner_t().analyze(symbols)
+                node.analyze(symbols)
             }
             Statement::Assignment(name, value) => {
                 // Register the variable in the symbol table
                 symbols.borrow_mut().register(name.inner_t().to_lowercase());
                 // For `Assignment`, we need to analyze both the name and the value
-                name.inner_t().analyze(symbols)?;
-                value.inner_t().analyze(symbols)?;
+                name.analyze(symbols)?;
+                value.analyze(symbols)?;
                 Ok(())
             }
             Statement::Clear(duration, target) => {
                 // For `Clear`, we need to analyze the duration and the target
-                duration.inner_t().analyze(symbols)?;
-                target.inner_t().analyze(symbols)?;
+                duration.analyze(symbols)?;
+                target.analyze(symbols)?;
                 Ok(())
             }
-            Statement::Invoke(node) => node.inner_t().analyze(symbols),
-            Statement::Load(node) => node.inner_t().analyze(symbols),
+            Statement::Invoke(node) => node.analyze(symbols),
+            Statement::Load(node) => node.analyze(symbols),
             Statement::Modify(modifier, target) => {
                 // For `Modify`, we need to analyze the modifier and the target
-                modifier.inner_t().analyze(symbols)?;
-                target.inner_t().analyze(symbols)?;
+                modifier.analyze(symbols)?;
+                target.analyze(symbols)?;
                 Ok(())
             }
-            Statement::Output(node) => node.inner_t().analyze(symbols),
+            Statement::Output(node) => node.analyze(symbols),
             Statement::Show(node) => {
                 if node.inner_t().0 {
                     Ok(())
@@ -117,7 +117,7 @@ impl Analyze for Statement {
                     node.inner_t().1.analyze(symbols)
                 }
             }
-            Statement::Sequence(node) => node.inner_t().analyze(symbols),
+            Statement::Sequence(node) => node.analyze(symbols),
             Statement::Expr(expr) => ammend_id_to_str(symbols, expr),
         }
     }
@@ -173,7 +173,7 @@ impl Analyze for TableGroup {
             symbols
                 .borrow_mut()
                 .register(table.inner_t().name().inner_t().to_lowercase());
-            table.inner_t().analyze(symbols)?;
+            table.analyze(symbols)?;
         }
         Ok(())
     }

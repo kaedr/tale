@@ -56,7 +56,7 @@ pub enum Token {
     #[regex(r"\d+",digits,priority=3)]  Digits(usize),
     #[token("00")]                      DoubleOught,
     #[regex(r"\w+",verbatim)]           Word(String),
-    #[regex(r"[\t ]*//[^\n\r]+",logos::skip)] Comment,
+    #[regex(r"[\t]*//[^\n\r]+",logos::skip)] Comment,
 
 
     // Strings
@@ -198,7 +198,7 @@ pub fn tokenize(source: &str) -> TaleResultVec<Lexicon> {
                 errs.push(TaleError::lexer(
                     span,
                     position,
-                    format!("Invalid input character(s): {}", lex.slice()),
+                    format!("Invalid input character(s): '{}'", lex.slice()),
                 ))
             }
         }
@@ -232,6 +232,7 @@ pub(crate) mod tests {
         use super::*;
 
         #[test]
+        #[cfg(not(target_os="windows"))]
         fn tokenotomy() {
             let contents = read_sample_file_to_string("91_strings");
             let token_vec: Vec<_> = tokenize(&contents).unwrap();
@@ -276,6 +277,56 @@ pub(crate) mod tests {
                 [
                     (Token::String("".into()), 76..78, (6, 0)),
                     (Token::NewLines, 78..79, (6, 2)),
+                ]
+            );
+        }
+
+        #[test]
+        #[cfg(target_os="windows")]
+        fn tokenotomy_windows() {
+            let contents = read_sample_file_to_string("91_strings");
+            let token_vec: Vec<_> = tokenize(&contents).unwrap();
+            assert_eq!(
+                token_vec[0..2],
+                [
+                    (
+                        Token::String("double quoted string: '`".into()),
+                        0..26,
+                        (1, 0)
+                    ),
+                    (Token::NewLines, 26..28, (1, 26)),
+                ]
+            );
+
+            assert_eq!(
+                token_vec[2..4],
+                [
+                    (
+                        Token::String(r#"grave quoted string: '""#.into()),
+                        28..53,
+                        (2, 0)
+                    ),
+                    (Token::NewLines, 53..55, (2, 25)),
+                ]
+            );
+
+            assert_eq!(
+                token_vec[4..6],
+                [
+                    (
+                        Token::String("string\r\nwith\r\nnewlines".into()),
+                        55..79,
+                        (3, 0)
+                    ),
+                    (Token::NewLines, 79..81, (5, 9)),
+                ]
+            );
+
+            assert_eq!(
+                token_vec[6..],
+                [
+                    (Token::String("".into()), 81..83, (6, 0)),
+                    (Token::NewLines, 83..85, (6, 2)),
                 ]
             );
         }
@@ -1669,19 +1720,39 @@ pub(crate) mod tests {
                 Some(Ok(Token::String(r#"grave quoted string: '""#.into())))
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
-            assert_eq!(
-                lex.next(),
-                Some(Ok(Token::String("string\nwith\nnewlines".into())))
-            );
+
+            #[cfg(not(target_os="windows"))]
+            {
+                assert_eq!(
+                    lex.next(),
+                    Some(Ok(Token::String("string\nwith\nnewlines".into())))
+                );
+            }
+
+            #[cfg(target_os="windows")]
+            {
+                assert_eq!(
+                    lex.next(),
+                    Some(Ok(Token::String("string\r\nwith\r\nnewlines".into())))
+                );
+            }
+
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::String("".into()))));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
 
-            assert_eq!(
+            #[cfg(not(target_os="windows"))]
+            {assert_eq!(
                 lex.extras.1,
                 vec![(1, 27), (2, 53), (3, 61), (4, 66), (5, 76), (6, 79)]
-            );
+            );}
+
+            #[cfg(target_os="windows")]
+            {assert_eq!(
+                lex.extras.1,
+                vec![(1, 28), (2, 55), (3, 64), (4, 70), (5, 81), (6, 85)]
+            );}
         }
 
         #[test]

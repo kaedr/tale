@@ -366,7 +366,7 @@ mod tests {
         let output = streamline("18_statement_roll.tale");
         println!("{}", output);
         assert_eq!(
-            "Err([TaleError { kind: Analysis, span: 262..266, position: (10, 5), msg: \"Roll: neither 'farm' nor 'animals' are defined\" }])",
+            "Err([TaleError { kind: Analysis, span: 271..275, position: (10, 5), msg: \"Roll: neither 'farm' nor 'animals' are defined\" }])",
             output
         )
     }
