@@ -16,7 +16,15 @@ pub fn term<'src>() -> impl Parser<
     number
         .or(dice)
         .or(value_name)
-        .map_with(full_rc_node)
+        .map_with(|term, extra| {
+            let term_node = full_rc_node(term, extra);
+            let span = extra.span().into_range();
+            term_node.add_detail(
+                "original_text".into(),
+                extra.state().get_source_slice(&span).to_string(),
+            );
+            term_node
+        })
         .boxed()
         .labelled("Arithmetic Term")
 }

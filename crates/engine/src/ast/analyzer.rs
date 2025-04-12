@@ -25,7 +25,19 @@ where
     T: Analyze + TypedNode,
 {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
-        self.inner_t().analyze(symbols)
+        self.inner_t().analyze(symbols).map_err(|mut errs| {
+            errs.iter_mut().for_each(|err| {
+                // Amend default spans with actual spans
+                if err.start() == 0 && err.end() == 0 {
+                    err.update_span(self.source_span());
+                    err.append_message(&format!(" (In: {})", self.node_type()));
+                }
+                if err.position() == (0, 0) {
+                    err.update_position(self.position());
+                }
+            });
+            errs
+        })
     }
 }
 
@@ -75,11 +87,11 @@ impl Analyze for Statement {
                 node.inner_t().analyze(symbols)
             }
             Statement::Assignment(name, value) => {
+                // Register the variable in the symbol table
+                symbols.borrow_mut().register(name.inner_t().to_lowercase());
                 // For `Assignment`, we need to analyze both the name and the value
                 name.inner_t().analyze(symbols)?;
                 value.inner_t().analyze(symbols)?;
-                // Register the variable in the symbol table
-                symbols.borrow_mut().register(name.inner_t().to_lowercase());
                 Ok(())
             }
             Statement::Clear(duration, target) => {
@@ -106,7 +118,7 @@ impl Analyze for Statement {
                 }
             }
             Statement::Sequence(node) => node.inner_t().analyze(symbols),
-            Statement::Expr(node) => node.inner_t().analyze(symbols),
+            Statement::Expr(expr) => ammend_id_to_str(symbols, expr),
         }
     }
 }
@@ -179,19 +191,13 @@ impl Analyze for TableRows {
                         }
                         _ => (),
                     }
-                    match &*stmt.inner_t() {
-                        Statement::Expr(expr) => ammend_id_to_str(symbols, expr)?,
-                        other => other.analyze(symbols)?,
-                    }
+                    stmt.analyze(symbols)?;
                 }
                 Ok(())
             }
             TableRows::Flat(items) => {
                 for item in items.iter() {
-                    match &*item.inner_t() {
-                        Statement::Expr(expr) => ammend_id_to_str(symbols, expr)?,
-                        other => other.analyze(symbols)?,
-                    }
+                    item.analyze(symbols)?;
                 }
                 Ok(())
             }
@@ -204,28 +210,27 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
     let expr_copy = expr.inner_t().clone();
     match expr_copy {
         Expr::Atom(Atom::Ident(id)) => {
-            if symbols.borrow().is_def(&id) {
-                Ok(())
-            } else {
-                *expr.inner_t_mut() = Expr::Atom(Atom::Str(id));
-                Ok(())
+            if !symbols.borrow().is_def(&id) {
+                if let Some(ogt) = expr.get_detail("original_text") {
+                    *expr.inner_t_mut() = Expr::Atom(Atom::Str(ogt));
+                } else {
+                    *expr.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                }
             }
         }
         Expr::Roll(reps, target) => match (&*reps.inner_t(), &*target.inner_t()) {
             (Expr::Atom(Atom::Ident(idl)), Expr::Atom(Atom::Ident(idr))) => {
-                if symbols.borrow().is_def(&idl) || symbols.borrow().is_def(&idr) {
-                    Ok(())
-                } else {
+                if !symbols.borrow().is_def(&idl) && !symbols.borrow().is_def(&idr) {
                     if let Some(sauce) = expr.get_detail("words_only") {
                         *expr.inner_t_mut() = Expr::Atom(Atom::Str(sauce));
                     }
-                    Ok(())
                 }
             }
-            _ => Ok(()),
+            _ => (),
         },
-        other => other.analyze(symbols),
-    }
+        _ => (),
+    };
+    expr.analyze(symbols)
 }
 
 impl Analyze for Expr {
@@ -265,16 +270,13 @@ fn analyze_roll(
     match (left, right) {
         (Expr::Atom(Atom::Ident(lhs)), Expr::Atom(Atom::Ident(rhs))) => {
             match (symbols.borrow().is_def(&lhs), symbols.borrow().is_def(&rhs)) {
-                (true, true) => {
-                    // Both are defined, this is okay
-                    Ok(())
-                }
-                (true, false) => Err(vec![TaleError::analyzer(
+                (true, true) => (),
+                (true, false) => return Err(vec![TaleError::analyzer(
                     target.source_span(),
                     target.position(),
                     format!("Roll target '{rhs}' is not defined"),
                 )]),
-                (false, true) => Err(vec![TaleError::analyzer(
+                (false, true) => return Err(vec![TaleError::analyzer(
                     reps.source_span(),
                     reps.position(),
                     format!("Roll reps '{lhs}' is not defined"),
@@ -284,9 +286,8 @@ fn analyze_roll(
                     if symbols.borrow().is_def(&joined) {
                         *reps.inner_t_mut() = Expr::Atom(Atom::Number(1));
                         *target.inner_t_mut() = Expr::Atom(Atom::Ident(joined.clone()));
-                        Ok(())
                     } else {
-                        Err(vec![TaleError::analyzer(
+                        return Err(vec![TaleError::analyzer(
                             reps.source_span(),
                             reps.position(),
                             format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
@@ -295,13 +296,35 @@ fn analyze_roll(
                 }
             }
         }
-        _ => Ok(()),
-    }
+        _ => (),
+    };
+    reps.analyze(symbols)?;
+    target.analyze(symbols)
 }
 
 impl Analyze for Atom {
-    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
-        Ok(())
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        match self {
+            Atom::Number(_) => Ok(()),
+            Atom::Dice(x, y) => {
+                if x == &0 || y == &0 {
+                    Err(vec![TaleError::evaluator(
+                        0..0,
+                        (0, 0),
+                        "Cannot roll zero dice or zero sides.".to_string(),
+                    )])
+                } else {
+                    Ok(())
+                }
+            },
+            Atom::Str(_) => Ok(()),
+            Atom::Ident(id) => if symbols.borrow().is_def(id) { Ok(()) } else { Err(vec![TaleError::analyzer(
+                0..0,
+                (0, 0),
+                format!("Identifier '{id}' is not defined"),
+            )]) },
+            Atom::Raw(_) => Ok(()),
+        }
     }
 }
 

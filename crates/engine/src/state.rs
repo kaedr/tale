@@ -62,10 +62,14 @@ impl ParserState {
     }
 
     pub fn spanslate(&self, span: &Range<usize>) -> SourceInfo {
-        (
-            self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
-            self.lexicon[span.start].2,
-        )
+        if self.lexicon.len() > 0 {
+            (
+                self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
+                self.lexicon[span.start].2,
+            )
+        } else {
+            (0..0, (0, 0))
+        }
     }
 }
 
@@ -304,6 +308,8 @@ impl Default for StateTable {
     }
 }
 
+const BUILTIN_IDS: [&str; 8] = ["tables", "table", "scripts", "script", "values", "variables", "names", "identifiers"];
+
 #[derive(Debug)]
 pub struct SymbolTable {
     pub names: BTreeSet<String>,
@@ -342,7 +348,7 @@ impl SymbolTable {
     }
 
     pub fn is_def(&self, name: &str) -> bool {
-        self.names.contains(name)
+        BUILTIN_IDS.contains(&name) || self.names.contains(name)
     }
 
     pub fn push_tags(&mut self, tags: Vec<String>, table_name: String) {
@@ -400,15 +406,14 @@ impl SymbolTable {
                 Ok(SymbolValue::String(name.to_string()))
             }
         } else {
-            let result = match name {
+            Ok(
+            match name {
                 "tables" | "table" => self.list_tables(),
                 "scripts" | "script" => self.list_scripts(),
                 "values" | "variables" | "names" | "identifiers" => self.list_names(),
-                other => Err(format!(
-                    "Identifier '{other}' is not defined in the current symbol table."
-                )),
-            };
-            result.map_err(|err| vec![TaleError::evaluator(0..0, (0, 0), err)])
+                other => SymbolValue::String(other.to_string()),
+            }
+        )
         }
     }
 
@@ -420,30 +425,30 @@ impl SymbolTable {
         self.scripts.get(name)
     }
 
-    pub fn list_names(&self) -> Result<SymbolValue, String> {
+    pub fn list_names(&self) -> SymbolValue {
         let mut names_list = vec![SymbolValue::String("Defined Identifiers:".into())];
         names_list.extend(self.names.iter().map(|n| SymbolValue::String(n.clone())));
-        Ok(SymbolValue::List(names_list))
+        SymbolValue::List(names_list)
     }
 
-    pub fn list_scripts(&self) -> Result<SymbolValue, String> {
+    pub fn list_scripts(&self) -> SymbolValue {
         let mut scripts_list = vec![SymbolValue::String("Defined Scripts:".into())];
         scripts_list.extend(
             self.scripts
                 .values()
                 .map(|n| SymbolValue::String(n.to_string())),
         );
-        Ok(SymbolValue::List(scripts_list))
+        SymbolValue::List(scripts_list)
     }
 
-    pub fn list_tables(&self) -> Result<SymbolValue, String> {
+    pub fn list_tables(&self) -> SymbolValue {
         let mut tables_list = vec![SymbolValue::String("Defined Tables:".into())];
         tables_list.extend(
             self.tables
                 .values()
                 .map(|n| SymbolValue::String(n.to_string())),
         );
-        Ok(SymbolValue::List(tables_list))
+        SymbolValue::List(tables_list)
     }
 
     pub fn push_scope(&mut self) -> Result<(), ()> {
@@ -501,7 +506,7 @@ impl SymbolValue {
             SymbolValue::List(symbol_values) => {
                 //println!("[");
                 for value in symbol_values {
-                    value.render(&format!("{prefix}    "));
+                    value.render(&format!("{prefix}"));
                 }
                 //println!("]");
             },

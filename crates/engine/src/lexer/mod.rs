@@ -56,7 +56,7 @@ pub enum Token {
     #[regex(r"\d+",digits,priority=3)]  Digits(usize),
     #[token("00")]                      DoubleOught,
     #[regex(r"\w+",verbatim)]           Word(String),
-    #[regex(r"//[^\n\r]+",logos::skip)] Comment,
+    #[regex(r"\t*//[^\n\r]+",logos::skip)] Comment,
 
 
     // Strings
@@ -224,11 +224,6 @@ fn find_position(start: usize, lines: &[(usize, usize)]) -> Position {
 #[allow(unused_must_use)]
 pub(crate) mod tests {
     use super::*;
-
-    /// Lexes the source string into a vector of tokens, ignoring any lexical errors.
-    pub(crate) fn quick_tokens(source: &str) -> Vec<Token> {
-        Token::lexer(source).flatten().collect()
-    }
 
     #[cfg(test)]
     mod test_sample_files {

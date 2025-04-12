@@ -49,7 +49,12 @@ pub fn roll<'src>() -> impl Parser<
             if extra
                 .slice()
                 .iter()
-                .all(|token| matches!(token, Token::Word(_)))
+                .all(|token| {
+                    match token {
+                        Token::Roll | Token::On | Token::DieRoll(_)=> false,
+                        _ => true,
+                    }
+                })
             {
                 let span = extra.span().into_range();
                 roll_expr_node.add_detail(

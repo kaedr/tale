@@ -77,7 +77,7 @@ impl Interpreter {
 
     pub fn execute(&mut self, prefix: &str, source: String) -> TaleResultVec<SymbolValue> {
         self.repl_count += 1;
-        let source_name = format!("REPL:{}", self.repl_count);
+        let source_name = format!("REPL({})", self.repl_count);
         let trv = self.state.pipeline(source_name.clone(), source.clone());
         render_tale_result_vec(prefix, &source_name, source, trv)
     }
@@ -172,40 +172,71 @@ mod tests {
     #[test]
     fn pipeline_full_01() {
         let output = streamline("01_table_minimal.tale");
-        assert_eq!("Ok(List([Placeholder]))", output);
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Table(Node"));
+        assert!(output.ends_with("})]))"));
+        assert_eq!(1, output.matches("minimalism").count());
+        assert_eq!(1, output.matches("Flat([Node").count());
+        assert_eq!(2, output.matches("less").count());
+        assert_eq!(2, output.matches("more").count());
     }
 
     #[test]
     fn pipeline_full_02() {
         let output = streamline("02_table_roll_def.tale");
-        assert_eq!("Ok(List([Placeholder]))", output);
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Table(Node"));
+        assert!(output.ends_with("})]))"));
+        assert_eq!(1, output.matches("value: Empty").count());
+        assert_eq!(1, output.matches("melee").count());
+        assert_eq!(1, output.matches("Dice").count());
     }
 
     #[test]
     fn pipeline_full_03() {
         let output = streamline("03_table_list.tale");
-        assert_eq!("Ok(List([Placeholder]))", output);
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Table(Node"));
+        assert!(output.ends_with("})]))"));
+        assert_eq!(1, output.matches("groceries").count());
+        assert_eq!(1, output.matches("value: List([Str(").count());
+        assert_eq!(1, output.matches("eggs").count());
+        assert_eq!(1, output.matches("milk").count());
+        assert_eq!(1, output.matches("bread").count());
     }
 
     #[test]
     fn pipeline_full_04() {
         let output = streamline("04_table_keyed_numeric.tale");
-        assert_eq!("Ok(List([Placeholder]))", output);
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Table(Node"));
+        assert!(output.ends_with("})]))"));
+        assert_eq!(1, output.matches("numkeyed").count());
+        // Includes the words_only meta
+        assert_eq!(2, output.matches("Can be as").count());
+        assert_eq!(2, output.matches("CSV").count());
+        assert_eq!(2, output.matches("loneliest").count());
     }
 
     #[test]
     fn pipeline_full_05() {
         let output = streamline("05_table_keyed_word.tale");
-        assert_eq!("Ok(List([Placeholder]))", output);
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([Table(Node"));
+        assert!(output.ends_with("})]))"));
+        assert_eq!(1, output.matches("textkeys").count());
+        assert_eq!(2, output.matches("upon").count());
+        assert_eq!(1, output.matches("time").count());
     }
 
     #[test]
     fn pipeline_full_06() {
         let output = streamline("06_table_group.tale");
-        assert_eq!(
-            "Ok(List([List([Placeholder, Placeholder, Placeholder])]))",
-            output
-        );
+        println!("{}", output);
+        assert!(output.starts_with("Ok(List([List([Table(Node"));
+        assert!(output.ends_with("})])]))"));
+        assert!(output.contains("treasure hoard"));
+        assert!(output.contains("magic"));
     }
 
     #[test]
@@ -223,7 +254,7 @@ mod tests {
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Eval"));
         assert!(output.ends_with("}])"));
-        assert_eq!(3, output.matches("is not defined").count());
+        assert_eq!(1, output.matches("non-numeric").count());
     }
 
     #[test]
@@ -242,7 +273,7 @@ mod tests {
     fn pipeline_full_12_clear() {
         let output = streamline("12_statement_clear.tale");
         println!("{}", output);
-        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(4, output.matches("is not defined").count());
     }
@@ -260,7 +291,7 @@ mod tests {
     fn pipeline_full_13_invoke() {
         let output = streamline("13_statement_invoke.tale");
         println!("{}", output);
-        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(2, output.matches("is not defined").count());
     }
@@ -286,9 +317,9 @@ mod tests {
     fn pipeline_full_15_lookup() {
         let output = streamline("15_statement_lookup.tale");
         println!("{}", output);
-        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.starts_with("Err([TaleError { kind: Evaluation"));
         assert!(output.ends_with("}])"));
-        assert_eq!(4, output.matches("is not defined").count());
+        assert_eq!(4, output.matches("Not a Table or Group name").count());
     }
 
     #[test]
@@ -305,7 +336,7 @@ mod tests {
     fn pipeline_full_16_modify() {
         let output = streamline("16_statement_modify.tale");
         println!("{}", output);
-        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(4, output.matches("is not defined").count());
     }
@@ -364,7 +395,7 @@ mod tests {
     fn pipeline_full_19_show() {
         let output = streamline("19_statement_show.tale");
         println!("{}", output);
-        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(2, output.matches("is not defined").count());
     }
@@ -407,7 +438,9 @@ mod tests {
     fn pipeline_full_21_scripts() {
         let output = streamline("21_script.tale");
         println!("{}", output);
-        assert_eq!("Ok(List([Placeholder, Placeholder, Placeholder]))", output)
+        assert!(output.starts_with("Ok(List(["));
+        assert!(output.ends_with("]))"));
+        assert_eq!(3, output.matches("Script(Node").count());
     }
 
     #[test]
@@ -416,16 +449,18 @@ mod tests {
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(11, output.matches("Placeholder").count());
+        assert_eq!(3, output.matches("Placeholder").count());
+        assert_eq!(6, output.matches("Table(Node").count());
+        assert_eq!(2, output.matches("Script(Node").count());
     }
 
     #[test]
     fn pipeline_full_93_scopes() {
         let output = streamline("93_scoping.tale");
         println!("{}", output);
-        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
-        assert_eq!(5, output.matches("Placeholder").count());
+        assert_eq!(3, output.matches("Placeholder").count());
         assert_eq!(2, output.matches("Overwriting previous value").count());
     }
 
@@ -433,7 +468,7 @@ mod tests {
     fn pipeline_full_94_distributions() {
         let output = streamline("94_distributions.tale");
         //println!("{}", output);
-        assert!(output.starts_with("Ok(List([Placeholder"));
+        assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
 
         let flat_terms = vec![
@@ -501,7 +536,7 @@ mod tests {
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(130, output.matches("Placeholder").count());
+        assert_eq!(128, output.matches("Placeholder").count());
         assert_eq!(127, output.matches("Numeric").count());
     }
 }

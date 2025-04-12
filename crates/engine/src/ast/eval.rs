@@ -23,7 +23,7 @@ where
                 // Amend default spans with actual spans
                 if err.start() == 0 && err.end() == 0 {
                     err.update_span(self.source_span());
-                    err.append_message(&format!(" ({:?})", self.node_type()));
+                    err.append_message(&format!(" (In: {})", self.node_type()));
                 }
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
@@ -150,7 +150,7 @@ fn script_def(
         false => Ok(SymbolValue::String(format!(
             "Overwriting previous value stored in `{name}`"
         ))),
-        true => Ok(SymbolValue::Placeholder),
+        true => Ok(SymbolValue::Script(script.clone())),
     }
 }
 
@@ -185,7 +185,7 @@ fn insert_table_def(
         false => Ok(SymbolValue::String(format!(
             "Overwriting previous value stored in `{name}`"
         ))),
-        true => Ok(SymbolValue::Placeholder),
+        true => Ok(SymbolValue::Table(table.clone())),
     }
 }
 

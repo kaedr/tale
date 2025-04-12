@@ -12,16 +12,17 @@ struct CLI {
     files: Vec<String>,
 }
 
+const LOAD_LINE: &str = "TALE +- Loading:";
 const PROMPT: &str = "TALE +-> ";
-const BETWEEN_PROMPT: &str = "     | ";
+const SIDEBAR: &str = "     |   ";
 
 fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
     match input.to_lowercase().as_str() {
-        "help" => println!("TODO: Help messages!"),
+        "help" => println!("{}TODO: Help messages!", SIDEBAR),
         _ => engine
-            .execute(BETWEEN_PROMPT, input)
+            .execute(SIDEBAR, input)
             .map_err(|err| io::Error::other(format!("-{:?}", err)))?
-            .render(BETWEEN_PROMPT),
+            .render(SIDEBAR),
     };
     Ok(())
 }
@@ -67,11 +68,11 @@ fn main() -> Result<()> {
     match Interpreter::new_with_files(&cli.files) {
         Ok(engine) => {
             for file in &cli.files {
-                println!("{PROMPT}");
+                println!("{LOAD_LINE} {file}");
                 engine
-                    .render_output_of(BETWEEN_PROMPT, file)
+                    .render_output_of(SIDEBAR, file)
                     .map_err(|err| io::Error::other(format!("--{:?}", err)))?
-                    .render(BETWEEN_PROMPT);
+                    .render(SIDEBAR);
             }
             Ok(repl(engine)?)
         }
