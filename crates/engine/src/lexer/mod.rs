@@ -56,7 +56,7 @@ pub enum Token {
     #[regex(r"\d+",digits,priority=3)]  Digits(usize),
     #[token("00")]                      DoubleOught,
     #[regex(r"\w+",verbatim)]           Word(String),
-    #[regex(r"\t*//[^\n\r]+",logos::skip)] Comment,
+    #[regex(r"[\t ]*//[^\n\r]+",logos::skip)] Comment,
 
 
     // Strings
