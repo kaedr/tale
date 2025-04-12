@@ -43,7 +43,10 @@ impl ParserState {
     }
 
     pub fn tokens(&self) -> Vec<Token> {
-        self.lexicon.iter().map(|(token, _, _)| token.clone()).collect()
+        self.lexicon
+            .iter()
+            .map(|(token, _, _)| token.clone())
+            .collect()
     }
 
     pub fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
@@ -111,10 +114,7 @@ impl StateTable {
         if let Some(output) = self.outputs.borrow().get(name) {
             output.clone()
         } else {
-            Err(
-                TaleError::system(format!("No output for source: {}", self.current()))
-                    .into(),
-            )
+            Err(TaleError::system(format!("No output for source: {}", self.current())).into())
         }
     }
 
@@ -122,10 +122,7 @@ impl StateTable {
         if let Some(source) = self.sources.borrow().get(name) {
             Ok(SymbolValue::String(source.clone()))
         } else {
-            Err(
-                TaleError::system(format!("No source named: {}", self.current()))
-                    .into(),
-            )
+            Err(TaleError::system(format!("No source named: {}", self.current())).into())
         }
     }
 
@@ -308,7 +305,16 @@ impl Default for StateTable {
     }
 }
 
-const BUILTIN_IDS: [&str; 8] = ["tables", "table", "scripts", "script", "values", "variables", "names", "identifiers"];
+const BUILTIN_IDS: [&str; 8] = [
+    "tables",
+    "table",
+    "scripts",
+    "script",
+    "values",
+    "variables",
+    "names",
+    "identifiers",
+];
 
 #[derive(Debug)]
 pub struct SymbolTable {
@@ -406,14 +412,12 @@ impl SymbolTable {
                 Ok(SymbolValue::String(name.to_string()))
             }
         } else {
-            Ok(
-            match name {
+            Ok(match name {
                 "tables" | "table" => self.list_tables(),
                 "scripts" | "script" => self.list_scripts(),
                 "values" | "variables" | "names" | "identifiers" => self.list_names(),
                 other => SymbolValue::String(other.to_string()),
-            }
-        )
+            })
         }
     }
 
@@ -509,7 +513,7 @@ impl SymbolValue {
                     value.render(&format!("{prefix}"));
                 }
                 //println!("]");
-            },
+            }
         }
     }
 }

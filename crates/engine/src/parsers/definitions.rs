@@ -326,7 +326,6 @@ mod tests {
 
     #[test]
     fn parse_script() {
-
         let source = "Script: Example
                             Set Phasers to stun
                             End Script";
@@ -338,7 +337,6 @@ mod tests {
 
     #[test]
     fn parse_table() {
-
         let source = "Table: Colors
                             List: Red, Orange, Yellow, Green, Blue, Purple
                             ";
@@ -381,8 +379,6 @@ mod tests {
 
     #[test]
     fn parse_table_group() {
-
-
         let source = "Table Group: minimal
                             1d3\texample
                             1\ta
@@ -431,8 +427,6 @@ mod tests {
 
     #[test]
     fn parse_sub_tables_row() {
-
-
         let source = "1d6\tColor\tShape\tSize\n";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
@@ -444,8 +438,6 @@ mod tests {
 
     #[test]
     fn parse_table_group_rows() {
-
-
         let source = "1\ta
                             2\tb
                             3\tc
@@ -487,7 +479,6 @@ mod tests {
 
     #[test]
     fn parse_table_headings() {
-
         let source = "";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
@@ -561,7 +552,6 @@ mod tests {
 
     #[test]
     fn parse_row_key() {
-
         let source = "22\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();

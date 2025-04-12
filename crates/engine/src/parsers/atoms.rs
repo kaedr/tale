@@ -285,8 +285,8 @@ mod tests {
         let output = stubbed_parser(&mut p_state, &tokens, words::<Atom>());
         assert_eq!(r#""Let's do this!""#, format!("{output}"));
 
-        let mut p_state = ParserState::from_source(r"This is a (test): // Once upon a time...".into(),
-        );
+        let mut p_state =
+            ParserState::from_source(r"This is a (test): // Once upon a time...".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, words::<Atom>());
         assert_eq!(r#""This is a (test):""#, format!("{output}"));
@@ -309,7 +309,8 @@ mod tests {
 
         // TODO: This will probably create a bug somewhere, using quoted ids followed by not
         // At the moment, it's not clear where that bug will be
-        let mut p_state = ParserState::from_source(r#""Treasure Hoard: Challenge 0-4": Magic Items"#.into());
+        let mut p_state =
+            ParserState::from_source(r#""Treasure Hoard: Challenge 0-4": Magic Items"#.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, ident_maybe_sub());
         assert_eq!("`treasure hoard: challenge 0-4 magic items`", output);

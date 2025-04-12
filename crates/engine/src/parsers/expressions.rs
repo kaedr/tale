@@ -46,16 +46,10 @@ pub fn roll<'src>() -> impl Parser<
         .or(optional_roll.then(roll_predicate()))
         .map_with(|(lhs, rhs), extra| {
             let roll_expr_node = full_rc_node(Expr::Roll(lhs, rhs), extra);
-            if extra
-                .slice()
-                .iter()
-                .all(|token| {
-                    match token {
-                        Token::Roll | Token::On | Token::DieRoll(_)=> false,
-                        _ => true,
-                    }
-                })
-            {
+            if extra.slice().iter().all(|token| match token {
+                Token::Roll | Token::On | Token::DieRoll(_) => false,
+                _ => true,
+            }) {
                 let span = extra.span().into_range();
                 roll_expr_node.add_detail(
                     "words_only".into(),
@@ -294,13 +288,11 @@ mod tests {
 
     use crate::state::ParserState;
     use crate::{
-        parsers::expressions::arithmetic, tests::stubbed_parser,
-        utils::tests::read_sample_lines,
+        parsers::expressions::arithmetic, tests::stubbed_parser, utils::tests::read_sample_lines,
     };
 
     #[test]
     fn parse_roll() {
-
         let check_vals = vec![
             "Roll 1, 3d6",
             "Roll 1, (1d20 + 7)",
@@ -345,33 +337,33 @@ mod tests {
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`stuff`", format!("{output}"));
 
-            let mut p_state = ParserState::from_source(r#"On Table: "StringLike""#.into());
-            let tokens = p_state.tokens();
+        let mut p_state = ParserState::from_source(r#"On Table: "StringLike""#.into());
+        let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`stringlike`", format!("{output}"));
 
-            let mut p_state = ParserState::from_source("on `magic item table a`".into());
-            let tokens = p_state.tokens();
+        let mut p_state = ParserState::from_source("on `magic item table a`".into());
+        let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`magic item table a`", format!("{output}"));
 
-            let mut p_state = ParserState::from_source("On Major: Minor".into());
-            let tokens = p_state.tokens();
+        let mut p_state = ParserState::from_source("On Major: Minor".into());
+        let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`major minor`", format!("{output}"));
 
-            let mut p_state = ParserState::from_source("10 gp gems".into());
-            let tokens = p_state.tokens();
+        let mut p_state = ParserState::from_source("10 gp gems".into());
+        let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("`10 gp gems`", format!("{output}"));
 
-            let mut p_state = ParserState::from_source("2d6 * 10".into());
-            let tokens = p_state.tokens();
+        let mut p_state = ParserState::from_source("2d6 * 10".into());
+        let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("(2d6 * 10)", format!("{output}"));
 
-            let mut p_state = ParserState::from_source("1".into());
-            let tokens = p_state.tokens();
+        let mut p_state = ParserState::from_source("1".into());
+        let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
         assert_eq!("1", format!("{output}"));
 
@@ -452,7 +444,6 @@ mod tests {
 
     #[test]
     fn parse_lookup() {
-
         let check_vals = vec![
             "Lookup `a` on `textkeys`",
             "Lookup 3 on `numkeyed`",
@@ -523,7 +514,6 @@ mod tests {
 
     #[test]
     fn parse_arithmetic() {
-
         let mut p_state = ParserState::from_source("1".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
@@ -588,7 +578,6 @@ mod tests {
 
     #[test]
     fn parse_number_range_list() {
-
         let mut p_state = ParserState::from_source("1".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, number_range_list());

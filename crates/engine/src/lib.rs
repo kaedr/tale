@@ -15,8 +15,8 @@ mod state;
 
 pub mod prelude {
     pub use crate::Interpreter;
-    pub use crate::state::SymbolValue;
     pub use crate::error::TaleResultVec;
+    pub use crate::state::SymbolValue;
 }
 
 pub struct Interpreter {
@@ -35,7 +35,10 @@ impl Interpreter {
     pub fn new_with_source_string(source: String) -> Self {
         let state = StateTable::new();
         state.captured_pipeline("InitialInput".into(), source);
-        Self { state, repl_count: 0 }
+        Self {
+            state,
+            repl_count: 0,
+        }
     }
 
     pub fn new_with_files<P>(file_names: &Vec<P>) -> io::Result<Self>
@@ -47,7 +50,10 @@ impl Interpreter {
             let source = read_to_string(&file_name)?;
             state.captured_pipeline(file_name.to_string(), source);
         }
-        Ok(Self { state, repl_count: 0 })
+        Ok(Self {
+            state,
+            repl_count: 0,
+        })
     }
 
     pub fn new_with_file<P>(file_name: P) -> io::Result<Self>
@@ -83,24 +89,37 @@ impl Interpreter {
     }
 }
 
-pub fn render_tale_result_vec(prefix: &str, source_name: &str, source: String, trv: TaleResultVec<SymbolValue>) -> TaleResultVec<SymbolValue> {
+pub fn render_tale_result_vec(
+    prefix: &str,
+    source_name: &str,
+    source: String,
+    trv: TaleResultVec<SymbolValue>,
+) -> TaleResultVec<SymbolValue> {
     match trv {
         Ok(value) => {
             value.render(prefix);
             Ok(SymbolValue::Placeholder)
-        },
+        }
         Err(tev) => render_tale_error_vec(tev, source_name, source),
     }
 }
 
-pub fn render_tale_error_vec(tev: Vec<TaleError>, source_name: &str, source: String) -> TaleResultVec<SymbolValue> {
+pub fn render_tale_error_vec(
+    tev: Vec<TaleError>,
+    source_name: &str,
+    source: String,
+) -> TaleResultVec<SymbolValue> {
     for error in tev {
         Report::build(ariadne::ReportKind::Error, (source_name, error.span()))
             .with_message(format!("{:?} Error: {}", error.kind(), error.msg()))
-            .with_label(Label::new((source_name, error.span()))
-            .with_message("Problem occurred here.")
-            .with_color(Color::Red)
-        ).finish().eprint((source_name, Source::from(&source))).map_err(|err| TaleError::from(err))?;
+            .with_label(
+                Label::new((source_name, error.span()))
+                    .with_message("Problem occurred here.")
+                    .with_color(Color::Red),
+            )
+            .finish()
+            .eprint((source_name, Source::from(&source)))
+            .map_err(|err| TaleError::from(err))?;
     }
     Ok(SymbolValue::Placeholder)
 }

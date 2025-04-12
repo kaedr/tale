@@ -232,7 +232,7 @@ pub(crate) mod tests {
         use super::*;
 
         #[test]
-        #[cfg(not(target_os="windows"))]
+        #[cfg(not(target_os = "windows"))]
         fn tokenotomy() {
             let contents = read_sample_file_to_string("91_strings");
             let token_vec: Vec<_> = tokenize(&contents).unwrap();
@@ -282,7 +282,7 @@ pub(crate) mod tests {
         }
 
         #[test]
-        #[cfg(target_os="windows")]
+        #[cfg(target_os = "windows")]
         fn tokenotomy_windows() {
             let contents = read_sample_file_to_string("91_strings");
             let token_vec: Vec<_> = tokenize(&contents).unwrap();
@@ -1721,7 +1721,7 @@ pub(crate) mod tests {
             );
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
 
-            #[cfg(not(target_os="windows"))]
+            #[cfg(not(target_os = "windows"))]
             {
                 assert_eq!(
                     lex.next(),
@@ -1729,7 +1729,7 @@ pub(crate) mod tests {
                 );
             }
 
-            #[cfg(target_os="windows")]
+            #[cfg(target_os = "windows")]
             {
                 assert_eq!(
                     lex.next(),
@@ -1742,17 +1742,21 @@ pub(crate) mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
 
-            #[cfg(not(target_os="windows"))]
-            {assert_eq!(
-                lex.extras.1,
-                vec![(1, 27), (2, 53), (3, 61), (4, 66), (5, 76), (6, 79)]
-            );}
+            #[cfg(not(target_os = "windows"))]
+            {
+                assert_eq!(
+                    lex.extras.1,
+                    vec![(1, 27), (2, 53), (3, 61), (4, 66), (5, 76), (6, 79)]
+                );
+            }
 
-            #[cfg(target_os="windows")]
-            {assert_eq!(
-                lex.extras.1,
-                vec![(1, 28), (2, 55), (3, 64), (4, 70), (5, 81), (6, 85)]
-            );}
+            #[cfg(target_os = "windows")]
+            {
+                assert_eq!(
+                    lex.extras.1,
+                    vec![(1, 28), (2, 55), (3, 64), (4, 70), (5, 81), (6, 85)]
+                );
+            }
         }
 
         #[test]

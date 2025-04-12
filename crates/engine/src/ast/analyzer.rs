@@ -271,16 +271,20 @@ fn analyze_roll(
         (Expr::Atom(Atom::Ident(lhs)), Expr::Atom(Atom::Ident(rhs))) => {
             match (symbols.borrow().is_def(&lhs), symbols.borrow().is_def(&rhs)) {
                 (true, true) => (),
-                (true, false) => return Err(vec![TaleError::analyzer(
-                    target.source_span(),
-                    target.position(),
-                    format!("Roll target '{rhs}' is not defined"),
-                )]),
-                (false, true) => return Err(vec![TaleError::analyzer(
-                    reps.source_span(),
-                    reps.position(),
-                    format!("Roll reps '{lhs}' is not defined"),
-                )]),
+                (true, false) => {
+                    return Err(vec![TaleError::analyzer(
+                        target.source_span(),
+                        target.position(),
+                        format!("Roll target '{rhs}' is not defined"),
+                    )]);
+                }
+                (false, true) => {
+                    return Err(vec![TaleError::analyzer(
+                        reps.source_span(),
+                        reps.position(),
+                        format!("Roll reps '{lhs}' is not defined"),
+                    )]);
+                }
                 (false, false) => {
                     let joined = format!("{lhs} {rhs}");
                     if symbols.borrow().is_def(&joined) {
@@ -291,7 +295,7 @@ fn analyze_roll(
                             reps.source_span(),
                             reps.position(),
                             format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
-                        )])
+                        )]);
                     }
                 }
             }
@@ -316,13 +320,19 @@ impl Analyze for Atom {
                 } else {
                     Ok(())
                 }
-            },
+            }
             Atom::Str(_) => Ok(()),
-            Atom::Ident(id) => if symbols.borrow().is_def(id) { Ok(()) } else { Err(vec![TaleError::analyzer(
-                0..0,
-                (0, 0),
-                format!("Identifier '{id}' is not defined"),
-            )]) },
+            Atom::Ident(id) => {
+                if symbols.borrow().is_def(id) {
+                    Ok(())
+                } else {
+                    Err(vec![TaleError::analyzer(
+                        0..0,
+                        (0, 0),
+                        format!("Identifier '{id}' is not defined"),
+                    )])
+                }
+            }
             Atom::Raw(_) => Ok(()),
         }
     }

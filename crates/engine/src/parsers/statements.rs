@@ -217,9 +217,12 @@ pub fn modify<'src>() -> impl Parser<
         .as_context()
 }
 
-fn duration<'src>()
--> impl Parser<'src, &'src [Token], Duration, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
-+ Clone {
+fn duration<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    Duration,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+> + Clone {
     just(Token::All)
         .map(|_| Duration::All)
         .or(just(Token::Next)
