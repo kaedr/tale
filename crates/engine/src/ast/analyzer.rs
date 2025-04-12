@@ -353,16 +353,14 @@ impl Analyze for Duration {
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
-    use crate::utils::tests::read_sample_file_to_string;
+    use crate::samples::STATEMENT_ROLL;
 
     use crate::state::StateTable;
 
     #[test]
     fn analyze_roll() {
-        let name = "18_statement_roll.tale";
-        let source = read_sample_file_to_string(name);
         let table = StateTable::new();
-        table.add_source(name.to_string(), source);
+        table.add_source("roll".to_string(), STATEMENT_ROLL.to_string());
         table.lex_current();
         let errors = table.parse_current();
         assert_eq!(format!("{:?}", errors), "Ok(())");

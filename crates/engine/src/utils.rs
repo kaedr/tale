@@ -1,5 +1,4 @@
 #[cfg(test)]
-#[allow(unused_must_use)]
 pub(crate) mod tests {
     use std::{
         fs::{File, read_to_string},
@@ -35,12 +34,8 @@ pub(crate) mod tests {
     where
         P: AsRef<Path>,
     {
-        let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap();
-        workspace_root.join("samples").join(filename)
+        let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        workspace_root.join("src").join("samples").join(filename)
     }
 
     #[test]

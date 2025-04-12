@@ -1,0 +1,14 @@
+/ Tables may use a 'List' directive to have items separated by commas
+// rather than having each on a new line
+Table: Cardinal Directions
+List: North, South, East, West
+
+// While most of these examples will capitalize keywords, this is just for
+// clarity. TALE's keywords (as well as user defined identifiers)
+// are case insensitive, for example:
+table: ordinal directions
+list: Northeast, Northwest, Southeast, Southwest
+
+// Is effectively the same as:
+Table: Ordinal Directions
+List: Northeast, Northwest, Southeast, Southwest

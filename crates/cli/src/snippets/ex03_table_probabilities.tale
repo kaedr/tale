@@ -1,0 +1,33 @@
+// Varying Probabilities
+// If you want a set of outcomes where some are more likely than others
+// you can use a dash (-) to specify a range of roll values that will result
+// in the same outcome.
+Table: Quality
+1		Abysmal	// NOTE: On each line, the value is separated from its outcome
+2		Awful	// by one or more tab characters. Be careful, as some editors
+3-4		Poor	// have a setting to convert tabs to spaces, which will not
+5-8		Average	// work with TALE's syntax
+9-10	Good
+11		Great
+12		Exceptional
+End Table
+// When a roll is made on the above table, a random value between 1-12
+// will be generated (as if you'd rolled a d12) and looked up on the table
+// NOTE: When creating a table of this type, overlapping (e.g. 3-4 and 4-5)
+// or disjoint (e.g. 3-5 and 7-8) ranges are invalid and will cause an error
+
+// Some Tables vary their outcome distribution by using multiple dice.
+// This can be accomplished by adding a 'Roll:' directive followed by the type
+// of roll you want to use (e.g. 2d4)
+// NOTE: Rolls do not have to be a normal die value, any number of sides is valid
+// e.g. d3, d11, d33, d117
+Table: Quality
+Roll: 2d4
+2	Abysmal
+3	Awful
+4	Poor
+5	Average
+6	Good
+7	Great
+8	Exceptional
+End Table

@@ -1,0 +1,7 @@
+// Tags/Organization
+// A table can have a 'Tags:' directive between its 'Table:' directive
+// and its contents. This contains a comma separated list of descriptive terms
+// that apply to the table. These can be used to aid in organization.
+Table: CR0 Desert Monsters
+Tags: CR0, Desert, Monsters
+List: Cat, Hyena, Jackal, Lizard, Scorpion, Spider, Vulture

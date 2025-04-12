@@ -255,6 +255,7 @@ impl StateTable {
 
     pub fn evaluate_current(&self) -> TaleResultVec<SymbolValue> {
         if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
+            // println!("{}", ast);
             ast.eval(&self.symbols)
         } else {
             Err(

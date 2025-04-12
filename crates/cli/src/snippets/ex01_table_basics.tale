@@ -1,0 +1,13 @@
+// In TALE, the most basic form a Table takes is as follows:
+// The first line is the 'Table:' directive followed by a table name
+Table: Farm Animals
+Cow			// Each following line contains an item of that table
+Horse		// By default, each outcome is equally likely
+Pig			// Tables with varied probability will be addressed later
+Chicken
+End Table	// The table is explicitly terminated with the 'End Table' directive
+
+// NOTE: As seen above, comments (indicated by the starting character '//')
+// can be placed in most locations within a TALE file, these can be used to
+// annotate things for future reference. The comment will run from the '//'
+// until the end of the line

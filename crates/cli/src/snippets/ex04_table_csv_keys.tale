@@ -1,0 +1,19 @@
+// Multiple values can also be assigned to different outcomes using a comma
+// separated list in addition to the range notation
+Table: Hit Location
+Roll: 2d6
+2,12	Head
+3,11	Vitals
+4		Left Arm
+10		Right Arm
+5		Left Leg
+9		Right Leg
+6-8		Torso
+End Table
+
+// Combining ranges and comma separated values is supported too
+Table: Inside or Outside
+Roll: 2d6
+2-4,10-12	Outside
+5-9			Inside
+End Table

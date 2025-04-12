@@ -227,15 +227,15 @@ pub(crate) mod tests {
 
     #[cfg(test)]
     mod test_sample_files {
-        use crate::utils::tests::read_sample_file_to_string;
+        use crate::samples::*;
 
         use super::*;
 
         #[test]
         #[cfg(not(target_os = "windows"))]
         fn tokenotomy() {
-            let contents = read_sample_file_to_string("91_strings");
-            let token_vec: Vec<_> = tokenize(&contents).unwrap();
+
+            let token_vec: Vec<_> = tokenize(STRINGS).unwrap();
             assert_eq!(
                 token_vec[0..2],
                 [
@@ -284,8 +284,7 @@ pub(crate) mod tests {
         #[test]
         #[cfg(target_os = "windows")]
         fn tokenotomy_windows() {
-            let contents = read_sample_file_to_string("91_strings");
-            let token_vec: Vec<_> = tokenize(&contents).unwrap();
+            let token_vec: Vec<_> = tokenize(STRINGS).unwrap();
             assert_eq!(
                 token_vec[0..2],
                 [
@@ -333,8 +332,7 @@ pub(crate) mod tests {
 
         #[test]
         fn table_minimal() {
-            let contents = read_sample_file_to_string("01_table_minimal.tale");
-            let mut lex = Token::lexer(&contents);
+            let mut lex = Token::lexer(TABLE_MINIMAL);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
@@ -354,8 +352,7 @@ pub(crate) mod tests {
 
         #[test]
         fn table_roll_def() {
-            let contents = read_sample_file_to_string("02_table_roll_def.tale");
-            let mut lex = Token::lexer(&contents);
+            let mut lex = Token::lexer(TABLE_ROLL_DEF);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
@@ -375,8 +372,7 @@ pub(crate) mod tests {
 
         #[test]
         fn table_list() {
-            let contents = read_sample_file_to_string("03_table_list.tale");
-            let mut lex = Token::lexer(&contents);
+            let mut lex = Token::lexer(TABLE_LIST);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
@@ -399,8 +395,7 @@ pub(crate) mod tests {
 
         #[test]
         fn table_keyed_numeric() {
-            let contents = read_sample_file_to_string("04_table_keyed_numeric.tale");
-            let mut lex = Token::lexer(&contents);
+            let mut lex = Token::lexer(TABLE_KEYED_NUMERIC);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
@@ -443,8 +438,7 @@ pub(crate) mod tests {
 
         #[test]
         fn table_keyed_word() {
-            let contents = read_sample_file_to_string("05_table_keyed_word.tale");
-            let mut lex = Token::lexer(&contents);
+            let mut lex = Token::lexer(TABLE_KEYED_WORD);
 
             assert_eq!(lex.next(), Some(Ok(Token::Table)));
             assert_eq!(lex.next(), Some(Ok(Token::Colon)));
@@ -468,8 +462,7 @@ pub(crate) mod tests {
 
         #[test]
         fn table_group() {
-            let contents = read_sample_file_to_string("06_table_group.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(TABLE_GROUP);
 
             let token_vec: Vec<_> = lex.flatten().collect();
             assert_eq!(
@@ -928,8 +921,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_assignment() {
-            let contents = read_sample_file_to_string("11_statement_assignment.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_ASSIGNMENT);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1001,8 +993,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_expression() {
-            let contents = read_sample_file_to_string("10_statement_expression.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_EXPRESSION);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1042,8 +1033,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_clear() {
-            let contents = read_sample_file_to_string("12_statement_clear.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_CLEAR);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1093,8 +1083,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_invoke() {
-            let contents = read_sample_file_to_string("13_statement_invoke.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_INVOKE);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1123,8 +1112,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_load() {
-            let contents = read_sample_file_to_string("14_statement_load.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_LOAD);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1170,8 +1158,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_lookup() {
-            let contents = read_sample_file_to_string("15_statement_lookup.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_LOOKUP);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1223,8 +1210,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_modify() {
-            let contents = read_sample_file_to_string("16_statement_modify.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_MODIFY);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1284,8 +1270,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_output() {
-            let contents = read_sample_file_to_string("17_statement_output.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_OUTPUT);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1325,8 +1310,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_roll() {
-            let contents = read_sample_file_to_string("18_statement_roll.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_ROLL);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1504,8 +1488,7 @@ pub(crate) mod tests {
 
         #[test]
         fn statement_show() {
-            let contents = read_sample_file_to_string("19_statement_show.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(STATEMENT_SHOW);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1554,8 +1537,7 @@ pub(crate) mod tests {
 
         #[test]
         fn script() {
-            let contents = read_sample_file_to_string("21_script.tale");
-            let lex = Token::lexer(&contents);
+            let lex = Token::lexer(SCRIPT);
             let token_vec: Vec<_> = lex.flatten().collect();
 
             assert_eq!(
@@ -1630,7 +1612,7 @@ pub(crate) mod tests {
     #[cfg(test)]
     mod test_general_tokens {
 
-        use crate::utils::tests::read_sample_file_to_string;
+        use crate::samples::STRINGS;
 
         use super::*;
 
@@ -1707,8 +1689,7 @@ pub(crate) mod tests {
 
         #[test]
         fn strings() {
-            let contents = read_sample_file_to_string("91_strings");
-            let mut lex = Token::lexer(&contents);
+            let mut lex = Token::lexer(STRINGS);
 
             assert_eq!(
                 lex.next(),

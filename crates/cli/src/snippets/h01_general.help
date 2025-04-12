@@ -1,0 +1,12 @@
+     |
+-----+- General Help -------->
+     |
+     |  If you already have tables loaded, you can roll on them from the prompt:
+TALE +-> Roll on Magic Item Table A
+     |
+     |  Or you can load them:
+TALE +-> Load an_example_table_file.tale
+     |
+     |  For a list of topics you can get more help on, type:
+TALE +-> help topics
+     |

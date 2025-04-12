@@ -1,0 +1,8 @@
+// You can also define tables that have textual keys for performing lookups.
+// This is particularly useful if you have long strings of text that are used
+// in multiple other locations and you want to make reference to them.
+Table: Textual Lookup Keys
+Elves		Immortal, wisest and fairest of all beings.
+Dwarves		Great miners and craftsmen of the mountain halls.
+Humans		Who above all else desire power.
+End Table

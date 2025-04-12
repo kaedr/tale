@@ -12,6 +12,7 @@ use state::{StateTable, SymbolValue};
 
 mod error;
 mod state;
+mod samples;
 
 pub mod prelude {
     pub use crate::Interpreter;
@@ -129,7 +130,7 @@ pub fn render_tale_error_vec(
 mod tests {
     use chumsky::{extra::SimpleState, prelude::*};
 
-    use crate::{lexer::Token, state::SimpleParserState, utils::tests::sample_path};
+    use crate::{lexer::Token, samples::*, state::SimpleParserState, utils::tests::sample_path};
 
     use super::*;
 
@@ -173,9 +174,8 @@ mod tests {
         }
     }
 
-    fn streamline(file_name: &str) -> String {
-        let file_name = sample_path(file_name);
-        let terp = Interpreter::new_with_file(file_name.to_str().unwrap()).unwrap();
+    fn streamline(source: &str) -> String {
+        let terp = Interpreter::new_with_source_string(source.to_string());
         format!("{:?}", terp.current_output())
     }
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_01() {
-        let output = streamline("01_table_minimal.tale");
+        let output = streamline(TABLE_MINIMAL);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_02() {
-        let output = streamline("02_table_roll_def.tale");
+        let output = streamline(TABLE_ROLL_DEF);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_03() {
-        let output = streamline("03_table_list.tale");
+        let output = streamline(TABLE_LIST);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_04() {
-        let output = streamline("04_table_keyed_numeric.tale");
+        let output = streamline(TABLE_KEYED_NUMERIC);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_05() {
-        let output = streamline("05_table_keyed_word.tale");
+        let output = streamline(TABLE_KEYED_WORD);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_06() {
-        let output = streamline("06_table_group.tale");
+        let output = streamline(TABLE_GROUP);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([List([Table(Node"));
         assert!(output.ends_with("})])]))"));
@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_10_expr() {
-        let output = streamline("10_statement_expression.tale");
+        let output = streamline(STATEMENT_EXPRESSION);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Numeric("));
         assert!(output.ends_with(")]))"));
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_11_assign() {
-        let output = streamline("11_statement_assignment.tale");
+        let output = streamline(STATEMENT_ASSIGNMENT);
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Eval"));
         assert!(output.ends_with("}])"));
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_12_clear() {
-        let output = streamline("12_statement_clear.tale");
+        let output = streamline(STATEMENT_CLEAR);
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_13_invoke() {
-        let output = streamline("13_statement_invoke.tale");
+        let output = streamline(STATEMENT_INVOKE);
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
@@ -327,14 +327,14 @@ mod tests {
 
     #[test]
     fn pipeline_full_14_load() {
-        let output = streamline("14_statement_load.tale");
+        let output = streamline(STATEMENT_LOAD);
         println!("{}", output);
         assert_eq!("", output)
     }
 
     #[test]
     fn pipeline_full_15_lookup() {
-        let output = streamline("15_statement_lookup.tale");
+        let output = streamline(STATEMENT_LOOKUP);
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Evaluation"));
         assert!(output.ends_with("}])"));
@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_16_modify() {
-        let output = streamline("16_statement_modify.tale");
+        let output = streamline(STATEMENT_MODIFY);
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_17_output() {
-        let output = streamline("17_statement_output.tale");
+        let output = streamline(STATEMENT_OUTPUT);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([String(\"There are "));
         assert!(output.ends_with(
@@ -382,10 +382,10 @@ mod tests {
 
     #[test]
     fn pipeline_full_18_roll() {
-        let output = streamline("18_statement_roll.tale");
+        let output = streamline(STATEMENT_ROLL);
         println!("{}", output);
         assert_eq!(
-            "Err([TaleError { kind: Analysis, span: 271..275, position: (10, 5), msg: \"Roll: neither 'farm' nor 'animals' are defined\" }])",
+            "Err([TaleError { kind: Analysis, span: 262..266, position: (10, 5), msg: \"Roll: neither 'farm' nor 'animals' are defined\" }])",
             output
         )
     }
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_19_show() {
-        let output = streamline("19_statement_show.tale");
+        let output = streamline(STATEMENT_SHOW);
         println!("{}", output);
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_21_scripts() {
-        let output = streamline("21_script.tale");
+        let output = streamline(SCRIPT);
         println!("{}", output);
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_92_supporting_defs() {
-        let output = streamline("92_supporting_defs.tale");
+        let output = streamline(SUPPORTING_DEFS);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_93_scopes() {
-        let output = streamline("93_scoping.tale");
+        let output = streamline(SCOPING);
         println!("{}", output);
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_94_distributions() {
-        let output = streamline("94_distributions.tale");
+        let output = streamline(DISTRIBUTIONS);
         //println!("{}", output);
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
@@ -551,7 +551,7 @@ mod tests {
 
     #[test]
     fn pipeline_full_95_recursion() {
-        let output = streamline("95_recursion.tale");
+        let output = streamline(RECURSION);
         println!("{}", output);
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));

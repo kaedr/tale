@@ -509,6 +509,8 @@ fn roll_invoke_or_err(
     match target {
         SymbolValue::Script(script) => script.inner_t().invoke(symbols),
         SymbolValue::Table(table) => table.inner_t().roll_on(symbols),
+        SymbolValue::Numeric(_) => Ok(target),
+        SymbolValue::String(_) => Ok(target),
         _ => Err(vec![TaleError::evaluator(
             0..0,
             (0, 0),

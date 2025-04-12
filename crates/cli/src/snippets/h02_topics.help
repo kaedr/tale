@@ -1,0 +1,7 @@
+     |
+-----+- Help Topics --------->
+     |  Definition Constructs:
+     |  Table, Table Group, Script
+     |  These can only be written in '.tale' files, not defined at the prompt.
+     |  Type: 'help table', 'help table group', or 'help script' for more info.
+

@@ -1,10 +1,14 @@
 use std::io;
 
 use clap::Parser;
+use help::help;
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, Result};
 
 use tale_lib::prelude::*;
+
+mod snippets;
+mod help;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -12,18 +16,31 @@ struct CLI {
     files: Vec<String>,
 }
 
-const LOAD_LINE: &str = "TALE +- Loading:";
+const LOAD_LINE: &str = "TALE +-  Loading:";
+const WELCOME: &str = "Welcome to TALE!";
+const TIP: &str = "Type a command to get started, 'help' if you're unsure what to do, or CTRL+C to exit.";
 const PROMPT: &str = "TALE +-> ";
 const SIDEBAR: &str = "     |   ";
 
+fn print_arrowed(banner: &str) {
+    let padded = format!(" {} ", banner);
+    println!("-----+-{:-<21}->", padded);
+}
+
+fn print_sidebarred(text: &str) {
+    println!("{}{}", SIDEBAR, text)
+}
+
 fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
-    match input.to_lowercase().as_str() {
-        "help" => println!("{}TODO: Help messages!", SIDEBAR),
-        _ => engine
+    let lc_input = input.to_lowercase();
+    if lc_input.starts_with("help") {
+        help(lc_input.as_str(), SIDEBAR);
+    } else {
+        engine
             .execute(SIDEBAR, input)
             .map_err(|err| io::Error::other(format!("-{:?}", err)))?
-            .render(SIDEBAR),
-    };
+            .render(SIDEBAR);
+    }
     Ok(())
 }
 
@@ -42,11 +59,11 @@ fn repl(mut engine: Interpreter) -> Result<()> {
                 process_input(&mut engine, line)?;
             }
             Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
+                println!("CTRL+C");
                 break;
             }
             Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
+                println!("CTRL+D");
                 break;
             }
             Err(err) => {
@@ -71,9 +88,11 @@ fn main() -> Result<()> {
                 println!("{LOAD_LINE} {file}");
                 engine
                     .render_output_of(SIDEBAR, file)
-                    .map_err(|err| io::Error::other(format!("--{:?}", err)))?
+                    .map_err(|err| io::Error::other(format!("{:?}", err)))?
                     .render(SIDEBAR);
             }
+            print_arrowed(WELCOME);
+            print_sidebarred(TIP);
             Ok(repl(engine)?)
         }
         Err(err) => Err(err.into()),
