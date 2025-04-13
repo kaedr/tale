@@ -1,6 +1,12 @@
 //! Contains functions related to displaying help
 
-use crate::{print_arrowed, print_sidebarred, snippets::{EXAMPLE_TABLE_BASICS, HELP_GENERAL, HELP_TOPICS}};
+use crate::{
+    print_arrowed, print_sidebarred,
+    snippets::{
+        EXAMPLE_TABLE_BASICS, EXAMPLE_TABLE_CSV_KEYS, EXAMPLE_TABLE_LIST, EXAMPLE_TABLE_LOOKUP,
+        EXAMPLE_TABLE_PROBABILITIES, EXAMPLE_TABLE_TAGS, HELP_GENERAL, HELP_TOPICS,
+    },
+};
 
 pub fn help(lc_input: &str, prefix: &str) {
     let mut help_strs = lc_input.split_whitespace();
@@ -15,7 +21,7 @@ pub fn help(lc_input: &str, prefix: &str) {
             Topic::Unknown(topic) => {
                 println!("{}Uknown help topic: {}", prefix, topic);
                 println!("{}Type: 'help topics' for a list of valid topics", prefix)
-            },
+            }
         }
     } else {
         print!("{}", HELP_GENERAL);
@@ -24,11 +30,19 @@ pub fn help(lc_input: &str, prefix: &str) {
 
 fn table_help(maybe_sub_topic: Option<&str>) {
     match maybe_sub_topic {
-        Some(sub_topic) if sub_topic == "list" => todo!(),
-        Some(sub_topic) if sub_topic == "probabilities" => todo!(),
-        Some(sub_topic) if sub_topic == "keys" => todo!(),
-        Some(sub_topic) if sub_topic == "lookup" => todo!(),
-        Some(sub_topic) if sub_topic == "tags" => todo!(),
+        Some(sub_topic) if sub_topic == "list" => {
+            flanked_example("Table List Form", EXAMPLE_TABLE_LIST)
+        }
+        Some(sub_topic) if sub_topic == "probabilities" => {
+            flanked_example("Table Probabilities", EXAMPLE_TABLE_PROBABILITIES)
+        }
+        Some(sub_topic) if sub_topic == "keys" => {
+            flanked_example("Table Key Variants", EXAMPLE_TABLE_CSV_KEYS)
+        }
+        Some(sub_topic) if sub_topic == "lookup" => {
+            flanked_example("Table Textual Keys", EXAMPLE_TABLE_LOOKUP)
+        }
+        Some(sub_topic) if sub_topic == "tags" => flanked_example("Table Tags", EXAMPLE_TABLE_TAGS),
         _ => {
             flanked_example("Table Basics", EXAMPLE_TABLE_BASICS);
             print_sidebarred("Type: 'help table list', 'help table probabilities',");

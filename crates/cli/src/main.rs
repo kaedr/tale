@@ -7,8 +7,8 @@ use rustyline::{DefaultEditor, Result};
 
 use tale_lib::prelude::*;
 
-mod snippets;
 mod help;
+mod snippets;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -18,7 +18,8 @@ struct CLI {
 
 const LOAD_LINE: &str = "TALE +-  Loading:";
 const WELCOME: &str = "Welcome to TALE!";
-const TIP: &str = "Type a command to get started, 'help' if you're unsure what to do, or CTRL+C to exit.";
+const TIP: &str =
+    "Type a command to get started, 'help' if you're unsure what to do, or CTRL+C to exit.";
 const PROMPT: &str = "TALE +-> ";
 const SIDEBAR: &str = "     |   ";
 

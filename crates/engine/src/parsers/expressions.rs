@@ -503,6 +503,15 @@ mod tests {
             format!("{output}")
         );
 
+        let mut p_state =
+            ParserState::from_source("Immortal, wisest and fairest of all beings.".into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, any_expr());
+        assert_eq!(
+            r#"!["Immortal, wisest and fairest of all beings."]!"#,
+            format!("{output}")
+        );
+
         let mut p_state = ParserState::from_source("[one @ two]".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, interpolation());

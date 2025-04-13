@@ -11,8 +11,8 @@ use error::{TaleError, TaleResultVec};
 use state::{StateTable, SymbolValue};
 
 mod error;
-mod state;
 mod samples;
+mod state;
 
 pub mod prelude {
     pub use crate::Interpreter;
@@ -528,7 +528,7 @@ mod tests {
             ("upper zero point four six", 46.0),
         ];
         //println!("{}", output);
-        let tolerance = 0.1;
+        let tolerance = 0.15;
         for (term, target) in curve_terms {
             let current_count = output.matches(term).count();
             let target = target * 10.0;

@@ -193,7 +193,23 @@ fn table_rows<'src>() -> impl Parser<
     RcNode<TableRows>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    let list_form = just(Token::List)
+    table_list()
+        .or(table_flat_rows()
+            .or(table_keyed_form())
+            .then_ignore(just(Token::End).then(just(Token::Table))))
+        .or(just(Token::End)
+            .then(just(Token::Table))
+            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
+        .then_ignore(just(Token::NewLines).ignored().or(end()))
+}
+
+fn table_list<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<TableRows>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+> + Clone {
+    just(Token::List)
         .then(just(Token::Colon))
         .ignore_then(
             ident()
@@ -204,31 +220,39 @@ fn table_rows<'src>() -> impl Parser<
                 .separated_by(just(Token::Comma))
                 .collect::<Vec<_>>(),
         )
-        .map_with(full_rc_node);
+        .map_with(full_rc_node)
+        .labelled("Table Rows (List)")
+}
 
-    let flat_form = any_statement()
+fn table_flat_rows<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<TableRows>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+> + Clone {
+    any_statement()
         .then_ignore(just(Token::NewLines))
         .repeated()
         .at_least(1)
         .collect()
-        .map_with(|rows, extra| full_rc_node(TableRows::Flat(rows), extra));
+        .map_with(|rows, extra| full_rc_node(TableRows::Flat(rows), extra))
+        .labelled("Table Rows (Flat)")
+}
 
-    let keyed_form = row_key()
+fn table_keyed_form<'src>() -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<TableRows>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+> + Clone {
+    row_key()
         .then(any_statement())
         .then_ignore(just(Token::NewLines))
         .repeated()
         .at_least(1)
         .collect()
-        .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra));
-
-    list_form
-        .or(flat_form
-            .or(keyed_form)
-            .then_ignore(just(Token::End).then(just(Token::Table))))
-        .or(just(Token::End)
-            .then(just(Token::Table))
-            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
-        .then_ignore(just(Token::NewLines).ignored().or(end()))
+        .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra))
+        .labelled("Table Rows (Keyed)")
 }
 
 fn table_headings<'src>() -> impl Parser<
@@ -279,6 +303,7 @@ fn table_headings<'src>() -> impl Parser<
             ))
         })
         .boxed()
+        .labelled("Table Headings")
 }
 
 fn tags_directive<'src>() -> impl Parser<
@@ -375,6 +400,20 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table());
         assert_eq!("Table: `keyed`, 1d7, 4 Rows", format!("{output}"));
+    }
+
+    #[test]
+    fn parse_table_rows() {
+        let source = "Elves		Immortal, wisest and fairest of all beings.
+                            Dwarves		Great miners and craftsmen of the mountain halls.
+                            Humans		Who above all else desire power.";
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_rows());
+        assert_eq!(
+            "![\"Immortal, wisest and fairest of all beings.\"]!",
+            output
+        );
     }
 
     #[test]

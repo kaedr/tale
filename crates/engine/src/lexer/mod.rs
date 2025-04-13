@@ -234,7 +234,6 @@ pub(crate) mod tests {
         #[test]
         #[cfg(not(target_os = "windows"))]
         fn tokenotomy() {
-
             let token_vec: Vec<_> = tokenize(STRINGS).unwrap();
             assert_eq!(
                 token_vec[0..2],
