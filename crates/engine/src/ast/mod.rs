@@ -7,6 +7,7 @@ use std::{ops::Range, rc::Rc};
 use crate::error::{TaleError, TaleResultVec};
 use crate::lexer::{Position, Token};
 use crate::parsers::Op;
+use crate::state::StateTable;
 use chumsky::prelude::*;
 use chumsky::span::Span;
 pub use eval::Eval;
@@ -298,6 +299,16 @@ impl Atom {
             Self::Str(s) => s.to_lowercase(),
             Self::Ident(s) => s.to_lowercase(),
             Self::Raw(token) => token.to_lowercase(),
+        }
+    }
+
+    pub fn bare_str(&self) -> String {
+        match self {
+            Atom::Number(n) => format!("{}", n),
+            Atom::Dice(n, s) => format!("{}d{}", n, s),
+            Atom::Str(s) => format!("{}", s),
+            Atom::Ident(s) => format!("{}", s),
+            Atom::Raw(token) => format!("{}", token),
         }
     }
 
@@ -637,11 +648,15 @@ impl Script {
         &self.name
     }
 
-    pub fn invoke(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
+    pub fn invoke(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
+    ) -> TaleResultVec<SymbolValue> {
         let stack_happy = symbols.borrow_mut().push_scope();
         match stack_happy {
             Ok(_) => {
-                let output = self.statements.eval(symbols);
+                let output = self.statements.eval(symbols, state);
                 symbols.borrow_mut().pop_scope();
                 output
             }
@@ -735,16 +750,23 @@ impl Table {
         &self.tags
     }
 
-    pub fn roll_on(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
-        let roll_value = self.roll.eval(symbols)?;
+    pub fn roll_on(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
+    ) -> TaleResultVec<SymbolValue> {
+        let roll_value = self.roll.eval(symbols, state)?;
         match &*self.rows.inner_t() {
             TableRows::Empty => Ok(roll_value),
             TableRows::List(atoms) => {
-                list_form_match(self.roll_offset(symbols, roll_value)?, atoms)
+                list_form_match(self.roll_offset(symbols, state, roll_value)?, atoms)
             }
-            TableRows::Flat(nodes) => {
-                flat_form_match(symbols, self.roll_offset(symbols, roll_value)?, nodes)
-            }
+            TableRows::Flat(nodes) => flat_form_match(
+                symbols,
+                state,
+                self.roll_offset(symbols, state, roll_value)?,
+                nodes,
+            ),
             TableRows::Keyed(items) => {
                 match self
                     .rows
@@ -752,10 +774,11 @@ impl Table {
                     .expect("Analyzer Bug: Missing table key type!")
                     .as_str()
                 {
-                    "numeric" => num_keyed_form_match(symbols, roll_value, items),
+                    "numeric" => num_keyed_form_match(symbols, state, roll_value, items),
                     "text" => text_keyed_form_match(
                         symbols,
-                        self.roll_offset(symbols, roll_value)?,
+                        state,
+                        self.roll_offset(symbols, state, roll_value)?,
                         items,
                     ),
                     _ => unreachable!("Analyzer Bug: Invalid table key type!"),
@@ -763,7 +786,7 @@ impl Table {
             }
             TableRows::SubTables(nodes) => nodes
                 .iter()
-                .map(|node| node.inner_t().roll_on(symbols))
+                .map(|node| node.inner_t().roll_on(symbols, state))
                 .collect(),
         }
     }
@@ -771,9 +794,10 @@ impl Table {
     fn roll_offset(
         &self,
         symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
         val: SymbolValue,
     ) -> TaleResultVec<SymbolValue> {
-        let offset = Self::calc_floor(symbols, &self.roll)?;
+        let offset = Self::calc_floor(symbols, state, &self.roll)?;
         match val {
             SymbolValue::Numeric(_) => val.operation(Op::Sub, &offset),
             other => Ok(other),
@@ -782,34 +806,29 @@ impl Table {
 
     fn calc_floor(
         symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
         expr: &RcNode<Expr>,
     ) -> TaleResultVec<SymbolValue> {
         match &*expr.inner_t() {
             Expr::Atom(atom) => match atom {
-                Atom::Number(_) => atom.eval(symbols),
+                Atom::Number(_) => atom.eval(symbols, state),
                 Atom::Dice(x, _) => Ok(SymbolValue::Numeric((*x - 1) as isize)),
-                Atom::Ident(_) => atom.eval(symbols),
+                Atom::Ident(_) => atom.eval(symbols, state),
                 _ => unimplemented!("calc_floor is only valid for arithmetic expressions!"),
             },
-            Expr::Neg(node) => Self::calc_floor(symbols, node),
-            Expr::Add(lhs, rhs) => {
-                Self::calc_floor(symbols, lhs)?.operation(Op::Add, &Self::calc_floor(symbols, rhs)?)
-            }
-            Expr::Sub(lhs, rhs) => {
-                Self::calc_floor(symbols, lhs)?.operation(Op::Sub, &Self::calc_floor(symbols, rhs)?)
-            }
-            Expr::Mul(lhs, rhs) => {
-                Self::calc_floor(symbols, lhs)?.operation(Op::Mul, &Self::calc_floor(symbols, rhs)?)
-            }
-            Expr::Div(lhs, rhs) => {
-                Self::calc_floor(symbols, lhs)?.operation(Op::Div, &Self::calc_floor(symbols, rhs)?)
-            }
-            Expr::Mod(lhs, rhs) => {
-                Self::calc_floor(symbols, lhs)?.operation(Op::Mod, &Self::calc_floor(symbols, rhs)?)
-            }
-            Expr::Pow(lhs, rhs) => {
-                Self::calc_floor(symbols, lhs)?.operation(Op::Pow, &Self::calc_floor(symbols, rhs)?)
-            }
+            Expr::Neg(node) => Self::calc_floor(symbols, state, node),
+            Expr::Add(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Add, &Self::calc_floor(symbols, state, rhs)?),
+            Expr::Sub(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Sub, &Self::calc_floor(symbols, state, rhs)?),
+            Expr::Mul(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Mul, &Self::calc_floor(symbols, state, rhs)?),
+            Expr::Div(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Div, &Self::calc_floor(symbols, state, rhs)?),
+            Expr::Mod(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Mod, &Self::calc_floor(symbols, state, rhs)?),
+            Expr::Pow(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Pow, &Self::calc_floor(symbols, state, rhs)?),
             _ => unimplemented!("calc_floor is only valid for arithmetic expressions!"),
         }
     }
@@ -817,12 +836,13 @@ impl Table {
     pub fn lookup(
         &self,
         symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
         key: SymbolValue,
     ) -> TaleResultVec<SymbolValue> {
         match &*self.rows.inner_t() {
             TableRows::Empty => Ok(key),
             TableRows::List(atoms) => list_form_match(key, atoms),
-            TableRows::Flat(nodes) => flat_form_match(symbols, key, nodes),
+            TableRows::Flat(nodes) => flat_form_match(symbols, state, key, nodes),
             TableRows::Keyed(items) => {
                 match self
                     .rows
@@ -830,14 +850,14 @@ impl Table {
                     .expect("Analyzer Bug: Missing table key type!")
                     .as_str()
                 {
-                    "numeric" => num_keyed_form_match(symbols, key, items),
-                    "text" => text_keyed_form_match(symbols, key, items),
+                    "numeric" => num_keyed_form_match(symbols, state, key, items),
+                    "text" => text_keyed_form_match(symbols, state, key, items),
                     _ => unreachable!("Analyzer Bug: Invalid table key type!"),
                 }
             }
             TableRows::SubTables(nodes) => nodes
                 .iter()
-                .map(|node| node.inner_t().lookup(symbols, key.clone()))
+                .map(|node| node.inner_t().lookup(symbols, state, key.clone()))
                 .collect(),
         }
     }
@@ -851,7 +871,7 @@ impl Table {
             Duration::All => self.modifiers.clear(),
             Duration::Next(value) => {
                 let amount = value
-                    .eval(&RefCell::new(SymbolTable::new()))
+                    .eval(&Default::default(), &Default::default())
                     .expect("Error evaluating Clear Duration");
                 if let SymbolValue::Numeric(amount) = amount {
                     self.modifiers = self
@@ -888,21 +908,25 @@ fn list_form_match(key: SymbolValue, atoms: &Vec<Atom>) -> TaleResultVec<SymbolV
 
 fn flat_form_match(
     symbols: &RefCell<SymbolTable>,
+    state: &StateTable,
     key: SymbolValue,
     nodes: &Vec<RcNode<Statement>>,
 ) -> TaleResultVec<SymbolValue> {
     match key {
-        SymbolValue::Numeric(n) if n < 1 => nodes[0].eval(symbols),
+        SymbolValue::Numeric(n) if n < 1 => nodes[0].eval(symbols, state),
         SymbolValue::Numeric(n) if n > 0 && (n as usize) < nodes.len() => {
-            nodes[n as usize - 1].eval(symbols)
+            nodes[n as usize - 1].eval(symbols, state)
         }
-        SymbolValue::Numeric(n) if n >= nodes.len() as isize => nodes.last().unwrap().eval(symbols),
+        SymbolValue::Numeric(n) if n >= nodes.len() as isize => {
+            nodes.last().unwrap().eval(symbols, state)
+        }
         _ => Ok(SymbolValue::Placeholder),
     }
 }
 
 fn num_keyed_form_match(
     symbols: &RefCell<SymbolTable>,
+    state: &StateTable,
     key: SymbolValue,
     items: &Vec<(RcNode<Expr>, RcNode<Statement>)>,
 ) -> TaleResultVec<SymbolValue> {
@@ -910,7 +934,7 @@ fn num_keyed_form_match(
         SymbolValue::Numeric(key) => {
             let mut closest = (usize::MAX, 0usize);
             for (idx, (row_keys, _)) in items.iter().enumerate() {
-                match row_keys.eval(symbols)? {
+                match row_keys.eval(symbols, state)? {
                     SymbolValue::List(candidates) => {
                         let closest_this_row = num_key_matcher(key, candidates);
                         closest = if closest.0 > closest_this_row {
@@ -925,7 +949,7 @@ fn num_keyed_form_match(
                     ),
                 }
             }
-            items[closest.1].1.eval(symbols)
+            items[closest.1].1.eval(symbols, state)
         }
         _ => Ok(SymbolValue::Placeholder),
     }
@@ -952,16 +976,17 @@ fn num_key_matcher(key: isize, candidates: Vec<SymbolValue>) -> usize {
 
 fn text_keyed_form_match(
     symbols: &RefCell<SymbolTable>,
+    state: &StateTable,
     key: SymbolValue,
     items: &Vec<(RcNode<Expr>, RcNode<Statement>)>,
 ) -> TaleResultVec<SymbolValue> {
     match key {
         SymbolValue::String(key) => {
             for (row_keys, stmt) in items.iter() {
-                match row_keys.eval(symbols)? {
+                match row_keys.eval(symbols, state)? {
                     SymbolValue::String(candidate) => {
                         if key == candidate {
-                            return stmt.eval(symbols);
+                            return stmt.eval(symbols, state);
                         }
                     }
                     other => unreachable!(
@@ -972,12 +997,12 @@ fn text_keyed_form_match(
             }
             Ok(SymbolValue::Placeholder)
         }
-        SymbolValue::Numeric(n) if n < 1 => items[0].1.eval(symbols),
+        SymbolValue::Numeric(n) if n < 1 => items[0].1.eval(symbols, state),
         SymbolValue::Numeric(n) if n > 0 && (n as usize) < items.len() => {
-            items[n as usize - 1].1.eval(symbols)
+            items[n as usize - 1].1.eval(symbols, state)
         }
         SymbolValue::Numeric(n) if n >= items.len() as isize => {
-            items.last().unwrap().1.eval(symbols)
+            items.last().unwrap().1.eval(symbols, state)
         }
         _ => Ok(SymbolValue::Placeholder),
     }
@@ -1228,7 +1253,7 @@ impl Duration {
             Duration::All => true,
             Duration::Next(node) => {
                 let value = node
-                    .eval(&RefCell::new(SymbolTable::new()))
+                    .eval(&Default::default(), &Default::default())
                     .expect("Error evaluating Duration");
                 if let SymbolValue::Numeric(num) = value {
                     let new_value = num as isize - amount;

@@ -135,7 +135,7 @@ impl Analyze for Table {
         match &*self.rows.inner_t() {
             TableRows::Keyed(items) => {
                 match items.iter().try_fold(SymbolValue::Placeholder, |prev, row| {
-                    match (&prev, row.0.inner_t().eval(symbols)?) {
+                    match (&prev, row.0.inner_t().eval(symbols, &Default::default())?) {
                         (SymbolValue::Placeholder, other) => Ok(other),
                         (SymbolValue::List(_), SymbolValue::List(item)) => Ok(SymbolValue::List(item)),
                         (SymbolValue::String(_), SymbolValue::String(item)) => Ok(SymbolValue::String(item)),
@@ -353,21 +353,24 @@ impl Analyze for Duration {
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
+    use std::cell::RefCell;
+
     use crate::samples::STATEMENT_ROLL;
 
-    use crate::state::StateTable;
+    use crate::state::{StateTable, SymbolTable};
 
     #[test]
     fn analyze_roll() {
-        let table = StateTable::new();
+        let table = StateTable::default();
+        let symbols: RefCell<SymbolTable> = Default::default();
         table.add_source("roll".to_string(), STATEMENT_ROLL.to_string());
         table.lex_current();
         let errors = table.parse_current();
         assert_eq!(format!("{:?}", errors), "Ok(())");
 
-        table.symbols_mut().register("farm animals".to_string());
+        symbols.borrow_mut().register("farm animals".to_string());
 
-        let outcome = table.analyze_current();
+        let outcome = table.analyze_current(&symbols);
         assert!(
             outcome.is_ok(),
             "Analysis failed with errors: {:?}",
