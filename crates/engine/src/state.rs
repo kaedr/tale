@@ -13,6 +13,7 @@ use crate::{
     ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
     lexer::{Lexicon, Position, Token, tokenize},
     parsers::{Op, parser},
+    render_tale_result_vec,
 };
 
 use crate::error::TaleResultVec;
@@ -78,23 +79,23 @@ impl ParserState {
 
 #[derive(Debug)]
 pub struct StateTable {
+    prefix: &'static str,
     current: RefCell<String>,
     sources: StateCellMap<String>,
     tokens: StateCellMap<Lexicon>,
-    asts: StateCellMap<AST>,
+    asts: StateCellMap<Rc<AST>>,
     outputs: StateCellMap<TaleResultVec<SymbolValue>>,
-    symbols: RefCell<SymbolTable>,
 }
 
 impl StateTable {
-    pub fn new() -> Self {
+    pub fn new(prefix: &'static str) -> Self {
         Self {
+            prefix,
             current: Default::default(),
             sources: Default::default(),
             tokens: Default::default(),
             asts: Default::default(),
             outputs: Default::default(),
-            symbols: Default::default(),
         }
     }
 
@@ -126,26 +127,22 @@ impl StateTable {
         }
     }
 
-    pub fn symbols(&self) -> Ref<SymbolTable> {
-        self.symbols.borrow()
-    }
-
-    pub fn symbols_mut(&self) -> RefMut<SymbolTable> {
-        self.symbols.borrow_mut()
-    }
-
-    pub fn asts(&self) -> StateCellMap<AST> {
+    pub fn asts(&self) -> StateCellMap<Rc<AST>> {
         self.asts.clone()
     }
 
     pub fn add_source(&self, name: String, source: String) -> TaleResult<()> {
         *self.current.borrow_mut() = name.clone();
         match self.sources.borrow_mut().insert(name, source) {
-            Some(overwritten) => Err(TaleError::system(format!(
-                "Attempted to overwrite previous source: {}\nWith: {}",
-                self.current(),
-                overwritten.chars().take(50).collect::<Box<str>>()
-            ))),
+            Some(_overwritten) => {
+                // TODO: Implement Warnings
+                // Err(TaleError::system(format!(
+                //     "Attempted to overwrite previous source: {}\nWith: {}",
+                //     self.current(),
+                //     overwritten.chars().take(50).collect::<Box<str>>()
+                // )))
+                Ok(())
+            }
             None => Ok(()),
         }
     }
@@ -166,39 +163,35 @@ impl StateTable {
             .borrow_mut()
             .insert(self.current_clone(), lexicon)
         {
-            Some(_) => Err(TaleError::lexer(
-                0..0,
-                (0, 0),
-                format!(
-                    "Attempted to overwrite previous lexicon of: {}",
-                    self.current()
-                ),
-            )
-            .into()),
+            Some(_) => Ok(()),
+            // Err(TaleError::lexer(
+            //     0..0,
+            //     (0, 0),
+            //     format!(
+            //         "Attempted to overwrite previous lexicon of: {}",
+            //         self.current()
+            //     ),
+            // )
+            // .into()),
             None => Ok(()),
         }
     }
 
     pub fn parse_current(&self) -> TaleResultVec<()> {
+        let current = self.current().clone();
         let the_errs;
-        let tokens = self.get_tokens(&*self.current())?;
+        let tokens = self.get_tokens(&current)?;
         let source = self
             .sources
             .borrow()
-            .get(&*self.current())
-            .ok_or(TaleError::system(format!(
-                "No source for: {}",
-                self.current()
-            )))?
+            .get(&current)
+            .ok_or(TaleError::system(format!("No source for: {}", &current)))?
             .clone();
         let lexicon = self
             .tokens
             .borrow()
-            .get(&*self.current())
-            .ok_or(TaleError::system(format!(
-                "No source for: {}",
-                self.current()
-            )))?
+            .get(&current)
+            .ok_or(TaleError::system(format!("No source for: {}", &current)))?
             .clone();
         let mut state_inner = ParserState::new(source, lexicon);
         let output = {
@@ -229,22 +222,24 @@ impl StateTable {
             match self
                 .asts
                 .borrow_mut()
-                .insert(self.current_clone(), AST::new(output))
+                .insert(self.current_clone(), AST::new(output).into())
             {
-                Some(_) => Err(TaleError::parser(
-                    0..0,
-                    (0, 0),
-                    format!("Attempted to overwrite previous AST of: {}", self.current()),
-                )
-                .into()),
+                Some(_) => Ok(()),
+                // Err(TaleError::parser(
+                //     0..0,
+                //     (0, 0),
+                //     format!("Attempted to overwrite previous AST of: {}", self.current()),
+                // )
+                // .into()),
                 None => Ok(()),
             }
         }
     }
 
-    pub fn analyze_current(&self) -> TaleResultVec<()> {
-        if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
-            ast.analyze(&self.symbols)
+    pub fn analyze_current(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        let maybe_ast = self.asts.borrow_mut().get(&*self.current()).cloned();
+        if let Some(ast) = maybe_ast {
+            ast.analyze(symbols)
         } else {
             Err(
                 TaleError::analyzer(0..0, (0, 0), format!("No AST named: {}", self.current()))
@@ -253,10 +248,11 @@ impl StateTable {
         }
     }
 
-    pub fn evaluate_current(&self) -> TaleResultVec<SymbolValue> {
-        if let Some(ast) = self.asts.borrow_mut().get_mut(&*self.current()) {
+    pub fn evaluate_current(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
+        let maybe_ast = self.asts.borrow_mut().get(&*self.current()).cloned();
+        if let Some(ast) = maybe_ast {
             // println!("{}", ast);
-            ast.eval(&self.symbols)
+            ast.eval(symbols, &self)
         } else {
             Err(
                 TaleError::analyzer(0..0, (0, 0), format!("No AST named: {}", self.current()))
@@ -265,29 +261,49 @@ impl StateTable {
         }
     }
 
-    pub fn pipeline(&self, name: String, source: String) -> TaleResultVec<SymbolValue> {
+    pub fn pipeline(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        name: String,
+        source: String,
+    ) -> TaleResultVec<SymbolValue> {
         self.add_source(name, source)?;
         self.lex_current()?;
         self.parse_current()?;
-        self.analyze_current()?;
-        self.evaluate_current()
+        self.analyze_current(symbols)?;
+        self.evaluate_current(symbols)
     }
 
-    pub fn captured_pipeline(&self, name: String, source: String) {
-        let output = self.pipeline(name, source);
+    pub fn captured_pipeline(&self, symbols: &RefCell<SymbolTable>, name: String, source: String) {
+        let output = self.pipeline(symbols, name, source);
         self.outputs
             .borrow_mut()
             .insert(self.current_clone(), output);
     }
 
-    pub fn nested_pipeline(&self, name: String, source: String) -> TaleResultVec<SymbolValue> {
-        let outer_name = self.current.clone();
-        match self.symbols.borrow_mut().push_scope() {
-            Ok(_) => todo!(),
-            Err(_) => Err(vec![TaleError::system(format!(
-                "Hit stack guard while loading: {}",
-                name
-            ))]),
+    pub fn nested_pipeline(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        name: String,
+        source: String,
+    ) -> TaleResultVec<SymbolValue> {
+        let outer_name = self.current_clone();
+        let pushed_ok = symbols.borrow_mut().push_scope();
+        match pushed_ok {
+            Ok(_) => {
+                let trv = self.pipeline(symbols, name.clone(), source.clone());
+                symbols.borrow_mut().pop_scope();
+                *self.current.borrow_mut() = outer_name;
+                println!("{:?}", symbols.borrow().list_tables());
+                render_tale_result_vec(self.prefix, &name, source, trv)
+            }
+            Err(_) => {
+                symbols.borrow_mut().pop_scope();
+                Err(vec![TaleError::system(format!(
+                    "Hit stack guard while loading: {}",
+                    name
+                ))])
+            }
         }
     }
 
@@ -302,7 +318,7 @@ impl StateTable {
 
 impl Default for StateTable {
     fn default() -> Self {
-        Self::new()
+        Self::new("")
     }
 }
 

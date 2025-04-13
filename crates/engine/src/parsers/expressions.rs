@@ -74,17 +74,17 @@ fn roll_predicate<'src>() -> impl Parser<
         .or_not()
         .ignore_then(ident_maybe_sub())
         .map_with(full_rc_node);
-    let pred_three = just(Token::On).or_not().ignore_then(
-        just(Token::Table)
-            .then(just(Token::Colon))
-            .ignore_then(interpolation()),
-    );
+    // let pred_three = just(Token::On).or_not().ignore_then(
+    //     just(Token::Table)
+    //         .then(just(Token::Colon))
+    //         .ignore_then(interpolation()),
+    // ); TODO: This infinitely recurses...
     pred_one
         .then_ignore(terminator())
         .or(pred_two)
         .then_ignore(terminator())
-        .or(pred_three)
-        .then_ignore(terminator())
+        // .or(pred_three)
+        // .then_ignore(terminator())
         .boxed()
         .labelled("Roll Predicate")
 }
@@ -164,6 +164,7 @@ fn embed_expr<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     implied_roll_expr()
+        .or(roll())
         .then_ignore(terminator())
         .or(arithmetic().then_ignore(terminator()))
         .delimited_by(just(Token::LBracket), just(Token::RBracket))

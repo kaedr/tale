@@ -3,12 +3,12 @@ mod lexer;
 mod parsers;
 mod utils;
 
-use std::{fs::read_to_string, io, path::Path};
+use std::{cell::RefCell, fs::read_to_string, io, path::Path};
 
 use ariadne::{Color, Label, Report, Source};
 
 use error::{TaleError, TaleResultVec};
-use state::{StateTable, SymbolValue};
+use state::{StateTable, SymbolTable, SymbolValue};
 
 mod error;
 mod samples;
@@ -22,46 +22,52 @@ pub mod prelude {
 
 pub struct Interpreter {
     state: StateTable,
+    symbols: RefCell<SymbolTable>,
     repl_count: usize,
 }
 
 impl Interpreter {
-    pub fn new() -> Self {
+    pub fn new(prefix: &'static str) -> Self {
         Self {
-            state: StateTable::new(),
+            state: StateTable::new(prefix),
+            symbols: Default::default(),
             repl_count: 0,
         }
     }
 
-    pub fn new_with_source_string(source: String) -> Self {
-        let state = StateTable::new();
-        state.captured_pipeline("InitialInput".into(), source);
+    pub fn new_with_source_string(prefix: &'static str, source: String) -> Self {
+        let state = StateTable::new(prefix);
+        let symbols = Default::default();
+        state.captured_pipeline(&symbols, "InitialInput".into(), source);
         Self {
             state,
+            symbols,
             repl_count: 0,
         }
     }
 
-    pub fn new_with_files<P>(file_names: &Vec<P>) -> io::Result<Self>
+    pub fn new_with_files<P>(prefix: &'static str, file_names: &Vec<P>) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
-        let state = StateTable::new();
+        let state = StateTable::new(prefix);
+        let symbols = Default::default();
         for file_name in file_names {
             let source = read_to_string(&file_name)?;
-            state.captured_pipeline(file_name.to_string(), source);
+            state.captured_pipeline(&symbols, file_name.to_string(), source);
         }
         Ok(Self {
             state,
+            symbols,
             repl_count: 0,
         })
     }
 
-    pub fn new_with_file<P>(file_name: P) -> io::Result<Self>
+    pub fn new_with_file<P>(prefix: &'static str, file_name: P) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
-        Self::new_with_files(&vec![file_name])
+        Self::new_with_files(prefix, &vec![file_name])
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
@@ -85,7 +91,9 @@ impl Interpreter {
     pub fn execute(&mut self, prefix: &str, source: String) -> TaleResultVec<SymbolValue> {
         self.repl_count += 1;
         let source_name = format!("REPL({})", self.repl_count);
-        let trv = self.state.pipeline(source_name.clone(), source.clone());
+        let trv = self
+            .state
+            .pipeline(&self.symbols, source_name.clone(), source.clone());
         render_tale_result_vec(prefix, &source_name, source, trv)
     }
 }
@@ -175,7 +183,7 @@ mod tests {
     }
 
     fn streamline(source: &str) -> String {
-        let terp = Interpreter::new_with_source_string(source.to_string());
+        let terp = Interpreter::new_with_source_string("", source.to_string());
         format!("{:?}", terp.current_output())
     }
 
@@ -184,7 +192,7 @@ mod tests {
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        let terp = Interpreter::new_with_files(&file_names).unwrap();
+        let terp = Interpreter::new_with_files("", &file_names).unwrap();
         format!("{:?}", terp.current_output())
     }
 
