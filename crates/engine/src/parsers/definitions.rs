@@ -471,7 +471,7 @@ End Table"#;
         let output = stubbed_parser(&mut p_state, &tokens, table_group());
         assert_eq!(
             "[TaleError { kind: Parse, span: 0..155, position: (1, 0), msg: \"Table Group rows \
-            must all have same number of columns in Table Group Definition at 0..23\" }]",
+            must all have same number of columns\" }]",
             output
         );
     }

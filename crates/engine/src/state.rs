@@ -28,6 +28,7 @@ pub type SimpleParserState<'src> = SimpleState<&'src mut ParserState>;
 
 pub type StateCellMap<T> = Rc<RefCell<HashMap<String, T>>>;
 
+#[derive(Debug, Clone)]
 pub struct ParserState {
     source: String,
     lexicon: Lexicon,
@@ -205,15 +206,13 @@ impl StateTable {
             }
         };
         if !the_errs.is_empty() {
-            let mut err_breakout = the_errs
-                .iter()
-                .map(|err| TaleError::parser(err.span().into_range(), (0, 0), err.to_string()))
-                .collect::<Vec<_>>();
-            err_breakout.iter_mut().for_each(|err| {
-                err.update_span(state_inner.get_source_span(&err.span()));
-                err.update_position(state_inner.get_source_position(&err.span()));
-            });
-            Err(err_breakout)
+            // This has to happen in two parts because the source is borrowed by the
+            // Parser errors
+            let mapped_errs = TaleError::from_parser_vec(the_errs);
+            Err(TaleError::update_parser_vec_with_state(
+                mapped_errs,
+                &state_inner,
+            ))
         } else {
             match self
                 .asts

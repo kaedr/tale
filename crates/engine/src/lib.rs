@@ -5,9 +5,7 @@ mod utils;
 
 use std::{cell::RefCell, fs::read_to_string, io, path::Path};
 
-use ariadne::{Color, Label, Report, Source};
-
-use error::{TaleError, TaleResultVec};
+use error::{TaleResultVec, render_tale_result_vec};
 use state::{StateTable, SymbolTable, SymbolValue};
 
 mod error;
@@ -16,7 +14,7 @@ mod state;
 
 pub mod prelude {
     pub use crate::Interpreter;
-    pub use crate::error::TaleResultVec;
+    pub use crate::error::{TaleError, TaleResultVec};
     pub use crate::state::SymbolValue;
 }
 
@@ -98,47 +96,15 @@ impl Interpreter {
     }
 }
 
-pub fn render_tale_result_vec(
-    prefix: &str,
-    source_name: &str,
-    source: String,
-    trv: TaleResultVec<SymbolValue>,
-) -> TaleResultVec<SymbolValue> {
-    match trv {
-        Ok(value) => {
-            value.render(prefix);
-            Ok(SymbolValue::Placeholder)
-        }
-        Err(tev) => render_tale_error_vec(tev, source_name, source),
-    }
-}
-
-pub fn render_tale_error_vec(
-    tev: Vec<TaleError>,
-    source_name: &str,
-    source: String,
-) -> TaleResultVec<SymbolValue> {
-    for error in tev {
-        Report::build(ariadne::ReportKind::Error, (source_name, error.span()))
-            .with_message(format!("{:?} Error: {}", error.kind(), error.msg()))
-            .with_label(
-                Label::new((source_name, error.span()))
-                    .with_message("Problem occurred here.")
-                    .with_color(Color::Red),
-            )
-            .finish()
-            .eprint((source_name, Source::from(&source)))
-            .map_err(|err| TaleError::from(err))?;
-    }
-    Ok(SymbolValue::Placeholder)
-}
-
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
     use chumsky::{extra::SimpleState, prelude::*};
 
-    use crate::{lexer::Token, samples::*, state::SimpleParserState, utils::tests::sample_path};
+    use crate::{
+        error::TaleError, lexer::Token, samples::*, state::SimpleParserState,
+        utils::tests::sample_path,
+    };
 
     use super::*;
 
@@ -159,15 +125,11 @@ mod tests {
         match parser.parse_with_state(&tokens, &mut state).into_result() {
             Ok(output) => format!("{output}"),
             Err(the_errs) => {
-                let mut err_breakout: Vec<TaleError> = the_errs
-                    .iter()
-                    .map(|err| TaleError::parser(err.span().into_range(), (0, 0), err.to_string()))
-                    .collect();
-                err_breakout.iter_mut().for_each(|err| {
-                    err.update_span(state.get_source_span(&err.span()));
-                    err.update_position(state.get_source_position(&err.span()));
-                });
-                format!("{:?}", err_breakout)
+                let mapped_errs = TaleError::from_parser_vec(the_errs);
+                format!(
+                    "{:?}",
+                    TaleError::update_parser_vec_with_state(mapped_errs, &state,)
+                )
             }
         }
     }
@@ -189,15 +151,11 @@ mod tests {
         match parser.parse_with_state(&tokens, &mut state).into_result() {
             Ok(output) => format!("{:?}", output),
             Err(the_errs) => {
-                let mut err_breakout: Vec<TaleError> = the_errs
-                    .iter()
-                    .map(|err| TaleError::parser(err.span().into_range(), (0, 0), err.to_string()))
-                    .collect();
-                err_breakout.iter_mut().for_each(|err| {
-                    err.update_span(state.get_source_span(&err.span()));
-                    err.update_position(state.get_source_position(&err.span()));
-                });
-                format!("{:?}", err_breakout)
+                let mapped_errs = TaleError::from_parser_vec(the_errs);
+                format!(
+                    "{:?}",
+                    TaleError::update_parser_vec_with_state(mapped_errs, &state,)
+                )
             }
         }
     }

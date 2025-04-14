@@ -1,6 +1,11 @@
 use std::ops::Range;
 
-use crate::lexer::Position;
+use ariadne::{Color, Label, Report, Source};
+
+use crate::{
+    lexer::{Position, Token},
+    state::{ParserState, SymbolValue},
+};
 
 pub type TaleResult<T> = Result<T, TaleError>;
 
@@ -51,6 +56,26 @@ impl TaleError {
         }
     }
 
+    pub fn from_parser_vec(errs: Vec<chumsky::error::Rich<'_, Token>>) -> Vec<Self> {
+        errs.into_iter()
+            .map(|err| {
+                Self::parser(
+                    err.span().into_range(),
+                    Default::default(),
+                    err.reason().to_string(),
+                )
+            })
+            .collect::<Vec<Self>>()
+    }
+
+    pub fn update_parser_vec_with_state(mut errs: Vec<Self>, state: &ParserState) -> Vec<Self> {
+        errs.iter_mut().for_each(|err| {
+            err.update_span(state.get_source_span(&err.span()));
+            err.update_position(state.get_source_position(&err.span()));
+        });
+        errs
+    }
+
     pub fn analyzer(span: Range<usize>, position: Position, msg: String) -> Self {
         Self {
             kind: TaleErrorKind::Analysis,
@@ -69,12 +94,12 @@ impl TaleError {
         }
     }
 
-    pub fn update_span(&mut self, span: Range<usize>) {
-        self.span = span;
-    }
-
     pub fn span(&self) -> Range<usize> {
         self.span.clone()
+    }
+
+    pub fn update_span(&mut self, span: Range<usize>) {
+        self.span = span;
     }
 
     pub fn start(&self) -> usize {
@@ -116,4 +141,39 @@ impl From<TaleError> for Vec<TaleError> {
     fn from(value: TaleError) -> Self {
         vec![value]
     }
+}
+
+pub fn render_tale_result_vec(
+    prefix: &str,
+    source_name: &str,
+    source: String,
+    trv: TaleResultVec<SymbolValue>,
+) -> TaleResultVec<SymbolValue> {
+    match trv {
+        Ok(value) => {
+            value.render(prefix);
+            Ok(SymbolValue::Placeholder)
+        }
+        Err(tev) => render_tale_error_vec(tev, source_name, source),
+    }
+}
+
+pub fn render_tale_error_vec(
+    tev: Vec<TaleError>,
+    source_name: &str,
+    source: String,
+) -> TaleResultVec<SymbolValue> {
+    for error in tev {
+        Report::build(ariadne::ReportKind::Error, (source_name, error.span()))
+            .with_message(format!("{:?} Error: {}", error.kind(), error.msg()))
+            .with_label(
+                Label::new((source_name, error.span()))
+                    .with_message("Problem occurred here.")
+                    .with_color(Color::Red),
+            )
+            .finish()
+            .eprint((source_name, Source::from(&source)))
+            .map_err(|err| TaleError::from(err))?;
+    }
+    Ok(SymbolValue::Placeholder)
 }
