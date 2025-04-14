@@ -6,18 +6,17 @@ use crate::{
     state::SimpleParserState,
 };
 
-use super::{atoms::{
-    self, ident_maybe_sub, number, qstring, terminator, value_name, words, DELIMITING_WHITESPACE, RBRACKET
-}, TaleExtra};
+use super::{
+    TaleExtra,
+    atoms::{
+        self, DELIMITING_WHITESPACE, RBRACKET, ident_maybe_sub, number, qstring, terminator,
+        value_name, words,
+    },
+};
 
 pub fn any_expr<'src>(
     end_tokens: &'static [Token],
-) -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     roll(end_tokens)
         .or(lookup(end_tokens))
         .or(arithmetic().then_ignore(terminator(end_tokens)))
@@ -28,12 +27,7 @@ pub fn any_expr<'src>(
 
 pub fn roll<'src>(
     end_tokens: &'static [Token],
-) -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     let optional_roll = just(Token::Roll).or_not().ignore_then(repetition_clause());
     let optional_repetition =
         just(Token::Roll).ignore_then(repetition_clause().or_not().map_with(|maybe_rep, extra| {
@@ -73,12 +67,7 @@ pub fn roll<'src>(
 
 fn roll_predicate<'src>(
     end_tokens: &'static [Token],
-) -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     let pred_one = just(Token::On).or_not().ignore_then(arithmetic());
     let pred_two = just(Token::On)
         .then(just(Token::Table).then(just(Token::Colon)).or_not())
@@ -100,12 +89,8 @@ fn roll_predicate<'src>(
         .labelled("Roll Predicate")
 }
 
-fn repetition_clause<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+fn repetition_clause<'src>()
+-> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     let repetition_word = select! {
         Token::Once => Atom::Number(1),
         Token::Twice => Atom::Number(2),
@@ -131,12 +116,7 @@ fn repetition_clause<'src>() -> impl Parser<
 
 pub fn lookup<'src>(
     end_tokens: &'static [Token],
-) -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     just(Token::Lookup)
         .ignore_then(arithmetic().or(words()))
         .then_ignore(just(Token::On))
@@ -147,12 +127,8 @@ pub fn lookup<'src>(
         .labelled("Lookup Expression")
 }
 
-pub fn interpolation<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+pub fn interpolation<'src>()
+-> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     let qstr_map = qstring().map_with(full_rc_node);
 
     qstr_map
@@ -171,12 +147,7 @@ pub fn interpolation<'src>() -> impl Parser<
 /// Minimal interpolation
 pub fn minterpolation<'src>(
     end_tokens: &'static [Token],
-) -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     let qstr_map = qstring().map_with(full_rc_node);
     let value_map = value_name()
         .delimited_by(just(Token::LBracket), just(Token::RBracket))
@@ -194,12 +165,7 @@ pub fn minterpolation<'src>(
         .labelled("Mini Interpolation")
 }
 
-fn embed_expr<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+fn embed_expr<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     implied_roll_expr()
         .or(roll(RBRACKET))
         .or(lookup(RBRACKET))
@@ -209,12 +175,8 @@ fn embed_expr<'src>() -> impl Parser<
         .boxed()
 }
 
-pub fn implied_roll_expr<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+pub fn implied_roll_expr<'src>()
+-> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     ident_maybe_sub()
         .map_with(full_rc_node)
         .map_with(|target, extra| {
@@ -223,12 +185,8 @@ pub fn implied_roll_expr<'src>() -> impl Parser<
         })
 }
 
-pub fn arithmetic<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+pub fn arithmetic<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone
+{
     recursive(|arith| {
         let term = atoms::term().or(arith.delimited_by(just(Token::LParens), just(Token::RParens)));
         term.pratt((
@@ -287,12 +245,8 @@ fn fold_infix<'src>(
     }
 }
 
-pub fn number_range_list<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Expr>,
-    TaleExtra<'src>,
-> + Clone {
+pub fn number_range_list<'src>()
+-> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     let num_range = number()
         .then(
             one_of([Token::Minus, Token::Dash, Token::Ellipsis])

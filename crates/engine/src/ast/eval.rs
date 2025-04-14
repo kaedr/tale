@@ -51,22 +51,24 @@ where
         symbols: &RefCell<SymbolTable>,
         state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
-        self.iter()
-            .fold(Ok(SymbolValue::List(Vec::new())), |prev, curr| {
-                match (prev, curr.eval(symbols, state)) {
-                    (Ok(SymbolValue::List(mut list)), Ok(v)) => {
-                        list.push(v);
-                        Ok(SymbolValue::List(list))
+        let (values, errors): (Vec<_>, Vec<_>) = self
+            .iter()
+            .map(|item| item.eval(symbols, state))
+            .partition(Result::is_ok);
+        if errors.is_empty() {
+            Ok(values
+                .into_iter()
+                .fold(SymbolValue::List(Vec::new()), |list, value| {
+                    if let SymbolValue::List(mut list) = list {
+                        list.push(value.unwrap());
+                        SymbolValue::List(list)
+                    } else {
+                        unreachable!("Broken Eval for Vec<T> impl");
                     }
-                    (Ok(_), Err(e)) => Err(e), // Propagate the error from the current node
-                    (Err(e), Ok(_)) => Err(e), // Keep the previous error
-                    (Err(mut e1), Err(e2)) => {
-                        e1.extend(e2); // Merge Errors
-                        Err(e1)
-                    }
-                    _ => unreachable!(),
-                }
-            })
+                }))
+        } else {
+            Err(errors.into_iter().flat_map(Result::unwrap_err).collect())
+        }
     }
 }
 
@@ -79,22 +81,24 @@ where
         symbols: &RefCell<SymbolTable>,
         state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
-        self.iter()
-            .fold(Ok(SymbolValue::List(Vec::new())), |prev, curr| {
-                match (prev, curr.eval(symbols, state)) {
-                    (Ok(SymbolValue::List(mut list)), Ok(v)) => {
-                        list.push(v);
-                        Ok(SymbolValue::List(list))
+        let (values, errors): (Vec<_>, Vec<_>) = self
+            .iter()
+            .map(|item| item.eval(symbols, state))
+            .partition(Result::is_ok);
+        if errors.is_empty() {
+            Ok(values
+                .into_iter()
+                .fold(SymbolValue::List(Vec::new()), |list, value| {
+                    if let SymbolValue::List(mut list) = list {
+                        list.push(value.unwrap());
+                        SymbolValue::List(list)
+                    } else {
+                        unreachable!("Broken Eval for Vec<RcNode<T>> impl");
                     }
-                    (Ok(_), Err(e)) => Err(e), // Propagate the error from the current node
-                    (Err(e), Ok(_)) => Err(e), // Keep the previous error
-                    (Err(mut e1), Err(e2)) => {
-                        e1.extend(e2); // Merge Errors
-                        Err(e1)
-                    }
-                    _ => unreachable!(),
-                }
-            })
+                }))
+        } else {
+            Err(errors.into_iter().flat_map(Result::unwrap_err).collect())
+        }
     }
 }
 
@@ -614,20 +618,24 @@ fn interpol_expr(
     state: &StateTable,
     node: &RcNode<Vec<RcNode<Expr>>>,
 ) -> TaleResultVec<SymbolValue> {
-    node.inner_t()
+    let (values, errors): (Vec<_>, Vec<_>) = node
+        .inner_t()
         .iter()
-        .fold(Ok(SymbolValue::Placeholder), |acc, expr| {
-            match (acc, expr.eval(symbols, state)) {
-                (Ok(SymbolValue::Placeholder), Ok(value)) => Ok(value),
-                (Ok(lv), Ok(rv)) => Ok(SymbolValue::String(format!("{lv} {rv}"))),
-                (Ok(_), Err(err)) => Err(err),
-                (Err(err), Ok(_)) => Err(err),
-                (Err(mut l_err), Err(r_err)) => {
-                    l_err.extend(r_err);
-                    Err(l_err)
+        .map(|item| item.eval(symbols, state))
+        .partition(Result::is_ok);
+    if errors.is_empty() {
+        Ok(values
+            .into_iter()
+            .fold(SymbolValue::Placeholder, |acc, value| {
+                if let SymbolValue::String(acc) = acc {
+                    SymbolValue::String(format!("{acc} {}", value.unwrap()))
+                } else {
+                    SymbolValue::String(value.unwrap().to_string())
                 }
-            }
-        })
+            }))
+    } else {
+        Err(errors.into_iter().flat_map(Result::unwrap_err).collect())
+    }
 }
 
 impl Eval for Atom {
