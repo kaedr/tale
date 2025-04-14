@@ -15,15 +15,22 @@ Or preloaded with tables from files:
 ## TALE basics
 The application relies on Tables, Table Groups, and Scripts. These currently must be made in a basic text editor (like Notepad/Gedit/vim/etc. NOT a word processor). By convention, they are saved in files with a `.tale` extension.
 
+
 ### Defining Tables
 For examples on how Tables can be defined, see [Table Basics](src/snippets/ex01_table_basics.tale), [List Tables](src/snippets/ex02_table_list.tale), [Table Probabilities](src/snippets/ex03_table_probabilities.tale), [Tables w/ comma separated numeric keys](src/snippets/ex04_table_csv_keys.tale), [Textually Keyed Lookup Tables](src/snippets/ex05_table_lookup.tale), [Table organization Tags](src/snippets/ex06_table_tags.tale), and [Tables w/ Statements](src/snippets/ex07_table_statements.tale).
 These examples are also available directly in the application via built-in help.
 
-### Defining Table groups
-
-
 **Table Naming:**
 Table names may contains spaces (e.g. `Farm Animals`), and be alphanumeric (e.g. `10gp Gems`). They *MAY NOT* contain punctuation without being in quotes (e.g. `"Treasure Hoard: Challenge 0-4"`).
+
+
+### Defining Table groups
+For examples on how to define Table Groups, see [Table Group Basics](src/snippets/ex11_table_group_basics.tale), and [Table Groups w/ Statements](src/snippets/ex12_table_group_statements.tale).
+
+
+### Defining Scripts
+For examples of how to define Scripts, see [Script Basics](src/snippets/ex21_script_basics.tale). [Script Scopes](src/snippets/ex22_script_scopes.tale) contains information on some of the nuances of using Scripts.
+
 
 ### Using TALE
 

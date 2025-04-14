@@ -40,7 +40,7 @@ impl ParserState {
     }
 
     pub fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
-        if self.lexicon.len() > 0 {
+        if !self.lexicon.is_empty() {
             let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
             self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
         } else {
@@ -49,7 +49,7 @@ impl ParserState {
     }
 
     pub fn get_source_position(&self, span: &Range<usize>) -> Position {
-        if self.lexicon.len() > 0 {
+        if !self.lexicon.is_empty() {
             let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
             self.lexicon[start].2
         } else {
@@ -63,7 +63,7 @@ impl ParserState {
     }
 
     pub fn spanslate(&self, span: &Range<usize>) -> SourceInfo {
-        if self.lexicon.len() > 0 {
+        if !self.lexicon.is_empty() {
             (
                 self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
                 self.lexicon[span.start].2,
@@ -105,7 +105,7 @@ impl StateTable {
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
-        self.output_of(&*self.current())
+        self.output_of(&self.current())
     }
 
     pub fn output_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
@@ -246,7 +246,7 @@ impl StateTable {
     pub fn evaluate_current(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         let maybe_ast = self.asts.borrow_mut().get(&*self.current()).cloned();
         if let Some(ast) = maybe_ast {
-            ast.eval(symbols, &self)
+            ast.eval(symbols, self)
         } else {
             Err(
                 TaleError::analyzer(0..0, (0, 0), format!("No AST named: {}", self.current()))
@@ -304,7 +304,10 @@ impl StateTable {
         if let Some(lexicon) = self.tokens.borrow().get(name) {
             Ok(lexicon.iter().map(|(token, _, _)| token.clone()).collect())
         } else {
-            Err(TaleError::system(format!("No Lexicon for source: {}", name)).into())
+            Err(TaleError::system(format!(
+                "No Lexicon for source: {}",
+                name
+            )))
         }
     }
 }
@@ -519,7 +522,7 @@ impl SymbolValue {
             SymbolValue::Table(table) => println!("{prefix}{table}"),
             SymbolValue::List(symbol_values) => {
                 for value in symbol_values {
-                    value.render(&format!("{prefix}"));
+                    value.render(&prefix.to_string());
                 }
             }
         }
@@ -620,6 +623,15 @@ impl Scopes {
         // If the internal Vecs are somehow a different length, we should probably break
         debug_assert_eq!(self.numerics.len(), self.strings.len());
         self.numerics.len()
+    }
+}
+
+impl Default for Scopes {
+    fn default() -> Self {
+        Self {
+            numerics: Default::default(),
+            strings: Default::default(),
+        }
     }
 }
 

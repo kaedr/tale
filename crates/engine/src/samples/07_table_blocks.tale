@@ -53,3 +53,21 @@ Wanted Level 4:
 	Generally the ship will be a well-armed frigate with a few personal fighters. You may want to consider repainting or modifying your ship, or getting fake papers and transponders to help shake similar experiences off your tail.
 
 End Table
+
+Table: Trading Post Visitor traffic
+1-2 	Vacant. No one seems to be visiting this place.
+		[+0 to size roll]
+		[+2 to crime roll]
+3-6 	Groups. Visitors are a rarity, though a few might be around.
+		[+1 to size roll]
+		[+1 to crime roll]
+7-14 	Crowds. It is typical to see some new visitors most days.
+		[+2 to size roll]
+		[+0 to crime roll]
+15-18 	Droves. There are lots of new faces on a regular basis.
+		[+3 to size roll]
+		[-1 to crime roll]
+19-20	Masses. New people are everywhere, coming and going at all times.
+		[+4 to size roll]
+		[-2 to crime roll]
+End Table

@@ -62,7 +62,6 @@ pub fn table<'src>() -> impl Parser<
             } else {
                 roll
             };
-            let tags = tags;
             let table = full_rc_node(Table::new(name, roll, tags, rows), extra);
             full_rc_node(Statement::Table(table), extra)
         })

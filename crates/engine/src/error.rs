@@ -173,7 +173,7 @@ pub fn render_tale_error_vec(
             )
             .finish()
             .eprint((source_name, Source::from(&source)))
-            .map_err(|err| TaleError::from(err))?;
+            .map_err(TaleError::from)?;
     }
     Ok(SymbolValue::Placeholder)
 }
