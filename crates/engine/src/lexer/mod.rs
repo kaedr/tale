@@ -79,6 +79,7 @@ pub enum Token {
 
     // Symbols/Punctuation
     #[token("&")]                       Ampersand,
+    #[token("\u{2019}")]                // RightSQuote as Apostrophe
     #[token("'")]                       Apostrophe,
     #[token("*")]                       Asterisk,
     #[token("@")]                       At,

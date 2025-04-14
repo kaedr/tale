@@ -1,0 +1,14 @@
+// Table Groups are used to define tables that are often rolled together
+// Note that each column in a table group must have the same number of rows
+
+// A simple example comes from Blades in the Dark, and is for rolling up
+// the ambiance of the streets of Duskvol
+Table Group: Impressions
+1d6	Sights										Sounds								Smells
+1	Rain Slick, Oil Slick						Machinery, Workers					Cook Fires, Furnaces
+2	Dancing Shadows, Flickering Lights			Fluttering Cloth, Howling Wind		Damp Wood, Decay, Refuse
+3	Mist, Fog, Frost							Laughter, Song, Music				Animals, Hides, Blood
+4	Fleeting Shapes, Echoes in the Ghost Field	Whispers, Echoes, Strange Voices	Chemicals, Distillates, Fumes
+5	Soot, Ash Clouds, Grime						Thunder, Driving Rain				Rain Water, Ocean
+6	Crackling Electricity, Wires, Mechanisms	Bells, Clock Chimes, Harbor Horns	Ozone, Electroplasmic Discharges
+End Table Group

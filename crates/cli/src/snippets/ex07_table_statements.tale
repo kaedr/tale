@@ -1,0 +1,29 @@
+// For Tables that aren't in List Form, you can include statements
+// as the outcome of a roll. In this example, we use this to make
+// a number of smaller tables act as one larger table
+
+Table: Melee Weapons
+Sword
+Spear
+Axe
+Mace
+End Table
+
+Table: Ranged Weapons
+Crossbow
+Bow
+Shurikens
+End Table
+
+Table: Magic Weapons
+Wand
+Staff
+End Table
+
+// NOTE: In TALE, things must be defined before they are used
+// So it is important that `All Weapons` comes after the tables it uses
+Table: All Weapons
+1-4		Roll on Melee Weapons
+5-7		Roll on Ranged Weapons
+8-9		Roll on Magic Weapons
+End Table
