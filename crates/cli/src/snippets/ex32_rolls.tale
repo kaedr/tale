@@ -1,0 +1,16 @@
+// Rolling in TALE follows the basic syntax of:
+// [Roll] [Number of Times] [On] <Target>
+// All of the following will roll one time on the `Farm Animals` Table
+Roll once on Farm Animals
+Roll on Farm Animals
+Roll Farm Animals
+1 Farm Animals
+
+// This can also be used to make die rolls
+Roll 6 3d6      // For rolling up old school character stats
+
+// Note: Because of the abreviated syntax allowed, there are situations
+// that look very similar, but produce different results
+3d6     // Will roll 3d6 and give the total
+// while
+3 d6    // Will roll 1d6 3 times and give the results individually

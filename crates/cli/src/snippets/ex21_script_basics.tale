@@ -1,0 +1,8 @@
+// Scripts can be defined to create a set of repeatable actions.
+// They can be used to group Table rolls that are commonly made together,
+Script: Starting Gear
+    Roll on Weapons
+    Roll on Armor
+    Roll on Accessories
+    Roll on Wealth
+End Script

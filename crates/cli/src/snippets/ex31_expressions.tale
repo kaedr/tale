@@ -1,0 +1,19 @@
+// TALE will evaluate arithmetic expressions, including those with die rolls,
+// When they are entered into the prompt or encountered in `.tale` files
+d20 + 7
+// ^ Will evaluate to a number in the range 8-27
+
+// This means, among other things, that you can use TALE as a calculator & dice roller
+// The notation should be fairly familiar. Addition uses `+`, Subtraction uses `-`,
+// Multiplication uses `*`, Division uses `/`, Modulus uses `%`, and Exponents use `^`
+// Parentheses work as normal, and spaces are optional between terms
+(3d6 + 2)  * 3-2 ^ 2 % 8
+
+// Note: With regard to order of operations, the Modulus operator has the same precedence
+// as Multiplication and Division.
+// Exponents are right associative, which is the case for most scripting languages,
+// and means that
+3 ^ 3 ^ 2
+// Is the same as `3^(3^2)` and will evaluate to 19683, and
+3 ^ 2 ^ 3
+// Will evaluate to 6561

@@ -12,3 +12,10 @@ Table Group: Impressions
 5	Soot, Ash Clouds, Grime						Thunder, Driving Rain				Rain Water, Ocean
 6	Crackling Electricity, Wires, Mechanisms	Bells, Clock Chimes, Harbor Horns	Ozone, Electroplasmic Discharges
 End Table Group
+
+// Each of these tables can be rolled on separately, optionally separated by a colon
+Roll on Impressions: Sights
+Roll on Impressions Sounds
+
+// Or the whole group can be rolled together, which will generate a roll for each of the sub-tables
+Roll on Impressions
