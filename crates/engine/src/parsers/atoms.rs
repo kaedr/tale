@@ -1,10 +1,9 @@
 use crate::ast::TypedNode;
 use crate::lexer::Token;
-use crate::{
-    ast::{Atom, Expr, RcNode, full_rc_node},
-    state::SimpleParserState,
-};
+use crate::ast::{Atom, Expr, RcNode, full_rc_node};
 use chumsky::prelude::*;
+
+use super::TaleExtra;
 
 pub const RBRACKET: &[Token] = &[Token::RBracket];
 pub const COMMA_OR_RBRACKET: &[Token] = &[Token::RBracket, Token::Comma];
@@ -26,7 +25,7 @@ pub const CELL_ENDINGS: &[Token] = &[
 // then, rewind so the character is still available for use a delimiter
 pub fn terminator<'src>(
     end_tokens: &'static [Token],
-) -> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+) -> impl Parser<'src, &'src [Token], (), TaleExtra<'src>>
 + Clone {
     one_of(end_tokens)
         .ignored()
@@ -40,7 +39,7 @@ pub fn terminator<'src>(
 pub fn chomp_separator<'src>(
     chomp_tokens: &'static [Token],
     end_tokens: &'static [Token],
-) -> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+) -> impl Parser<'src, &'src [Token], (), TaleExtra<'src>>
 + Clone {
     one_of(chomp_tokens)
         .or_not()
@@ -53,7 +52,7 @@ pub fn term<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     let (number, dice, value_name) = (number(), dice(), value_name());
     number
@@ -97,13 +96,13 @@ impl From<Token> for Op {
 
 pub fn op<'src>(
     token: Token,
-) -> impl Parser<'src, &'src [Token], Op, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+) -> impl Parser<'src, &'src [Token], Op, TaleExtra<'src>>
 + Clone {
     just(token).map(Op::from).labelled("Arithmetic Operator")
 }
 
 pub fn qstring<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let qstring = select! { Token::String(s) => Atom::Str(s) };
     qstring.labelled("Quoted String")
@@ -113,7 +112,7 @@ pub fn words<'src, T>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<T>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone
 where
     T: From<Atom> + TypedNode + 'src,
@@ -133,7 +132,7 @@ where
 }
 
 pub fn ident_maybe_sub<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     ident()
         .then_ignore(just(Token::Colon).or_not())
@@ -149,7 +148,7 @@ pub fn ident_maybe_sub<'src>()
 }
 
 pub fn ident<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     wordlike()
         .foldl(wordlike().repeated(), ident_normalize)
@@ -160,7 +159,7 @@ pub fn ident<'src>()
 }
 
 pub fn wordlike<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     // Raw keywords coming before numbers is important
     // As numbers numeric keyswords that stand alone are parsed as their value, not the word
@@ -173,7 +172,7 @@ pub fn wordlike<'src>()
 }
 
 pub fn raw_keywords<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let raw_keywords = select! {
         Token::Once => Atom::Raw(Token::Once),
@@ -218,7 +217,7 @@ pub fn raw_keywords<'src>()
 }
 
 pub fn typical_punctuation<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let typical_punctuation = select! {
         Token::Ampersand => Atom::Raw(Token::Ampersand),
@@ -241,28 +240,28 @@ pub fn typical_punctuation<'src>()
 }
 
 pub fn value_name<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let value_name = select! { Token::Word(word) => Atom::Ident(word.to_lowercase()) };
     value_name.labelled("Value Name")
 }
 
 pub fn word<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let word = select! { Token::Word(word) => Atom::Str(word) };
     word.labelled("Word")
 }
 
 pub fn dice<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let dice = select! { Token::DieRoll((x, y)) => Atom::Dice(x, y) };
     dice.labelled("Dice")
 }
 
 pub fn number<'src>()
--> impl Parser<'src, &'src [Token], Atom, extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
+-> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
 + Clone {
     let number = select! {
         Token::DoubleOught => Atom::Number(100),

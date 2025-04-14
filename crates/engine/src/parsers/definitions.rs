@@ -1,25 +1,21 @@
 use crate::lexer::Token;
 use chumsky::prelude::*;
 
-use crate::{
-    ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
-    state::SimpleParserState,
-};
+use crate::ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node};
 
 use super::{
     atoms::{
-        CELL_ENDINGS, NEWLINES, PERIOD_OR_SEMICOLON, TABS, chomp_separator, dice, ident,
-        ident_normalize,
+        chomp_separator, dice, ident, ident_normalize, CELL_ENDINGS, NEWLINES, PERIOD_OR_SEMICOLON, TABS
     },
     expressions::{arithmetic, number_range_list},
-    statements::{any_statement, seq_or_statement},
+    statements::{any_statement, seq_or_statement}, TaleExtra,
 };
 
 pub fn script<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Script)
         .then(just(Token::Colon))
@@ -48,7 +44,7 @@ pub fn table<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Table)
         .then(just(Token::Colon))
@@ -73,7 +69,7 @@ pub fn table_group<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Table)
         .then(just(Token::Group))
@@ -122,7 +118,7 @@ fn sub_tables_row<'src>() -> impl Parser<
     'src,
     &'src [Token],
     (RcNode<Expr>, Vec<Atom>),
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     dice()
         .map_with(full_rc_node)
@@ -135,7 +131,7 @@ fn table_group_rows<'src>() -> impl Parser<
     'src,
     &'src [Token],
     Vec<RcNode<TableRows>>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     row_key()
         .then(
@@ -193,7 +189,7 @@ fn table_rows<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<TableRows>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     table_list()
         .or(table_flat_rows()
@@ -209,7 +205,7 @@ fn table_list<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<TableRows>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::List)
         .then(just(Token::Colon))
@@ -230,7 +226,7 @@ fn table_flat_rows<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<TableRows>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     seq_or_statement(CELL_ENDINGS)
         .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
@@ -245,7 +241,7 @@ fn table_keyed_form<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<TableRows>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     row_key()
         .then(seq_or_statement(CELL_ENDINGS))
@@ -261,7 +257,7 @@ fn table_headings<'src>() -> impl Parser<
     'src,
     &'src [Token],
     (RcNode<Expr>, RcNode<Vec<Atom>>),
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     let roll_directive = just(Token::Roll)
         .then(just(Token::Colon))
@@ -312,7 +308,7 @@ fn tags_directive<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Vec<Atom>>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Tag)
         .then(just(Token::Colon))
@@ -332,7 +328,7 @@ fn row_key<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     number_range_list()
         .then_ignore(just(Token::Tabs))

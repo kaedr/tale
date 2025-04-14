@@ -16,11 +16,13 @@ mod definitions;
 mod expressions;
 mod statements;
 
+type TaleExtra<'src> = extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>;
+
 pub fn parser<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     table()
         .or(table_group())

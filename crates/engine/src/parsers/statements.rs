@@ -1,17 +1,13 @@
 use crate::lexer::Token;
 use chumsky::prelude::*;
 
-use crate::{
-    ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node},
-    state::SimpleParserState,
-};
+use crate::ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node};
 
 use super::{
     atoms::{
-        COMMA_OR_RBRACKET, DELIMITING_WHITESPACE, RBRACKET, ident, ident_maybe_sub, number,
-        qstring, terminator, value_name, words,
+        ident, ident_maybe_sub, number, qstring, terminator, value_name, words, COMMA_OR_RBRACKET, DELIMITING_WHITESPACE, RBRACKET
     },
-    expressions::{any_expr, arithmetic, implied_roll_expr, interpolation},
+    expressions::{any_expr, arithmetic, implied_roll_expr, interpolation}, TaleExtra,
 };
 
 pub fn seq_or_statement<'src>(
@@ -20,7 +16,7 @@ pub fn seq_or_statement<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     statement_sequence().or(any_statement(end_tokens)).boxed()
 }
@@ -31,7 +27,7 @@ pub fn any_statement<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     nonce(end_tokens)
         .or(load())
@@ -53,7 +49,7 @@ fn nonce<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     one_of([Token::Dash, Token::Minus])
         .then(terminator(end_tokens))
@@ -68,7 +64,7 @@ pub fn chainable_statement<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     assignment(end_tokens)
         .or(clear(end_tokens))
@@ -83,7 +79,7 @@ pub fn statement_sequence<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     let chained = chainable_statement(COMMA_OR_RBRACKET)
         .separated_by(just(Token::Comma).then(just(Token::And).or_not()).ignored())
@@ -109,7 +105,7 @@ pub fn assignment<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     let explicit_form = just(Token::Set)
         .ignore_then(value_name().map_with(full_rc_node))
@@ -136,7 +132,7 @@ pub fn clear<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Clear)
         .ignore_then(duration().map_with(full_rc_node))
@@ -158,7 +154,7 @@ pub fn expression<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     any_expr(end_tokens)
         .map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra))
@@ -171,7 +167,7 @@ pub fn invoke<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Invoke)
         .then(just(Token::Colon).or_not())
@@ -187,7 +183,7 @@ pub fn load<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Load)
         .then(just(Token::Colon).or_not())
@@ -210,7 +206,7 @@ pub fn modify<'src>(
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     let keyword_form = just(Token::Modify)
         .ignore_then(duration())
@@ -249,7 +245,7 @@ fn duration<'src>() -> impl Parser<
     'src,
     &'src [Token],
     Duration,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::All)
         .map(|_| Duration::All)
@@ -263,7 +259,7 @@ pub fn mod_by<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     one_of([Token::Plus, Token::Minus])
         .then(number().map_with(full_rc_node))
@@ -279,7 +275,7 @@ pub fn output<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Output)
         .ignore_then(just(Token::Colon).or_not())
@@ -294,7 +290,7 @@ pub fn show<'src>() -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+    TaleExtra<'src>,
 > + Clone {
     just(Token::Show)
         .ignore_then(just(Token::Tag).or_not())
