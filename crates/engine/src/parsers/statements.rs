@@ -255,7 +255,7 @@ fn duration<'src>() -> impl Parser<
         .map(|_| Duration::All)
         .or(just(Token::Next)
             .ignore_then(arithmetic())
-            .map(|val| Duration::Next(val)))
+            .map(Duration::Next))
         .boxed()
 }
 

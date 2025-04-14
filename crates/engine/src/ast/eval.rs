@@ -98,7 +98,7 @@ where
     }
 }
 
-impl Eval for AST {
+impl Eval for Ast {
     fn eval(
         &self,
         symbols: &RefCell<SymbolTable>,
@@ -128,7 +128,7 @@ impl Eval for Table {
             SymbolValue::List(tags) => tags.iter().map(SymbolValue::to_string).collect::<Vec<_>>(),
             _ => unreachable!(),
         };
-        let table_name = self.name().inner_t().bare_str();
+        let table_name = self.name().inner_t().bare_string();
         symbols.borrow_mut().push_tags(tags, table_name.clone());
         Ok(SymbolValue::String(table_name))
     }
@@ -286,11 +286,11 @@ fn load_stmt(
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
     let mut results = Vec::new();
-    let name = target.inner_t().bare_str();
+    let name = target.inner_t().bare_string();
     for entry in glob(&name).map_err(|err| TaleError::system(format!("Glob error: {}", err)))? {
         match entry {
             Ok(path) => {
-                let source = read_to_string(&path).map_err(|err| TaleError::from(err))?;
+                let source = read_to_string(&path).map_err(TaleError::from)?;
                 results.push(state.nested_pipeline(
                     symbols,
                     path.to_string_lossy().to_string(),

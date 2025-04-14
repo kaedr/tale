@@ -22,7 +22,7 @@ use crate::error::TaleError;
 
 use crate::error::TaleResult;
 
-use crate::ast::{AST, Analyze as _, Eval as _};
+use crate::ast::{Analyze as _, Ast, Eval as _};
 
 pub type SimpleParserState<'src> = SimpleState<&'src mut ParserState>;
 
@@ -80,7 +80,7 @@ pub struct StateTable {
     current: RefCell<String>,
     sources: StateCellMap<String>,
     tokens: StateCellMap<Lexicon>,
-    asts: StateCellMap<Rc<AST>>,
+    asts: StateCellMap<Rc<Ast>>,
     outputs: StateCellMap<TaleResultVec<SymbolValue>>,
 }
 
@@ -124,7 +124,7 @@ impl StateTable {
         }
     }
 
-    pub fn asts(&self) -> StateCellMap<Rc<AST>> {
+    pub fn asts(&self) -> StateCellMap<Rc<Ast>> {
         self.asts.clone()
     }
 
@@ -217,7 +217,7 @@ impl StateTable {
             match self
                 .asts
                 .borrow_mut()
-                .insert(self.current_clone(), AST::new(output).into())
+                .insert(self.current_clone(), Ast::new(output).into())
             {
                 Some(_) => Ok(()),
                 // Err(TaleError::parser(
@@ -522,7 +522,7 @@ impl SymbolValue {
             SymbolValue::Table(table) => println!("{prefix}{table}"),
             SymbolValue::List(symbol_values) => {
                 for value in symbol_values {
-                    value.render(&prefix.to_string());
+                    value.render(prefix);
                 }
             }
         }
@@ -556,7 +556,7 @@ impl FromIterator<SymbolValue> for SymbolValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Scopes {
     pub numerics: Vec<HashMap<String, isize>>,
     pub strings: Vec<HashMap<String, String>>,
@@ -623,15 +623,6 @@ impl Scopes {
         // If the internal Vecs are somehow a different length, we should probably break
         debug_assert_eq!(self.numerics.len(), self.strings.len());
         self.numerics.len()
-    }
-}
-
-impl Default for Scopes {
-    fn default() -> Self {
-        Self {
-            numerics: Default::default(),
-            strings: Default::default(),
-        }
     }
 }
 

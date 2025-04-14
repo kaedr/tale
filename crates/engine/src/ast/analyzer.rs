@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    AST, Atom, Duration, Eval, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
+    Ast, Atom, Duration, Eval, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
     TableRows, TypedNode,
 };
 
@@ -14,7 +14,7 @@ pub trait Analyze {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()>;
 }
 
-impl Analyze for AST {
+impl Analyze for Ast {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.nodes.analyze(symbols)
     }
@@ -132,9 +132,8 @@ impl Analyze for Script {
 impl Analyze for Table {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.rows.analyze(symbols)?;
-        match &*self.rows.inner_t() {
-            TableRows::Keyed(items) => {
-                match items.iter().try_fold(SymbolValue::Placeholder, |prev, row| {
+        if let TableRows::Keyed(items) = &*self.rows.inner_t() {
+            match items.iter().try_fold(SymbolValue::Placeholder, |prev, row| {
                     match (&prev, row.0.inner_t().eval(symbols, &Default::default())?) {
                         (SymbolValue::Placeholder, other) => Ok(other),
                         (SymbolValue::List(_), SymbolValue::List(item)) => Ok(SymbolValue::List(item)),
@@ -149,21 +148,20 @@ impl Analyze for Table {
                         match key_kind {
                             SymbolValue::List(_) => {
                                 self.rows.add_detail("key_type".into(), "numeric".into());
-                                ()
+                                Ok(())
                             },
                             SymbolValue::String(_) => {
                                 self.rows.add_detail("key_type".into(), "text".into());
-                                ()
+                                Ok(())
                             },
                             _ => unreachable!("Parser bug, row keys should only be textual or numeric"),
                         }
                     },
-                    Err(err) => return Err(err),
+                    Err(err) => Err(err),
                 }
-            }
-            _ => (),
-        };
-        Ok(())
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -185,11 +183,8 @@ impl Analyze for TableRows {
             TableRows::Keyed(items) => {
                 for (key, stmt) in items.iter() {
                     let key_copy = key.inner_t().clone();
-                    match key_copy {
-                        Expr::Atom(Atom::Ident(id)) => {
-                            *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
-                        }
-                        _ => (),
+                    if let Expr::Atom(Atom::Ident(id)) = key_copy {
+                        *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
                     }
                     stmt.analyze(symbols)?;
                 }
@@ -218,16 +213,17 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
                 }
             }
         }
-        Expr::Roll(reps, target) => match (&*reps.inner_t(), &*target.inner_t()) {
-            (Expr::Atom(Atom::Ident(idl)), Expr::Atom(Atom::Ident(idr))) => {
-                if !symbols.borrow().is_def(&idl) || !symbols.borrow().is_def(&idr) {
+        Expr::Roll(reps, target) => {
+            if let (Expr::Atom(Atom::Ident(idl)), Expr::Atom(Atom::Ident(idr))) =
+                (&*reps.inner_t(), &*target.inner_t())
+            {
+                if !symbols.borrow().is_def(idl) || !symbols.borrow().is_def(idr) {
                     if let Some(sauce) = expr.get_detail("words_only") {
                         *expr.inner_t_mut() = Expr::Atom(Atom::Str(sauce));
                     }
                 }
             }
-            _ => (),
-        },
+        }
         _ => (),
     };
     expr.analyze(symbols)
@@ -267,40 +263,37 @@ fn analyze_roll(
     target: &RcNode<Expr>,
 ) -> TaleResultVec<()> {
     let (left, right) = (reps.inner_t().clone(), target.inner_t().clone());
-    match (left, right) {
-        (Expr::Atom(Atom::Ident(lhs)), Expr::Atom(Atom::Ident(rhs))) => {
-            match (symbols.borrow().is_def(&lhs), symbols.borrow().is_def(&rhs)) {
-                (true, true) => (),
-                (true, false) => {
-                    return Err(vec![TaleError::analyzer(
-                        target.source_span(),
-                        target.position(),
-                        format!("Roll target '{rhs}' is not defined"),
-                    )]);
-                }
-                (false, true) => {
+    if let (Expr::Atom(Atom::Ident(lhs)), Expr::Atom(Atom::Ident(rhs))) = (left, right) {
+        match (symbols.borrow().is_def(&lhs), symbols.borrow().is_def(&rhs)) {
+            (true, true) => (),
+            (true, false) => {
+                return Err(vec![TaleError::analyzer(
+                    target.source_span(),
+                    target.position(),
+                    format!("Roll target '{rhs}' is not defined"),
+                )]);
+            }
+            (false, true) => {
+                return Err(vec![TaleError::analyzer(
+                    reps.source_span(),
+                    reps.position(),
+                    format!("Roll reps '{lhs}' is not defined"),
+                )]);
+            }
+            (false, false) => {
+                let joined = format!("{lhs} {rhs}");
+                if symbols.borrow().is_def(&joined) {
+                    *reps.inner_t_mut() = Expr::Atom(Atom::Number(1));
+                    *target.inner_t_mut() = Expr::Atom(Atom::Ident(joined.clone()));
+                } else {
                     return Err(vec![TaleError::analyzer(
                         reps.source_span(),
                         reps.position(),
-                        format!("Roll reps '{lhs}' is not defined"),
+                        format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
                     )]);
-                }
-                (false, false) => {
-                    let joined = format!("{lhs} {rhs}");
-                    if symbols.borrow().is_def(&joined) {
-                        *reps.inner_t_mut() = Expr::Atom(Atom::Number(1));
-                        *target.inner_t_mut() = Expr::Atom(Atom::Ident(joined.clone()));
-                    } else {
-                        return Err(vec![TaleError::analyzer(
-                            reps.source_span(),
-                            reps.position(),
-                            format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
-                        )]);
-                    }
                 }
             }
         }
-        _ => (),
     };
     reps.analyze(symbols)?;
     target.analyze(symbols)

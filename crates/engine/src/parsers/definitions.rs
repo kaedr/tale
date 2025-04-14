@@ -102,7 +102,7 @@ pub fn table_group<'src>() -> impl Parser<
             }
             let sub_tables = sub_names
                 .into_iter()
-                .zip(sub_rows.into_iter())
+                .zip(sub_rows)
                 .map(|(sub_name, rows)| {
                     let full_name =
                         full_rc_node(ident_normalize(name.inner_t().clone(), sub_name), extra);

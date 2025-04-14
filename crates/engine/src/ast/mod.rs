@@ -52,11 +52,11 @@ impl TypedNode for (bool, Atom) {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct AST {
+pub struct Ast {
     nodes: RcNode<Statement>,
 }
 
-impl AST {
+impl Ast {
     pub fn new(nodes: RcNode<Statement>) -> Self {
         Self { nodes }
     }
@@ -66,7 +66,7 @@ impl AST {
     }
 }
 
-impl Display for AST {
+impl Display for Ast {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.nodes)
     }
@@ -100,10 +100,7 @@ pub enum Statement {
 
 impl Statement {
     pub fn is_empty(&self) -> bool {
-        match self {
-            Self::Empty => true,
-            _ => false,
-        }
+        matches!(self, Self::Empty)
     }
 }
 
@@ -209,10 +206,7 @@ pub enum Expr {
 
 impl Expr {
     pub fn is_empty(&self) -> bool {
-        match self {
-            Self::Empty => true,
-            _ => false,
-        }
+        matches!(self, Self::Empty)
     }
 }
 
@@ -302,19 +296,19 @@ impl Atom {
         }
     }
 
-    pub fn bare_str(&self) -> String {
+    pub fn bare_string(&self) -> String {
         match self {
-            Atom::Number(n) => format!("{}", n),
-            Atom::Dice(n, s) => format!("{}d{}", n, s),
-            Atom::Str(s) => format!("{}", s),
-            Atom::Ident(s) => format!("{}", s),
-            Atom::Raw(token) => format!("{}", token),
+            Atom::Number(n) => n.to_string(),
+            Atom::Dice(n, s) => format!("{n}d{s}"),
+            Atom::Str(s) => s.to_string(),
+            Atom::Ident(s) => s.to_string(),
+            Atom::Raw(token) => token.to_string(),
         }
     }
 
     pub fn range(&self, other: &Self) -> Vec<Self> {
         (*self.number()..=*other.number())
-            .map(|val| Self::Number(val))
+            .map(Self::Number)
             .collect()
     }
 
@@ -352,23 +346,18 @@ impl TypedNode for Atom {
 
 impl PartialOrd for Atom {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Atom::Number(l), Atom::Number(r)) => l.partial_cmp(r),
-            (Atom::Dice(ln, ls), Atom::Dice(rn, rs)) => (ln * ls).partial_cmp(&(rn * rs)),
-            (Atom::Str(l), Atom::Str(r)) => l.partial_cmp(r),
-            (Atom::Ident(l), Atom::Ident(r)) => l.partial_cmp(r),
-            (Atom::Raw(l), Atom::Raw(r)) => l.partial_cmp(r),
-            _ => None,
-        }
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for Atom {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if let Some(order) = self.partial_cmp(other) {
-            order
-        } else {
-            self.to_string().cmp(&other.to_string())
+        match (self, other) {
+            (Atom::Number(l), Atom::Number(r)) => l.cmp(r),
+            (Atom::Dice(ln, ls), Atom::Dice(rn, rs)) => (ln * ls).cmp(&(rn * rs)),
+            (Atom::Str(l), Atom::Str(r)) => l.cmp(r),
+            (Atom::Ident(l), Atom::Ident(r)) => l.cmp(r),
+            (l, r) => l.bare_string().cmp(&r.bare_string()),
         }
     }
 }
@@ -703,7 +692,7 @@ impl Ord for Script {
 
 impl PartialOrd for Script {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.name.partial_cmp(&other.name)
+        Some(self.cmp(other))
     }
 }
 
@@ -893,7 +882,7 @@ impl Table {
     }
 }
 
-fn list_form_match(key: SymbolValue, atoms: &Vec<Atom>) -> TaleResultVec<SymbolValue> {
+fn list_form_match(key: SymbolValue, atoms: &[Atom]) -> TaleResultVec<SymbolValue> {
     match key {
         SymbolValue::Numeric(n) if n < 1 => Ok(SymbolValue::String(atoms[0].to_string())),
         SymbolValue::Numeric(n) if n > 0 && (n as usize) < atoms.len() => {
@@ -910,7 +899,7 @@ fn flat_form_match(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
     key: SymbolValue,
-    nodes: &Vec<RcNode<Statement>>,
+    nodes: &[RcNode<Statement>],
 ) -> TaleResultVec<SymbolValue> {
     match key {
         SymbolValue::Numeric(n) if n < 1 => nodes[0].eval(symbols, state),
@@ -928,7 +917,7 @@ fn num_keyed_form_match(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
     key: SymbolValue,
-    items: &Vec<(RcNode<Expr>, RcNode<Statement>)>,
+    items: &[(RcNode<Expr>, RcNode<Statement>)],
 ) -> TaleResultVec<SymbolValue> {
     match key {
         SymbolValue::Numeric(key) => {
@@ -960,7 +949,7 @@ fn num_key_matcher(key: isize, candidates: Vec<SymbolValue>) -> usize {
     for candidate in candidates {
         match candidate {
             SymbolValue::Numeric(n) => {
-                let new_distance = (n - key).abs() as usize;
+                let new_distance = (n - key).unsigned_abs();
                 if new_distance < distance {
                     distance = new_distance;
                 }
@@ -978,7 +967,7 @@ fn text_keyed_form_match(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
     key: SymbolValue,
-    items: &Vec<(RcNode<Expr>, RcNode<Statement>)>,
+    items: &[(RcNode<Expr>, RcNode<Statement>)],
 ) -> TaleResultVec<SymbolValue> {
     match key {
         SymbolValue::String(key) => {
@@ -1036,7 +1025,7 @@ impl Ord for Table {
 
 impl PartialOrd for Table {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.name.partial_cmp(&other.name)
+        Some(self.cmp(other))
     }
 }
 
@@ -1256,7 +1245,7 @@ impl Duration {
                     .eval(&Default::default(), &Default::default())
                     .expect("Error evaluating Duration");
                 if let SymbolValue::Numeric(num) = value {
-                    let new_value = num as isize - amount;
+                    let new_value = num - amount;
                     if new_value <= 0 {
                         // Duration is exhausted
                         *self = Duration::All; // Set to All

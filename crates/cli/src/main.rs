@@ -12,7 +12,7 @@ mod snippets;
 
 #[derive(Parser)]
 #[command(version, about)]
-struct CLI {
+struct Cli {
     files: Vec<String>,
 }
 
@@ -81,7 +81,7 @@ fn repl(mut engine: Interpreter) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let cli = CLI::parse();
+    let cli = Cli::parse();
 
     match Interpreter::new_with_files(SIDEBAR, &cli.files) {
         Ok(engine) => {

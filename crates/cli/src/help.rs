@@ -30,19 +30,13 @@ pub fn help(lc_input: &str, prefix: &str) {
 
 fn table_help(maybe_sub_topic: Option<&str>) {
     match maybe_sub_topic {
-        Some(sub_topic) if sub_topic == "list" => {
-            flanked_example("Table List Form", EXAMPLE_TABLE_LIST)
-        }
-        Some(sub_topic) if sub_topic == "probabilities" => {
+        Some("list") => flanked_example("Table List Form", EXAMPLE_TABLE_LIST),
+        Some("probabilities") => {
             flanked_example("Table Probabilities", EXAMPLE_TABLE_PROBABILITIES)
         }
-        Some(sub_topic) if sub_topic == "keys" => {
-            flanked_example("Table Key Variants", EXAMPLE_TABLE_CSV_KEYS)
-        }
-        Some(sub_topic) if sub_topic == "lookup" => {
-            flanked_example("Table Textual Keys", EXAMPLE_TABLE_LOOKUP)
-        }
-        Some(sub_topic) if sub_topic == "tags" => flanked_example("Table Tags", EXAMPLE_TABLE_TAGS),
+        Some("keys") => flanked_example("Table Key Variants", EXAMPLE_TABLE_CSV_KEYS),
+        Some("lookup") => flanked_example("Table Textual Keys", EXAMPLE_TABLE_LOOKUP),
+        Some("tags") => flanked_example("Table Tags", EXAMPLE_TABLE_TAGS),
         _ => {
             flanked_example("Table Basics", EXAMPLE_TABLE_BASICS);
             print_sidebarred("Type: 'help table list', 'help table probabilities',");
