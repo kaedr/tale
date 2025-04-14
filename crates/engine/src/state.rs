@@ -1,5 +1,5 @@
 use std::{
-    cell::{Ref, RefCell, RefMut},
+    cell::{Ref, RefCell},
     cmp::min,
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
@@ -22,7 +22,7 @@ use crate::error::TaleError;
 
 use crate::error::TaleResult;
 
-use crate::ast::{AST, Analyze, Eval as _};
+use crate::ast::{AST, Analyze as _, Eval as _};
 
 pub type SimpleParserState<'src> = SimpleState<&'src mut ParserState>;
 
@@ -38,26 +38,22 @@ impl ParserState {
         Self { source, lexicon }
     }
 
-    pub fn from_source(source: String) -> Self {
-        let lexicon = tokenize(&source).unwrap();
-        Self { source, lexicon }
-    }
-
-    pub fn tokens(&self) -> Vec<Token> {
-        self.lexicon
-            .iter()
-            .map(|(token, _, _)| token.clone())
-            .collect()
-    }
-
     pub fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
-        let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
-        self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
+        if self.lexicon.len() > 0 {
+            let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
+            self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
+        } else {
+            0..0
+        }
     }
 
     pub fn get_source_position(&self, span: &Range<usize>) -> Position {
-        let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
-        self.lexicon[start].2
+        if self.lexicon.len() > 0 {
+            let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
+            self.lexicon[start].2
+        } else {
+            (0, 0)
+        }
     }
 
     pub fn get_source_slice(&self, span: &Range<usize>) -> String {
@@ -251,7 +247,6 @@ impl StateTable {
     pub fn evaluate_current(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<SymbolValue> {
         let maybe_ast = self.asts.borrow_mut().get(&*self.current()).cloned();
         if let Some(ast) = maybe_ast {
-            // println!("{}", ast);
             ast.eval(symbols, &self)
         } else {
             Err(
@@ -294,7 +289,6 @@ impl StateTable {
                 let trv = self.pipeline(symbols, name.clone(), source.clone());
                 symbols.borrow_mut().pop_scope();
                 *self.current.borrow_mut() = outer_name;
-                println!("{:?}", symbols.borrow().list_tables());
                 render_tale_result_vec(self.prefix, &name, source, trv)
             }
             Err(_) => {
@@ -525,11 +519,9 @@ impl SymbolValue {
             SymbolValue::Script(script) => println!("{prefix}{script}"),
             SymbolValue::Table(table) => println!("{prefix}{table}"),
             SymbolValue::List(symbol_values) => {
-                //println!("[");
                 for value in symbol_values {
                     value.render(&format!("{prefix}"));
                 }
-                //println!("]");
             }
         }
     }
@@ -629,5 +621,26 @@ impl Scopes {
         // If the internal Vecs are somehow a different length, we should probably break
         debug_assert_eq!(self.numerics.len(), self.strings.len());
         self.numerics.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::lexer::{Token, tokenize};
+
+    use super::ParserState;
+
+    impl ParserState {
+        pub fn from_source(source: String) -> Self {
+            let lexicon = tokenize(&source).unwrap();
+            Self { source, lexicon }
+        }
+
+        pub fn tokens(&self) -> Vec<Token> {
+            self.lexicon
+                .iter()
+                .map(|(token, _, _)| token.clone())
+                .collect()
+        }
     }
 }

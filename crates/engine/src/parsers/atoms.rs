@@ -6,6 +6,49 @@ use crate::{
 };
 use chumsky::prelude::*;
 
+pub const RBRACKET: &[Token] = &[Token::RBracket];
+pub const COMMA_OR_RBRACKET: &[Token] = &[Token::RBracket, Token::Comma];
+
+pub const PERIOD_OR_SEMICOLON: &[Token] = &[Token::Period, Token::SemiColon];
+
+pub const TABS: &[Token] = &[Token::Tabs];
+pub const NEWLINES: &[Token] = &[Token::NewLines];
+pub const DELIMITING_WHITESPACE: &[Token] = &[Token::Tabs, Token::NewLines];
+
+pub const CELL_ENDINGS: &[Token] = &[
+    Token::Period,
+    Token::SemiColon,
+    Token::Tabs,
+    Token::NewLines,
+];
+
+// Match a character designating termination of the current statement
+// then, rewind so the character is still available for use a delimiter
+pub fn terminator<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
++ Clone {
+    one_of(end_tokens)
+        .ignored()
+        .or(end())
+        .rewind()
+        .labelled("Terminator")
+}
+
+// Where the terminator rewinds its end tokens, the separator consumes
+// TODO: Maybe name these better?
+pub fn chomp_separator<'src>(
+    chomp_tokens: &'static [Token],
+    end_tokens: &'static [Token],
+) -> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
++ Clone {
+    one_of(chomp_tokens)
+        .or_not()
+        .then(one_of(end_tokens))
+        .ignored()
+        .labelled("Separator")
+}
+
 pub fn term<'src>() -> impl Parser<
     'src,
     &'src [Token],
@@ -180,6 +223,7 @@ pub fn typical_punctuation<'src>()
     let typical_punctuation = select! {
         Token::Ampersand => Atom::Raw(Token::Ampersand),
         Token::Apostrophe => Atom::Raw(Token::Apostrophe),
+        Token::Asterisk => Atom::Raw(Token::Asterisk),
         Token::Bang => Atom::Raw(Token::Bang),
         Token::Colon => Atom::Raw(Token::Colon),
         Token::Comma => Atom::Raw(Token::Comma),
@@ -238,25 +282,6 @@ pub fn number<'src>()
     number.labelled("Numeric")
 }
 
-// Match a character designating termination of the current statement
-// then, rewind so the character is still available for use a delimiter
-pub fn terminator<'src>()
--> impl Parser<'src, &'src [Token], (), extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>>
-+ Clone {
-    one_of([
-        Token::Comma,
-        Token::Period,
-        Token::NewLines,
-        Token::RBracket,
-        Token::SemiColon,
-        Token::Tabs,
-    ])
-    .ignored()
-    .or(end())
-    .rewind()
-    .labelled("Terminator")
-}
-
 pub fn ident_normalize(l: Atom, r: Atom) -> Atom {
     Atom::Ident(format!("{} {}", l.to_lowercase(), r.to_lowercase()))
 }
@@ -295,7 +320,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, words::<Atom>());
         assert_eq!(
-            "[found 'At' at 6..7 expected Wordlike, Typical Punctuation, or end of input]",
+            "[TaleError { kind: Parse, span: 23..24, position: (1, 25), msg: \"found 'At' expected Wordlike, Typical Punctuation, or end of input\" }]",
             format!("{output}")
         );
     }
@@ -319,7 +344,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, ident_maybe_sub());
         assert_eq!(
-            "[found 'SemiColon' at 1..2 expected Wordlike, 'Colon', Identity, or end of input]",
+            "[TaleError { kind: Parse, span: 1..2, position: (1, 1), msg: \"found 'SemiColon' expected Wordlike, 'Colon', Identity, or end of input\" }]",
             output
         );
     }
@@ -360,7 +385,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, ident());
         assert_eq!(
-            "[found 'Colon' at 1..2 expected Wordlike, or end of input]",
+            "[TaleError { kind: Parse, span: 3..4, position: (1, 5), msg: \"found 'Colon' expected Wordlike, or end of input\" }]",
             output
         );
     }
@@ -393,7 +418,10 @@ mod tests {
         let output = stubbed_parser(&mut p_state, &tokens[6..7], value_name());
         assert_eq!("`cased_num83r5`", output);
         let output = stubbed_parser(&mut p_state, &tokens[7..], value_name());
-        assert_eq!("[found 'Digits(42)' at 0..1 expected Value Name]", output);
+        assert_eq!(
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found 'Digits(42)' expected Value Name\" }]",
+            output
+        );
     }
 
     #[test]
@@ -442,6 +470,9 @@ mod tests {
         let output = stubbed_parser(&mut p_state, &tokens[12..13], number());
         assert_eq!("10", output);
         let output = stubbed_parser(&mut p_state, &tokens[13..], number());
-        assert_eq!("[found 'Once' at 0..1 expected Numeric]", output);
+        assert_eq!(
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found 'Once' expected Numeric\" }]",
+            output
+        );
     }
 }

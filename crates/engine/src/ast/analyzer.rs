@@ -220,7 +220,7 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
         }
         Expr::Roll(reps, target) => match (&*reps.inner_t(), &*target.inner_t()) {
             (Expr::Atom(Atom::Ident(idl)), Expr::Atom(Atom::Ident(idr))) => {
-                if !symbols.borrow().is_def(&idl) && !symbols.borrow().is_def(&idr) {
+                if !symbols.borrow().is_def(&idl) || !symbols.borrow().is_def(&idr) {
                     if let Some(sauce) = expr.get_detail("words_only") {
                         *expr.inner_t_mut() = Expr::Atom(Atom::Str(sauce));
                     }
@@ -387,7 +387,7 @@ mod tests {
                 Roll 1d6, `magic item table a`,\n\t\
                 Roll (1d4 + 2), `farm animals`,\n\t\
                 Roll (1d6 - 1), `farm animals`,\n\t\
-                Roll (1d4 - 2), `farm animals`,\n\t\
+                Roll 1d6, `magic items #3`,\n\t\
                 Roll 1, `farm animals`,\n\t\
                 Roll 1, `farm animals`,\n\t\
                 Roll 1, `farm animals`,\n\t\

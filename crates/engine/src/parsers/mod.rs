@@ -1,4 +1,5 @@
 use crate::lexer::Token;
+use atoms::{NEWLINES, TABS, chomp_separator};
 use chumsky::prelude::*;
 use definitions::{script, table, table_group};
 use statements::seq_or_statement;
@@ -24,11 +25,8 @@ pub fn parser<'src>() -> impl Parser<
     table()
         .or(table_group())
         .or(script())
-        .or(seq_or_statement().then_ignore(just(Token::NewLines).ignored().or(end())))
-        .or(just(Token::Tabs)
-            .or_not()
-            .then(just(Token::NewLines))
-            .ignored()
+        .or(seq_or_statement(NEWLINES).then_ignore(just(Token::NewLines).ignored().or(end())))
+        .or(chomp_separator(TABS, NEWLINES)
             .map_with(|_, extra| full_rc_node(Statement::Empty, extra)))
         .repeated()
         .collect::<Vec<_>>()
@@ -45,9 +43,12 @@ pub fn parser<'src>() -> impl Parser<
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
+    use crate::lexer::Token;
     use crate::samples::*;
 
     use crate::state::StateTable;
+
+    pub const EOI_ONLY: &[Token] = &[];
 
     #[test]
     fn parse_full_01() {
@@ -200,7 +201,7 @@ mod tests {
         table.add_source(name.to_string(), STATEMENT_OUTPUT.to_string());
         table.lex_current();
         let errors = table.parse_current();
-        println!(
+        eprintln!(
             "{}",
             table
                 .asts()

@@ -1,3 +1,4 @@
 Load 01_table_minimal.tale
+Load src/samples/01_table_minimal.tale
 load: "../../tons of _odd-characters_.tale"
 load ../../tons of _odd-characters_.tale

@@ -6,23 +6,30 @@ use crate::{
     state::SimpleParserState,
 };
 
-use super::atoms::{self, ident_maybe_sub, number, qstring, terminator, words};
+use super::atoms::{
+    self, DELIMITING_WHITESPACE, RBRACKET, ident_maybe_sub, number, qstring, terminator,
+    value_name, words,
+};
 
-pub fn any_expr<'src>() -> impl Parser<
+pub fn any_expr<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    roll()
-        .or(lookup())
-        .or(arithmetic().then_ignore(terminator()))
+    roll(end_tokens)
+        .or(lookup(end_tokens))
+        .or(arithmetic().then_ignore(terminator(end_tokens)))
         .or(interpolation())
         .boxed()
         .labelled("Any Expression")
 }
 
-pub fn roll<'src>() -> impl Parser<
+pub fn roll<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
@@ -35,7 +42,7 @@ pub fn roll<'src>() -> impl Parser<
         }));
 
     optional_repetition
-        .then(roll_predicate().or_not())
+        .then(roll_predicate(end_tokens).or_not())
         .map_with(|(lhs, rhs), extra| {
             if let Some(rhs) = rhs {
                 (lhs, rhs)
@@ -43,11 +50,14 @@ pub fn roll<'src>() -> impl Parser<
                 (full_rc_node(Atom::Number(1), extra), lhs)
             }
         })
-        .or(optional_roll.then(roll_predicate()))
+        .or(optional_roll.then(roll_predicate(end_tokens)))
         .map_with(|(lhs, rhs), extra| {
             let roll_expr_node = full_rc_node(Expr::Roll(lhs, rhs), extra);
             if extra.slice().iter().all(|token| match token {
-                Token::Roll | Token::On | Token::DieRoll(_) => false,
+                // Keywords
+                Token::Roll | Token::Time | Token::On => false,
+                // Dice/digits
+                Token::DieRoll(_) | Token::Digits(_) => false,
                 _ => true,
             }) {
                 let span = extra.span().into_range();
@@ -62,7 +72,9 @@ pub fn roll<'src>() -> impl Parser<
         .labelled("Roll Expression")
 }
 
-fn roll_predicate<'src>() -> impl Parser<
+fn roll_predicate<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
@@ -74,17 +86,17 @@ fn roll_predicate<'src>() -> impl Parser<
         .or_not()
         .ignore_then(ident_maybe_sub())
         .map_with(full_rc_node);
-    // let pred_three = just(Token::On).or_not().ignore_then(
-    //     just(Token::Table)
-    //         .then(just(Token::Colon))
-    //         .ignore_then(interpolation()),
-    // ); TODO: This infinitely recurses...
+    let pred_three = just(Token::On).or_not().ignore_then(
+        just(Token::Table)
+            .then(just(Token::Colon))
+            .ignore_then(minterpolation(end_tokens)),
+    );
     pred_one
-        .then_ignore(terminator())
+        .then_ignore(terminator(end_tokens))
         .or(pred_two)
-        .then_ignore(terminator())
-        // .or(pred_three)
-        // .then_ignore(terminator())
+        .then_ignore(terminator(end_tokens))
+        .or(pred_three)
+        .then_ignore(terminator(end_tokens))
         .boxed()
         .labelled("Roll Predicate")
 }
@@ -118,7 +130,9 @@ fn repetition_clause<'src>() -> impl Parser<
         .labelled("Repetition Clause")
 }
 
-pub fn lookup<'src>() -> impl Parser<
+pub fn lookup<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Expr>,
@@ -128,7 +142,7 @@ pub fn lookup<'src>() -> impl Parser<
         .ignore_then(arithmetic().or(words()))
         .then_ignore(just(Token::On))
         .then(ident_maybe_sub().map_with(full_rc_node))
-        .then_ignore(terminator())
+        .then_ignore(terminator(end_tokens))
         .map_with(|(lhs, rhs), extra| full_rc_node(Expr::Lookup(lhs, rhs), extra))
         .boxed()
         .labelled("Lookup Expression")
@@ -142,19 +156,43 @@ pub fn interpolation<'src>() -> impl Parser<
 > + Clone {
     let qstr_map = qstring().map_with(full_rc_node);
 
-    let words_map = words();
-
     qstr_map
-        .or(words_map)
+        .or(words())
         .or(embed_expr())
         .repeated()
         .at_least(1)
         .collect::<Vec<_>>()
-        .then_ignore(terminator())
+        .then_ignore(terminator(DELIMITING_WHITESPACE))
         .map_with(full_rc_node)
         .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra))
         .boxed()
         .labelled("Interpolation")
+}
+
+/// Minimal interpolation
+pub fn minterpolation<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Expr>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+> + Clone {
+    let qstr_map = qstring().map_with(full_rc_node);
+    let value_map = value_name()
+        .delimited_by(just(Token::LBracket), just(Token::RBracket))
+        .map_with(full_rc_node);
+    qstr_map
+        .or(words())
+        .or(value_map)
+        .repeated()
+        .at_least(1)
+        .collect::<Vec<_>>()
+        .then_ignore(terminator(end_tokens))
+        .map_with(full_rc_node)
+        .map_with(|items, extra| full_rc_node(Expr::Interpol(items), extra))
+        .boxed()
+        .labelled("Mini Interpolation")
 }
 
 fn embed_expr<'src>() -> impl Parser<
@@ -164,9 +202,10 @@ fn embed_expr<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     implied_roll_expr()
-        .or(roll())
-        .then_ignore(terminator())
-        .or(arithmetic().then_ignore(terminator()))
+        .or(roll(RBRACKET))
+        .or(lookup(RBRACKET))
+        .then_ignore(terminator(RBRACKET))
+        .or(arithmetic().then_ignore(terminator(RBRACKET)))
         .delimited_by(just(Token::LBracket), just(Token::RBracket))
         .boxed()
 }
@@ -287,6 +326,7 @@ pub fn number_range_list<'src>() -> impl Parser<
 mod tests {
     use super::*;
 
+    use crate::parsers::tests::EOI_ONLY;
     use crate::state::ParserState;
     use crate::{
         parsers::expressions::arithmetic, tests::stubbed_parser, utils::tests::read_sample_lines,
@@ -303,7 +343,7 @@ mod tests {
             "Roll 1d6, `magic item table a`",
             "Roll (1d4 + 2), `farm animals`",
             "Roll (1d6 - 1), `farm animals`",
-            "Roll (1d4 - 2), `farm animals`",
+            "Roll 1d6, `magic items #3`",
             // Parser can't tell in this situation that there's an ellided repetition here
             // and a table called farm animals until semantic analysis.
             "Roll `farm`, `animals`",
@@ -318,15 +358,17 @@ mod tests {
         for (index, line) in lookup_lines.enumerate() {
             let mut p_state = ParserState::from_source(line.unwrap());
             let tokens = p_state.tokens();
-            let output = stubbed_parser(&mut p_state, &tokens, roll());
+            let output = stubbed_parser(&mut p_state, &tokens, roll(EOI_ONLY));
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let mut p_state = ParserState::from_source("Roll 2 @".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll());
+        let output = stubbed_parser(&mut p_state, &tokens, roll(EOI_ONLY));
         assert_eq!(
-            "[found 'At' at 2..3 expected Arithmetic Operator, 'LParens', 'Times/Rolls', Roll Predicate, or end of input in Arithmetic Expression at 1..2]",
+            "[TaleError { kind: Parse, span: 7..8, position: (1, 7), msg: \"found 'At' expected \
+            Arithmetic Operator, 'LParens', 'Times/Rolls', Roll Predicate, or end of input in \
+            Arithmetic Expression at 1..2\" }]",
             format!("{output}")
         );
     }
@@ -335,57 +377,55 @@ mod tests {
     fn parse_roll_predicate() {
         let mut p_state = ParserState::from_source("On Table: Stuff".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("`stuff`", format!("{output}"));
 
         let mut p_state = ParserState::from_source(r#"On Table: "StringLike""#.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("`stringlike`", format!("{output}"));
 
         let mut p_state = ParserState::from_source("on `magic item table a`".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("`magic item table a`", format!("{output}"));
 
         let mut p_state = ParserState::from_source("On Major: Minor".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("`major minor`", format!("{output}"));
 
         let mut p_state = ParserState::from_source("10 gp gems".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("`10 gp gems`", format!("{output}"));
 
         let mut p_state = ParserState::from_source("2d6 * 10".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("(2d6 * 10)", format!("{output}"));
 
         let mut p_state = ParserState::from_source("1".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!("1", format!("{output}"));
 
-        let mut p_state = ParserState::from_source("On Table: Kingdom of [Current Kingdom]".into());
+        let mut p_state = ParserState::from_source("On Table: Kingdom of [CurrentKingdom]".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
-        assert_eq!(
-            r#"!["Kingdom of", Roll 1, `current kingdom`]!"#,
-            format!("{output}")
-        );
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
+        assert_eq!(r#"!["Kingdom of", `currentkingdom`]!"#, format!("{output}"));
 
         let mut p_state = ParserState::from_source("Table: [Food]".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
-        assert_eq!("![Roll 1, `food`]!", format!("{output}"));
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
+        assert_eq!("![`food`]!", format!("{output}"));
 
         let mut p_state = ParserState::from_source("Table: @".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate());
+        let output = stubbed_parser(&mut p_state, &tokens, roll_predicate(EOI_ONLY));
         assert_eq!(
-            "[found 'At' at 2..3 expected Identity, Terminator, or Interpolation]",
+            "[TaleError { kind: Parse, span: 7..8, position: (1, 7), msg: \"found 'At' expected \
+            Identity, Terminator, or Mini Interpolation\" }]",
             format!("{output}")
         );
     }
@@ -440,7 +480,10 @@ mod tests {
         let mut p_state = ParserState::from_source("1d6 + 1 (@5)".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
-        assert_eq!("[found 'At' at 4..5 expected Numeric]", format!("{output}"));
+        assert_eq!(
+            "[TaleError { kind: Parse, span: 9..10, position: (1, 11), msg: \"found 'At' expected Numeric\" }]",
+            format!("{output}")
+        );
     }
 
     #[test]
@@ -456,15 +499,16 @@ mod tests {
         for (index, line) in lookup_lines.enumerate() {
             let mut p_state = ParserState::from_source(line.unwrap());
             let tokens = p_state.tokens();
-            let output = stubbed_parser(&mut p_state, &tokens, lookup());
+            let output = stubbed_parser(&mut p_state, &tokens, lookup(EOI_ONLY));
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let mut p_state = ParserState::from_source("Lookup 2 @ TextKeys".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, lookup());
+        let output = stubbed_parser(&mut p_state, &tokens, lookup(EOI_ONLY));
         assert_eq!(
-            "[found 'At' at 2..3 expected Arithmetic Operator, or 'On' in Arithmetic Expression at 1..2]",
+            "[TaleError { kind: Parse, span: 9..10, position: (1, 11), msg: \"found 'At' expected \
+            Arithmetic Operator, or 'On' in Arithmetic Expression at 1..2\" }]",
             format!("{output}")
         );
     }
@@ -507,7 +551,7 @@ mod tests {
         let mut p_state =
             ParserState::from_source("Immortal, wisest and fairest of all beings.".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, any_expr());
+        let output = stubbed_parser(&mut p_state, &tokens, any_expr(EOI_ONLY));
         assert_eq!(
             r#"!["Immortal, wisest and fairest of all beings."]!"#,
             format!("{output}")
@@ -517,7 +561,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(
-            "[found 'At' at 2..3 expected Wordlike, 'Colon', Identity, Terminator, or Arithmetic Operator]",
+            "[TaleError { kind: Parse, span: 5..6, position: (1, 10), msg: \"found 'At' expected \
+            Wordlike, 'Colon', Identity, Terminator, or Arithmetic Operator\" }]",
             format!("{output}")
         );
     }
@@ -581,7 +626,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!(
-            "[found 'At' at 1..2 expected Arithmetic Operator, or end of input in Arithmetic Expression at 0..1]",
+            "[TaleError { kind: Parse, span: 4..5, position: (1, 6), msg: \"found 'At' expected \
+            Arithmetic Operator, or end of input in Arithmetic Expression at 0..1\" }]",
             format!("{output}")
         );
     }
@@ -617,7 +663,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, number_range_list());
         assert_eq!(
-            "[found 'Word(\"bacon\")' at 0..1 expected Number, Range, List]",
+            "[TaleError { kind: Parse, span: 0..5, position: (1, 0), msg: \"found \
+            'Word(\\\"bacon\\\")' expected Number, Range, List\" }]",
             format!("{output}")
         );
     }

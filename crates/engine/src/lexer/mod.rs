@@ -982,6 +982,7 @@ pub(crate) mod tests {
             assert_eq!(
                 token_vec[26..],
                 [
+                    Token::Set,
                     Token::Word("minutes".into()),
                     Token::To,
                     Token::Word("midnight".into()),
@@ -1126,7 +1127,22 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[5..9],
+                token_vec[5..14],
+                [
+                    Token::Load,
+                    Token::Word("src".into()),
+                    Token::Slash,
+                    Token::Word("samples".into()),
+                    Token::Slash,
+                    Token::Word("01_table_minimal".into()),
+                    Token::Period,
+                    Token::Word("tale".into()),
+                    Token::NewLines
+                ]
+            );
+
+            assert_eq!(
+                token_vec[14..18],
                 [
                     Token::Load,
                     Token::Colon,
@@ -1136,7 +1152,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[9..],
+                token_vec[18..],
                 [
                     Token::Load,
                     Token::Ellipsis,
@@ -1416,22 +1432,20 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[59..68],
+                token_vec[59..66],
                 [
+                    Token::DieRoll((1, 6)),
                     Token::Roll,
-                    Token::DieRoll((1, 4)),
-                    Token::Minus,
-                    Token::Digits(2),
-                    Token::Time,
                     Token::On,
-                    Token::Word("Farm".into()),
-                    Token::Word("Animals".into()),
+                    Token::Table,
+                    Token::Colon,
+                    Token::String("Magic Items #3".into()),
                     Token::NewLines
                 ]
             );
 
             assert_eq!(
-                token_vec[68..72],
+                token_vec[66..70],
                 [
                     Token::Roll,
                     Token::Word("Farm".into()),
@@ -1441,7 +1455,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[72..76],
+                token_vec[70..74],
                 [
                     Token::Once,
                     Token::Word("Farm".into()),
@@ -1451,7 +1465,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[76..80],
+                token_vec[74..78],
                 [
                     Token::Digits(1),
                     Token::Word("Farm".into()),
@@ -1461,7 +1475,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[80..84],
+                token_vec[78..82],
                 [
                     Token::Roll,
                     Token::Digits(3),
@@ -1471,7 +1485,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[84..87],
+                token_vec[82..85],
                 [
                     Token::DieRoll((1, 6)),
                     Token::DieRoll((1, 6)),
@@ -1480,7 +1494,7 @@ pub(crate) mod tests {
             );
 
             assert_eq!(
-                token_vec[87..],
+                token_vec[85..],
                 [Token::Digits(6), Token::DieRoll((3, 6)), Token::NewLines]
             );
         }

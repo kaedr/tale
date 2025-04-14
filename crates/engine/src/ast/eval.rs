@@ -5,6 +5,7 @@ use crate::{
     error::{TaleError, TaleResultVec},
     state::{StateTable, SymbolTable, SymbolValue},
 };
+use glob::glob;
 use rand::Rng;
 
 pub trait Eval {
@@ -221,8 +222,6 @@ fn insert_table_def(
     table: &RcNode<Table>,
 ) -> TaleResultVec<SymbolValue> {
     let name = table.eval(symbols, state)?.to_string();
-    println!("Inserting: {}", name);
-    println!("{:?}", symbols.borrow().list_tables());
     match symbols
         .borrow_mut()
         .insert(name.clone(), SymbolValue::Table(table.clone()))
@@ -286,11 +285,29 @@ fn load_stmt(
     state: &StateTable,
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
-    println!("{:?}", std::env::current_dir());
+    let mut results = Vec::new();
     let name = target.inner_t().bare_str();
-    println!("{}", name);
-    let source = read_to_string(&name).map_err(|err| TaleError::from(err))?;
-    state.nested_pipeline(symbols, name, source)
+    for entry in glob(&name).map_err(|err| TaleError::system(format!("Glob error: {}", err)))? {
+        match entry {
+            Ok(path) => {
+                let source = read_to_string(&path).map_err(|err| TaleError::from(err))?;
+                results.push(state.nested_pipeline(
+                    symbols,
+                    path.to_string_lossy().to_string(),
+                    source,
+                )?);
+            }
+            Err(err) => Err(TaleError::system(format!("Glob error: {}", err)))?,
+        }
+    }
+    if results.is_empty() {
+        Err(TaleError::system(format!(
+            "No such file or directory: {}",
+            name
+        )))?
+    } else {
+        Ok(SymbolValue::List(results))
+    }
 }
 
 fn modify_stmt(

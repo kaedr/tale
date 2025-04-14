@@ -7,30 +7,37 @@ use crate::{
 };
 
 use super::{
-    atoms::{ident, ident_maybe_sub, number, qstring, terminator, value_name, words},
+    atoms::{
+        COMMA_OR_RBRACKET, DELIMITING_WHITESPACE, RBRACKET, ident, ident_maybe_sub, number,
+        qstring, terminator, value_name, words,
+    },
     expressions::{any_expr, arithmetic, implied_roll_expr, interpolation},
 };
 
-pub fn seq_or_statement<'src>() -> impl Parser<
+pub fn seq_or_statement<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    statement_sequence().or(any_statement()).boxed()
+    statement_sequence().or(any_statement(end_tokens)).boxed()
 }
 
-pub fn any_statement<'src>() -> impl Parser<
+pub fn any_statement<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    nonce()
+    nonce(end_tokens)
         .or(load())
         .or(output())
         .or(show())
-        .or(chainable_statement())
+        .or(chainable_statement(end_tokens))
         .and_is(
             just(Token::End)
                 .then(one_of([Token::Script, Token::Table]))
@@ -40,30 +47,34 @@ pub fn any_statement<'src>() -> impl Parser<
         .labelled("Statement")
 }
 
-fn nonce<'src>() -> impl Parser<
+fn nonce<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     one_of([Token::Dash, Token::Minus])
-        .then(terminator())
+        .then(terminator(end_tokens))
         .ignored()
         .map_with(|_, extra| full_rc_node(Statement::Empty, extra))
         .labelled("Nonce")
 }
 
-pub fn chainable_statement<'src>() -> impl Parser<
+pub fn chainable_statement<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    assignment()
-        .or(clear())
-        .or(invoke())
-        .or(modify())
-        .or(expression())
+    assignment(end_tokens)
+        .or(clear(end_tokens))
+        .or(invoke(end_tokens))
+        .or(modify(end_tokens))
+        .or(expression(end_tokens))
         .boxed()
         .labelled("Chainable Statement")
 }
@@ -74,17 +85,17 @@ pub fn statement_sequence<'src>() -> impl Parser<
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    let chained = chainable_statement()
+    let chained = chainable_statement(COMMA_OR_RBRACKET)
         .separated_by(just(Token::Comma).then(just(Token::And).or_not()).ignored())
         .at_least(1)
         .collect::<Vec<_>>();
 
     let implied_roll_expr = implied_roll_expr()
-        .then_ignore(terminator())
+        .then_ignore(terminator(RBRACKET))
         .map_with(|implied_roll, extra| vec![full_rc_node(implied_roll, extra)]);
 
     chained
-        .or(any_statement().map(|stmt| vec![stmt]))
+        .or(any_statement(RBRACKET).map(|stmt| vec![stmt]))
         .or(implied_roll_expr)
         .delimited_by(just(Token::LBracket), just(Token::RBracket))
         .map_with(full_rc_node)
@@ -92,36 +103,36 @@ pub fn statement_sequence<'src>() -> impl Parser<
         .boxed()
 }
 
-pub fn assignment<'src>() -> impl Parser<
+pub fn assignment<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    just(Token::Set)
+    let explicit_form = just(Token::Set)
+        .ignore_then(value_name().map_with(full_rc_node))
+        .then_ignore(just(Token::Equals).or(just(Token::To)));
+
+    let implicit_form = just(Token::Set)
         .or_not()
         .ignore_then(value_name().map_with(full_rc_node))
-        .then_ignore(just(Token::Equals).or(just(Token::To)))
-        .then(any_expr())
-        .then_ignore(terminator())
+        .then_ignore(just(Token::Equals));
+
+    explicit_form
+        .or(implicit_form)
+        .then(any_expr(end_tokens))
+        .then_ignore(terminator(end_tokens))
         .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Assignment(lhs, rhs), extra))
         .boxed()
         .labelled("Assignment Statement")
         .as_context()
 }
 
-pub fn expression<'src>() -> impl Parser<
-    'src,
-    &'src [Token],
-    RcNode<Statement>,
-    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
-> + Clone {
-    any_expr()
-        .map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra))
-        .boxed()
-}
-
-pub fn clear<'src>() -> impl Parser<
+pub fn clear<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
@@ -132,7 +143,7 @@ pub fn clear<'src>() -> impl Parser<
         .then(
             ident_maybe_sub()
                 .then_ignore(just(Token::Roll).or_not())
-                .then_ignore(terminator())
+                .then_ignore(terminator(end_tokens))
                 .map_with(full_rc_node),
         )
         .map_with(|(lhs, rhs), extra| full_rc_node(Statement::Clear(lhs, rhs), extra))
@@ -141,7 +152,22 @@ pub fn clear<'src>() -> impl Parser<
         .as_context()
 }
 
-pub fn invoke<'src>() -> impl Parser<
+pub fn expression<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
+    'src,
+    &'src [Token],
+    RcNode<Statement>,
+    extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
+> + Clone {
+    any_expr(end_tokens)
+        .map_with(|expr, extra| full_rc_node(Statement::Expr(expr), extra))
+        .boxed()
+}
+
+pub fn invoke<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
@@ -149,7 +175,7 @@ pub fn invoke<'src>() -> impl Parser<
 > + Clone {
     just(Token::Invoke)
         .then(just(Token::Colon).or_not())
-        .ignore_then(ident().then_ignore(terminator()))
+        .ignore_then(ident().then_ignore(terminator(end_tokens)))
         .map_with(full_rc_node)
         .map_with(|node, extra| full_rc_node(Statement::Invoke(node), extra))
         .boxed()
@@ -178,7 +204,9 @@ pub fn load<'src>() -> impl Parser<
         .as_context()
 }
 
-pub fn modify<'src>() -> impl Parser<
+pub fn modify<'src>(
+    end_tokens: &'static [Token],
+) -> impl Parser<
     'src,
     &'src [Token],
     RcNode<Statement>,
@@ -189,7 +217,7 @@ pub fn modify<'src>() -> impl Parser<
         .then(ident_maybe_sub())
         .then_ignore(just(Token::Roll))
         .then(mod_by())
-        .then_ignore(terminator())
+        .then_ignore(terminator(end_tokens))
         .map_with(|((dur, id), value), extra| {
             let modifier = Modifier::new(dur, value);
             full_rc_node(
@@ -202,7 +230,7 @@ pub fn modify<'src>() -> impl Parser<
         .then(duration())
         .then(ident_maybe_sub())
         .then_ignore(just(Token::Roll))
-        .then_ignore(terminator())
+        .then_ignore(terminator(end_tokens))
         .map_with(|((value, dur), id), extra| {
             let modifier = Modifier::new(dur, value);
             full_rc_node(
@@ -272,7 +300,7 @@ pub fn show<'src>() -> impl Parser<
         .ignore_then(just(Token::Tag).or_not())
         .then_ignore(just(Token::Colon).or_not())
         .then(ident_maybe_sub())
-        .then_ignore(terminator())
+        .then_ignore(terminator(DELIMITING_WHITESPACE))
         .map_with(|(tags, value), extra| {
             full_rc_node(
                 Statement::Show(full_rc_node((tags.is_some(), value), extra)),
@@ -288,6 +316,7 @@ pub fn show<'src>() -> impl Parser<
 #[allow(unused_must_use)]
 mod tests {
 
+    use crate::parsers::tests::EOI_ONLY;
     use crate::state::ParserState;
     use crate::{tests::stubbed_parser, utils::tests::read_sample_lines};
 
@@ -297,24 +326,25 @@ mod tests {
     fn parse_nonce() {
         let mut p_state = ParserState::from_source(r"-".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement(EOI_ONLY));
         assert_eq!("Empty", format!("{output}"));
 
         let mut p_state = ParserState::from_source(r"–".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement(EOI_ONLY));
         assert_eq!("Empty", format!("{output}"));
 
         let mut p_state = ParserState::from_source(r"—".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement(EOI_ONLY));
         assert_eq!("Empty", format!("{output}"));
 
         let mut p_state = ParserState::from_source("".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, any_statement());
+        let output = stubbed_parser(&mut p_state, &tokens, any_statement(EOI_ONLY));
         assert_eq!(
-            "[found end of input at 0..0 expected Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Statement\" }]",
             format!("{output}")
         );
     }
@@ -342,11 +372,22 @@ mod tests {
             format!("{output}")
         );
 
+        let mut p_state = ParserState::from_source(
+            r#"[2 rolls on Table: "Magic Items #3", 1d2 rolls on Table: "Magic Items #10"]"#.into(),
+        );
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
+        assert_eq!(
+            "Sequence: [\n\tRoll 2, `magic items #3`,\n\tRoll 1d2, `magic items #10`\n]",
+            format!("{output}")
+        );
+
         let mut p_state = ParserState::from_source(r"A + B".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
-            "[found 'Word(\"A\")' at 0..1 expected 'LBracket']",
+            "[TaleError { kind: Parse, span: 0..1, position: (1, 0), msg: \"found \
+            'Word(\\\"A\\\")' expected 'LBracket'\" }]",
             format!("{output}")
         );
 
@@ -354,7 +395,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
-            "[found end of input at 0..0 expected 'LBracket']",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input expected 'LBracket'\" }]",
             format!("{output}")
         );
     }
@@ -374,15 +415,16 @@ mod tests {
         for (index, line) in lines.enumerate() {
             let mut p_state = ParserState::from_source(line.unwrap());
             let tokens = p_state.tokens();
-            let output = stubbed_parser(&mut p_state, &tokens, assignment());
+            let output = stubbed_parser(&mut p_state, &tokens, assignment(EOI_ONLY));
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let mut p_state = ParserState::from_source("".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, assignment());
+        let output = stubbed_parser(&mut p_state, &tokens, assignment(EOI_ONLY));
         assert_eq!(
-            "[found end of input at 0..0 expected Assignment Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Assignment Statement\" }]",
             format!("{output}")
         );
     }
@@ -400,15 +442,16 @@ mod tests {
         for (index, line) in lines.enumerate() {
             let mut p_state = ParserState::from_source(line.unwrap());
             let tokens = p_state.tokens();
-            let output = stubbed_parser(&mut p_state, &tokens, clear());
+            let output = stubbed_parser(&mut p_state, &tokens, clear(EOI_ONLY));
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let mut p_state = ParserState::from_source("".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, clear());
+        let output = stubbed_parser(&mut p_state, &tokens, clear(EOI_ONLY));
         assert_eq!(
-            "[found end of input at 0..0 expected Clear Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Clear Statement\" }]",
             format!("{output}")
         );
     }
@@ -424,15 +467,16 @@ mod tests {
         for (index, line) in lines.enumerate() {
             let mut p_state = ParserState::from_source(line.unwrap());
             let tokens = p_state.tokens();
-            let output = stubbed_parser(&mut p_state, &tokens, invoke());
+            let output = stubbed_parser(&mut p_state, &tokens, invoke(EOI_ONLY));
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let mut p_state = ParserState::from_source("".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, invoke());
+        let output = stubbed_parser(&mut p_state, &tokens, invoke(EOI_ONLY));
         assert_eq!(
-            "[found end of input at 0..0 expected Invoke Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Invoke Statement\" }]",
             format!("{output}")
         );
     }
@@ -441,6 +485,7 @@ mod tests {
     fn parse_load() {
         let check_vals = vec![
             r#"Load: "01_table_minimal.tale""#,
+            r#"Load: "src/samples/01_table_minimal.tale""#,
             r#"Load: "../../tons of _odd-characters_.tale""#,
             r#"Load: "../../tons of _odd-characters_.tale""#,
         ];
@@ -457,7 +502,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, load());
         assert_eq!(
-            "[found end of input at 0..0 expected Load Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Load Statement\" }]",
             format!("{output}")
         );
     }
@@ -475,15 +521,16 @@ mod tests {
         for (index, line) in lines.enumerate() {
             let mut p_state = ParserState::from_source(line.unwrap());
             let tokens = p_state.tokens();
-            let output = stubbed_parser(&mut p_state, &tokens, modify());
+            let output = stubbed_parser(&mut p_state, &tokens, modify(EOI_ONLY));
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
         let mut p_state = ParserState::from_source("".into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, modify());
+        let output = stubbed_parser(&mut p_state, &tokens, modify(EOI_ONLY));
         assert_eq!(
-            "[found end of input at 0..0 expected Modify Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Modify Statement\" }]",
             format!("{output}")
         );
     }
@@ -507,7 +554,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, output());
         assert_eq!(
-            "[found end of input at 0..0 expected Output Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Output Statement\" }]",
             format!("{output}")
         );
     }
@@ -535,7 +583,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, show());
         assert_eq!(
-            "[found end of input at 0..0 expected Show Statement]",
+            "[TaleError { kind: Parse, span: 0..0, position: (0, 0), msg: \"found end of input \
+            expected Show Statement\" }]",
             format!("{output}")
         );
     }

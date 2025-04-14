@@ -39,7 +39,7 @@ fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
     } else {
         engine
             .execute(SIDEBAR, input)
-            .map_err(|err| io::Error::other(format!("-{:?}", err)))?
+            .map_err(|err| io::Error::other(format!("{:?}", err)))?
             .render(SIDEBAR);
     }
     Ok(())

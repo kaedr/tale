@@ -7,7 +7,10 @@ use crate::{
 };
 
 use super::{
-    atoms::{dice, ident, ident_normalize},
+    atoms::{
+        CELL_ENDINGS, NEWLINES, PERIOD_OR_SEMICOLON, TABS, chomp_separator, dice, ident,
+        ident_normalize,
+    },
     expressions::{arithmetic, number_range_list},
     statements::{any_statement, seq_or_statement},
 };
@@ -25,7 +28,7 @@ pub fn script<'src>() -> impl Parser<
         .then(
             just(Token::Tabs)
                 .or_not()
-                .ignore_then(seq_or_statement())
+                .ignore_then(seq_or_statement(NEWLINES))
                 .then_ignore(just(Token::NewLines))
                 .repeated()
                 .collect::<Vec<_>>(),
@@ -137,8 +140,8 @@ fn table_group_rows<'src>() -> impl Parser<
 > + Clone {
     row_key()
         .then(
-            any_statement()
-                .separated_by( one_of([Token::Period, Token::SemiColon]).or_not().then(just(Token::Tabs)))
+            any_statement(CELL_ENDINGS)
+                .separated_by(chomp_separator(PERIOD_OR_SEMICOLON, TABS))
                 .collect::<Vec<_>>(),
         )
         .map(|(key, items)| {
@@ -147,7 +150,7 @@ fn table_group_rows<'src>() -> impl Parser<
                 .map(|item| (key.clone(), item))
                 .collect::<Vec<_>>()
         })
-        .then_ignore(one_of([Token::Period, Token::SemiColon]).or_not().then(just(Token::NewLines)))
+        .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
         .repeated()
         .at_least(1)
         .collect::<Vec<_>>()
@@ -230,8 +233,8 @@ fn table_flat_rows<'src>() -> impl Parser<
     RcNode<TableRows>,
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
-    any_statement()
-        .then_ignore(just(Token::NewLines))
+    seq_or_statement(CELL_ENDINGS)
+        .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
         .repeated()
         .at_least(1)
         .collect()
@@ -246,8 +249,8 @@ fn table_keyed_form<'src>() -> impl Parser<
     extra::Full<Rich<'src, Token>, SimpleParserState<'src>, ()>,
 > + Clone {
     row_key()
-        .then(any_statement())
-        .then_ignore(just(Token::NewLines))
+        .then(seq_or_statement(CELL_ENDINGS))
+        .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
         .repeated()
         .at_least(1)
         .collect()
@@ -405,15 +408,23 @@ mod tests {
     #[test]
     fn parse_table_rows() {
         let source = "Elves		Immortal, wisest and fairest of all beings.
-                            Dwarves		Great miners and craftsmen of the mountain halls.
-                            Humans		Who above all else desire power.";
+Dwarves		Great miners and craftsmen of the mountain halls.
+Humans		Who above all else desire power.
+End Table";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_rows());
-        assert_eq!(
-            "![\"Immortal, wisest and fairest of all beings.\"]!",
-            output
-        );
+        assert_eq!("3", output);
+
+        let source = r#"1–6		—
+7–11	1d6 rolls on Table: "Magic Items #3"
+12–18	[2 rolls on Table: "Magic Items #3", 1d2 rolls on Table: "Magic Items #10"]
+19–20	1d4 rolls on Table: "Magic Items #9"
+End Table"#;
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_rows());
+        assert_eq!("4", output);
     }
 
     #[test]
@@ -459,7 +470,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_group());
         assert_eq!(
-            "[Table Group rows must all have same number of columns at 0..23 in Table Group Definition at 0..23]",
+            "[TaleError { kind: Parse, span: 0..155, position: (1, 0), msg: \"Table Group rows \
+            must all have same number of columns in Table Group Definition at 0..23\" }]",
             output
         );
     }
@@ -484,7 +496,7 @@ mod tests {
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_group_rows());
-        println!("{}", output);
+        eprintln!("{}", output);
         // Assert we parsed 1 column and 3 rows.
         assert_eq!(1, output.matches("Keyed(").count());
         assert_eq!(3, output.matches("List(").count());
@@ -511,7 +523,8 @@ mod tests {
         let output = grubbed_parser(&mut p_state, &tokens, table_group_rows());
         // Check the uneven rows case:
         assert_eq!(
-            "[Table Group rows must all have same number of columns, row 2 has 1 columns but expected 2 at 14..14]",
+            "[TaleError { kind: Parse, span: 69..70, position: (3, 31), msg: \"Table Group rows \
+            must all have same number of columns, row 2 has 1 columns but expected 2\" }]",
             output
         );
     }
@@ -540,7 +553,7 @@ mod tests {
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
-        println!("{}", output);
+        eprintln!("{}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("value: Empty"));
         assert!(output.contains("[Str(\"dark\")"));
@@ -551,7 +564,7 @@ mod tests {
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
-        println!("{}", output);
+        eprintln!("{}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 6))"));
         assert!(output.contains("[Str(\"this\")"));
@@ -563,7 +576,7 @@ mod tests {
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
-        println!("{}", output);
+        eprintln!("{}", output);
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(2, 20)"));
         assert!(output.contains("[Str(\"the other\")"));
@@ -575,7 +588,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert_eq!(
-            "[found 'At' at 2..3 expected Identity, or 'NewLines']",
+            "[TaleError { kind: Parse, span: 5..6, position: (1, 5), msg: \"found 'At' expected \
+            Identity, or 'NewLines'\" }]",
             output
         );
 
@@ -584,7 +598,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert_eq!(
-            "[found 'At' at 2..3 expected Arithmetic Expression]",
+            "[TaleError { kind: Parse, span: 6..7, position: (1, 6), msg: \"found 'At' \
+            expected Arithmetic Expression\" }]",
             output
         );
     }
@@ -626,7 +641,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!(
-            "[found 'Word(\"Business\")' at 3..4 expected 'Comma', or 'Tabs']",
+            "[TaleError { kind: Parse, span: 4..12, position: (1, 13), msg: \"found \
+            'Word(\\\"Business\\\")' expected 'Comma', or 'Tabs'\" }]",
             format!("{output}")
         );
     }

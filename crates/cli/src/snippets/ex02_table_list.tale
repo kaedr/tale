@@ -1,4 +1,4 @@
-/ Tables may use a 'List' directive to have items separated by commas
+// Tables may use a 'List' directive to have items separated by commas
 // rather than having each on a new line
 Table: Cardinal Directions
 List: North, South, East, West
