@@ -5,6 +5,7 @@
      |  Table, Table Group, Script
      |
      |  NOTE: These can ONLY be written in '.tale' files, not defined at the prompt.
+     |    You can create '.tale' files in any basic text editor (like Notepad/Gedit/vim/etc. NOT a word processor).
      |
      |  Type: 'help table', 'help table group', or 'help script' for more info.
      |
