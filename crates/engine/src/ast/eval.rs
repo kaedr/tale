@@ -567,7 +567,10 @@ fn roll_expr(
     target: &RcNode<Expr>,
 ) -> TaleResultVec<SymbolValue> {
     let reps_val = reps.eval(symbols, state)?;
-    let target_val = target.eval(symbols, state)?;
+    let target_val = match target.eval(symbols, state)? {
+        SymbolValue::String(target_string) => symbols.borrow().get_value(&target_string),
+        other => other,
+    };
     match (reps_val, target_val.clone()) {
         (SymbolValue::Numeric(x), SymbolValue::Numeric(_)) => match x {
             ..=0 => Ok(SymbolValue::Placeholder),
@@ -604,7 +607,6 @@ fn roll_invoke_or_err(
         SymbolValue::Script(script) => script.inner_t().invoke(symbols, state),
         SymbolValue::Table(table) => table.inner_t().roll_on(symbols, state),
         SymbolValue::Numeric(_) => Ok(target),
-        SymbolValue::String(_) => Ok(target),
         _ => Err(vec![TaleError::evaluator(
             0..0,
             (0, 0),
@@ -648,7 +650,7 @@ impl Eval for Atom {
             Atom::Number(n) => Ok(SymbolValue::Numeric(*n as isize)),
             Atom::Dice(x, y) => roll_dice(*x, *y),
             Atom::Str(s) => Ok(SymbolValue::String(s.clone())),
-            Atom::Ident(id) => symbols.borrow().get_value(id),
+            Atom::Ident(id) => Ok(symbols.borrow().get_value(id)),
             Atom::Raw(token) => Ok(SymbolValue::String(token.to_string())),
         }
     }

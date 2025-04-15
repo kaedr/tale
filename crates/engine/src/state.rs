@@ -412,25 +412,25 @@ impl SymbolTable {
         )
     }
 
-    pub fn get_value(&self, name: &str) -> TaleResultVec<SymbolValue> {
+    pub fn get_value(&self, name: &str) -> SymbolValue {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.scopes.resolve(name) {
-                Ok(v)
+                v
             } else if let Some(v) = self.scripts.get(name) {
-                Ok(SymbolValue::Script(v.clone()))
+                SymbolValue::Script(v.clone())
             } else if let Some(v) = self.tables.get(name) {
-                Ok(SymbolValue::Table(v.clone()))
+                SymbolValue::Table(v.clone())
             } else {
-                Ok(SymbolValue::String(name.to_string()))
+                SymbolValue::String(name.to_string())
             }
         } else {
-            Ok(match name {
+            match name {
                 "tables" | "table" => self.list_tables(),
                 "scripts" | "script" => self.list_scripts(),
                 "values" | "variables" | "names" | "identifiers" => self.list_names(),
                 other => SymbolValue::String(other.to_string()),
-            })
+            }
         }
     }
 
