@@ -32,13 +32,13 @@ fn print_sidebarred(text: &str) {
     println!("{SIDEBAR}{text}");
 }
 
-fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
+fn process_input(engine: &mut Interpreter, input: &str) -> Result<()> {
     let lc_input = input.to_lowercase();
     if lc_input.starts_with("help") {
         help(lc_input.as_str());
     } else {
         engine
-            .execute(SIDEBAR, &input)
+            .execute(SIDEBAR, input)
             .map_err(|err| io::Error::other(format!("{err:?}")))?
             .render(SIDEBAR);
     }
@@ -57,7 +57,7 @@ fn repl(mut engine: Interpreter) -> Result<()> {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str())?;
-                process_input(&mut engine, line)?;
+                process_input(&mut engine, &line)?;
             }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL+C");

@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     error::{TaleError, TaleResultVec},
-    state::{SymbolTable, SymbolValue},
+    state::{StateTable, SymbolTable, SymbolValue},
 };
 
 use super::{
@@ -100,8 +100,7 @@ impl Analyze for Statement {
                 target.analyze(symbols)?;
                 Ok(())
             }
-            Statement::Invoke(node) => node.analyze(symbols),
-            Statement::Load(node) => node.analyze(symbols),
+            Statement::Invoke(node) | Statement::Load(node) => node.analyze(symbols),
             Statement::Modify(modifier, target) => {
                 // For `Modify`, we need to analyze the modifier and the target
                 modifier.analyze(symbols)?;
@@ -134,7 +133,7 @@ impl Analyze for Table {
         self.rows.analyze(symbols)?;
         if let TableRows::Keyed(items) = &*self.rows.inner_t() {
             match items.iter().try_fold(SymbolValue::Placeholder, |prev, row| {
-                    match (&prev, row.0.inner_t().eval(symbols, &Default::default())?) {
+                    match (&prev, row.0.inner_t().eval(symbols, &StateTable::default())?) {
                         (SymbolValue::Placeholder, other) => Ok(other),
                         (SymbolValue::List(_), SymbolValue::List(item)) => Ok(SymbolValue::List(item)),
                         (SymbolValue::String(_), SymbolValue::String(item)) => Ok(SymbolValue::String(item)),
@@ -302,7 +301,6 @@ fn analyze_roll(
 impl Analyze for Atom {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
-            Atom::Number(_) => Ok(()),
             Atom::Dice(x, y) => {
                 if x == &0 || y == &0 {
                     Err(vec![TaleError::evaluator(
@@ -314,7 +312,6 @@ impl Analyze for Atom {
                     Ok(())
                 }
             }
-            Atom::Str(_) => Ok(()),
             Atom::Ident(id) => {
                 if symbols.borrow().is_def(id) {
                     Ok(())
@@ -326,7 +323,7 @@ impl Analyze for Atom {
                     )])
                 }
             }
-            Atom::Raw(_) => Ok(()),
+            Atom::Number(_) | Atom::Str(_) | Atom::Raw(_) => Ok(()),
         }
     }
 }
@@ -355,7 +352,7 @@ mod tests {
     #[test]
     fn analyze_roll() {
         let table = StateTable::default();
-        let symbols: RefCell<SymbolTable> = Default::default();
+        let symbols: RefCell<SymbolTable> = RefCell::default();
         table.add_source("roll".to_string(), STATEMENT_ROLL.to_string());
         table.lex_current();
         let errors = table.parse_current();

@@ -842,8 +842,8 @@ impl Table {
                     .expect("Analyzer Bug: Missing table key type!")
                     .as_str()
                 {
-                    "numeric" => num_keyed_form_match(symbols, state, &key, items),
-                    "text" => text_keyed_form_match(symbols, state, &key, items),
+                    "numeric" => num_keyed_form_match(symbols, state, key, items),
+                    "text" => text_keyed_form_match(symbols, state, key, items),
                     _ => unreachable!("Analyzer Bug: Invalid table key type!"),
                 }
             }
