@@ -93,7 +93,7 @@ pub fn table_group<'src>()
                 .zip(sub_rows)
                 .map(|(sub_name, rows)| {
                     let full_name =
-                        full_rc_node(ident_normalize(name.inner_t().clone(), sub_name), extra);
+                        full_rc_node(ident_normalize(&name.inner_t(), &sub_name), extra);
                     let table_value = Table::new(full_name, roll.clone(), tags.clone(), rows);
                     full_rc_node(table_value, extra)
                 })
@@ -149,7 +149,7 @@ fn table_group_rows<'src>()
             }
             let iter_rows = rows
                 .into_iter()
-                .map(|row| row.into_iter())
+                .map(std::iter::IntoIterator::into_iter)
                 .collect::<Vec<_>>();
             let mut columns: Vec<Vec<_>> = Vec::new();
             for (rn, row) in iter_rows.into_iter().enumerate() {
@@ -446,7 +446,7 @@ End Table"#;
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_group_rows());
-        eprintln!("{}", output);
+        eprintln!("{output}");
         // Assert we parsed 1 column and 3 rows.
         assert_eq!(1, output.matches("Keyed(").count());
         assert_eq!(3, output.matches("List(").count());
@@ -503,7 +503,7 @@ End Table"#;
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("(Node"));
         assert!(output.contains("value: Empty"));
         assert!(output.contains("[Str(\"dark\")"));
@@ -514,7 +514,7 @@ End Table"#;
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(1, 6))"));
         assert!(output.contains("[Str(\"this\")"));
@@ -526,7 +526,7 @@ End Table"#;
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("(Node"));
         assert!(output.contains("Atom(Dice(2, 20)"));
         assert!(output.contains("[Str(\"the other\")"));

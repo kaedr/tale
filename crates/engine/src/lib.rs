@@ -3,9 +3,9 @@ mod lexer;
 mod parsers;
 mod utils;
 
-use std::{cell::RefCell, fs::read_to_string, io, path::Path};
+use std::{cell::RefCell, fs::read_to_string, io, path::Path, rc::Rc};
 
-use error::{TaleResultVec, render_tale_result_vec};
+use error::{TaleError, TaleResultVec, render_tale_result_vec};
 use state::{StateTable, SymbolTable, SymbolValue};
 
 mod error;
@@ -25,17 +25,19 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+    #[must_use]
     pub fn new(prefix: &'static str) -> Self {
         Self {
             state: StateTable::new(prefix),
-            symbols: Default::default(),
+            symbols: RefCell::default(),
             repl_count: 0,
         }
     }
 
+    #[must_use]
     pub fn new_with_source_string(prefix: &'static str, source: String) -> Self {
         let state = StateTable::new(prefix);
-        let symbols = Default::default();
+        let symbols = RefCell::default();
         state.captured_pipeline(&symbols, "InitialInput".into(), source);
         Self {
             state,
@@ -44,12 +46,12 @@ impl Interpreter {
         }
     }
 
-    pub fn new_with_files<P>(prefix: &'static str, file_names: &Vec<P>) -> io::Result<Self>
+    pub fn new_with_files<P>(prefix: &'static str, file_names: &[P]) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
         let state = StateTable::new(prefix);
-        let symbols = Default::default();
+        let symbols = RefCell::default();
         for file_name in file_names {
             let source = read_to_string(file_name)?;
             state.captured_pipeline(&symbols, file_name.to_string(), source);
@@ -65,7 +67,7 @@ impl Interpreter {
     where
         P: AsRef<Path> + ToString,
     {
-        Self::new_with_files(prefix, &vec![file_name])
+        Self::new_with_files(prefix, &[file_name])
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
@@ -76,23 +78,25 @@ impl Interpreter {
         self.state.output_of(name)
     }
 
-    pub fn source_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
+    pub fn source_of(&self, name: &str) -> Option<Rc<String>> {
         self.state.source_of(name)
     }
 
     pub fn render_output_of(&self, prefix: &str, name: &str) -> TaleResultVec<SymbolValue> {
-        let source = self.source_of(name)?.to_string();
-        let trv = self.output_of(name);
-        render_tale_result_vec(prefix, name, source, trv)
+        let source = self
+            .source_of(name)
+            .ok_or_else(|| TaleError::system(format!("No source found for: {name}")))?;
+        let tale_result_vec = self.output_of(name);
+        render_tale_result_vec(prefix, name, &source, tale_result_vec)
     }
 
-    pub fn execute(&mut self, prefix: &str, source: String) -> TaleResultVec<SymbolValue> {
+    pub fn execute(&mut self, prefix: &str, source: &str) -> TaleResultVec<SymbolValue> {
         self.repl_count += 1;
         let source_name = format!("REPL({})", self.repl_count);
-        let trv = self
-            .state
-            .pipeline(&self.symbols, source_name.clone(), source.clone());
-        render_tale_result_vec(prefix, &source_name, source, trv)
+        let tale_result_vec =
+            self.state
+                .pipeline(&self.symbols, source_name.clone(), source.to_string());
+        render_tale_result_vec(prefix, &source_name, source, tale_result_vec)
     }
 }
 
@@ -149,7 +153,7 @@ mod tests {
     {
         let mut state = SimpleState::from(state);
         match parser.parse_with_state(tokens, &mut state).into_result() {
-            Ok(output) => format!("{:?}", output),
+            Ok(output) => format!("{output:?}"),
             Err(the_errs) => {
                 let mapped_errs = TaleError::from_parser_vec(the_errs);
                 format!(
@@ -165,7 +169,7 @@ mod tests {
         format!("{:?}", terp.current_output())
     }
 
-    fn streamlinest(file_names: Vec<&str>) -> String {
+    fn streamlinest(file_names: &[&str]) -> String {
         let transform = file_names.iter().map(sample_path);
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
@@ -177,7 +181,7 @@ mod tests {
     #[test]
     fn pipeline_full_01() {
         let output = streamline(TABLE_MINIMAL);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
         assert_eq!(1, output.matches("minimalism").count());
@@ -189,7 +193,7 @@ mod tests {
     #[test]
     fn pipeline_full_02() {
         let output = streamline(TABLE_ROLL_DEF);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
         assert_eq!(1, output.matches("value: Empty").count());
@@ -200,7 +204,7 @@ mod tests {
     #[test]
     fn pipeline_full_03() {
         let output = streamline(TABLE_LIST);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
         assert_eq!(1, output.matches("groceries").count());
@@ -213,7 +217,7 @@ mod tests {
     #[test]
     fn pipeline_full_04() {
         let output = streamline(TABLE_KEYED_NUMERIC);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
         assert_eq!(1, output.matches("numkeyed").count());
@@ -226,7 +230,7 @@ mod tests {
     #[test]
     fn pipeline_full_05() {
         let output = streamline(TABLE_KEYED_WORD);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Table(Node"));
         assert!(output.ends_with("})]))"));
         assert_eq!(1, output.matches("textkeys").count());
@@ -237,7 +241,7 @@ mod tests {
     #[test]
     fn pipeline_full_06() {
         let output = streamline(TABLE_GROUP);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([List([Table(Node"));
         assert!(output.ends_with("})])]))"));
         assert!(output.contains("treasure hoard"));
@@ -247,16 +251,16 @@ mod tests {
     #[test]
     fn pipeline_full_10_expr() {
         let output = streamline(STATEMENT_EXPRESSION);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Numeric("));
         assert!(output.ends_with(")]))"));
-        assert_eq!(2, output.matches("Numeric(").count())
+        assert_eq!(2, output.matches("Numeric(").count());
     }
 
     #[test]
     fn pipeline_full_11_assign() {
         let output = streamline(STATEMENT_ASSIGNMENT);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Eval"));
         assert!(output.ends_with("}])"));
         assert_eq!(1, output.matches("non-numeric").count());
@@ -264,11 +268,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_11_assign_with_deps() {
-        let output = streamlinest(vec![
-            "92_supporting_defs.tale",
-            "11_statement_assignment.tale",
-        ]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "11_statement_assignment.tale"]);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(1, output.matches("Overwriting previous value").count());
@@ -277,7 +278,7 @@ mod tests {
     #[test]
     fn pipeline_full_12_clear() {
         let output = streamline(STATEMENT_CLEAR);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(4, output.matches("is not defined").count());
@@ -285,8 +286,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_12_clear_with_deps() {
-        let output = streamlinest(vec!["92_supporting_defs.tale", "12_statement_clear.tale"]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "12_statement_clear.tale"]);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(4, output.matches("Placeholder").count());
@@ -295,7 +296,7 @@ mod tests {
     #[test]
     fn pipeline_full_13_invoke() {
         let output = streamline(STATEMENT_INVOKE);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(2, output.matches("is not defined").count());
@@ -303,8 +304,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_13_invoke_with_deps() {
-        let output = streamlinest(vec!["92_supporting_defs.tale", "13_statement_invoke.tale"]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "13_statement_invoke.tale"]);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([List([Placeholder"));
         assert!(output.ends_with(")]))"));
         assert_eq!(1, output.matches("Placeholder").count());
@@ -314,7 +315,7 @@ mod tests {
     #[test]
     fn pipeline_full_14_load() {
         let output = streamline(STATEMENT_LOAD);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: System"));
         assert!(output.ends_with("}])"));
         assert_eq!(3, output.matches("No such file or directory").count());
@@ -323,7 +324,7 @@ mod tests {
     #[test]
     fn pipeline_full_15_lookup() {
         let output = streamline(STATEMENT_LOOKUP);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Evaluation"));
         assert!(output.ends_with("}])"));
         assert_eq!(4, output.matches("Not a Table or Group name").count());
@@ -331,8 +332,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_15_lookup_with_deps() {
-        let output = streamlinest(vec!["92_supporting_defs.tale", "15_statement_lookup.tale"]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "15_statement_lookup.tale"]);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Numeric(1), String(\"c\"), "));
         assert!(output.ends_with(")]))"));
         assert_eq!(3, output.matches("String").count());
@@ -342,7 +343,7 @@ mod tests {
     #[test]
     fn pipeline_full_16_modify() {
         let output = streamline(STATEMENT_MODIFY);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(4, output.matches("is not defined").count());
@@ -350,18 +351,18 @@ mod tests {
 
     #[test]
     fn pipeline_full_16_modify_with_deps() {
-        let output = streamlinest(vec!["92_supporting_defs.tale", "16_statement_modify.tale"]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "16_statement_modify.tale"]);
+        eprintln!("{output}");
         assert_eq!(
             "Ok(List([Placeholder, Placeholder, Placeholder, Placeholder]))",
             output
-        )
+        );
     }
 
     #[test]
     fn pipeline_full_17_output() {
         let output = streamline(STATEMENT_OUTPUT);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([String(\"There are "));
         assert!(output.ends_with(
             "lights illuminated out of a total of 5.\"), String(\"A lovely string\")]))"
@@ -371,15 +372,15 @@ mod tests {
     #[test]
     fn pipeline_full_18_roll() {
         let output = streamline(STATEMENT_ROLL);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("msg: \"Roll: neither 'farm' nor 'animals' are defined\" }])"));
     }
 
     #[test]
     fn pipeline_full_18_roll_with_deps() {
-        let output = streamlinest(vec!["92_supporting_defs.tale", "18_statement_roll.tale"]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "18_statement_roll.tale"]);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
         eprintln!("{}", output.matches("Numeric(").count());
@@ -399,7 +400,7 @@ mod tests {
     #[test]
     fn pipeline_full_19_show() {
         let output = streamline(STATEMENT_SHOW);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
         assert_eq!(2, output.matches("is not defined").count());
@@ -407,8 +408,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_19_show_with_deps() {
-        let output = streamlinest(vec!["92_supporting_defs.tale", "19_statement_show.tale"]);
-        eprintln!("{}", output);
+        let output = streamlinest(&["92_supporting_defs.tale", "19_statement_show.tale"]);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
         assert_eq!(3, output.matches("minimalism").count());
@@ -442,7 +443,7 @@ mod tests {
     #[test]
     fn pipeline_full_21_scripts() {
         let output = streamline(SCRIPT);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Script(Node").count());
@@ -451,7 +452,7 @@ mod tests {
     #[test]
     fn pipeline_full_92_supporting_defs() {
         let output = streamline(SUPPORTING_DEFS);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Placeholder").count());
@@ -462,7 +463,7 @@ mod tests {
     #[test]
     fn pipeline_full_93_scopes() {
         let output = streamline(SCOPING);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Placeholder").count());
@@ -470,13 +471,14 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_precision_loss)] // Since we know how large our terms will be here.
     fn pipeline_full_94_distributions() {
         let output = streamline(DISTRIBUTIONS);
         //eprintln!("{}", output);
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with("]))"));
 
-        let flat_terms = vec![
+        let flat_terms = &[
             "one tenth",
             "two tenths",
             "three tenths",
@@ -490,12 +492,12 @@ mod tests {
         ];
         for term in flat_terms {
             let current_count = output.matches(term).count();
-            eprintln!("{}: {}", term, current_count);
+            eprintln!("{term}: {current_count}");
             assert!(1100 > current_count);
             assert!(900 < current_count);
         }
 
-        let curve_terms = vec![
+        let curve_terms = &[
             ("lower zero point four six", 46.0),
             ("lower one point three nine", 139.0),
             ("lower two point seven eight", 278.0),
@@ -531,6 +533,7 @@ mod tests {
                 current_count,
                 target * (1.0 - tolerance)
             );
+
             assert!(target * (1.0 - tolerance) < current_count as f64);
         }
     }
@@ -538,7 +541,7 @@ mod tests {
     #[test]
     fn pipeline_full_95_recursion() {
         let output = streamline(RECURSION);
-        eprintln!("{}", output);
+        eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(128, output.matches("Placeholder").count());

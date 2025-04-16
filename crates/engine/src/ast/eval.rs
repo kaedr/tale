@@ -27,7 +27,7 @@ where
         state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
         self.inner_t().eval(symbols, state).map_err(|mut errs| {
-            errs.iter_mut().for_each(|err| {
+            for err in &mut errs {
                 // Amend default spans with actual spans
                 if err.start() == 0 && err.end() == 0 {
                     err.update_span(self.source_span());
@@ -36,7 +36,7 @@ where
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
                 }
-            });
+            }
             errs
         })
     }
@@ -133,7 +133,7 @@ impl Eval for Table {
             _ => unreachable!(),
         };
         let table_name = self.name().inner_t().bare_string();
-        symbols.borrow_mut().push_tags(tags, table_name.clone());
+        symbols.borrow_mut().push_tags(tags, &table_name);
         Ok(SymbolValue::String(table_name))
     }
 }
@@ -149,7 +149,9 @@ impl Eval for TableGroup {
             _ => unreachable!(),
         };
         let table_name = self.name().eval(symbols, state)?;
-        symbols.borrow_mut().push_tags(tags, table_name.to_string());
+        symbols
+            .borrow_mut()
+            .push_tags(tags, &table_name.to_string());
         Ok(table_name)
     }
 }
@@ -209,7 +211,7 @@ fn table_group_def(
     table_group: &RcNode<TableGroup>,
 ) -> TaleResultVec<SymbolValue> {
     let mut outcomes = Vec::new();
-    for table in table_group.inner_t().sub_tables.iter() {
+    for table in &table_group.inner_t().sub_tables {
         outcomes.push(insert_table_def(symbols, state, table)?);
     }
     outcomes.push(insert_table_def(
@@ -291,23 +293,18 @@ fn load_stmt(
 ) -> TaleResultVec<SymbolValue> {
     let mut results = Vec::new();
     let name = target.inner_t().bare_string();
-    for entry in glob(&name).map_err(|err| TaleError::system(format!("Glob error: {}", err)))? {
+    for entry in glob(&name).map_err(|err| TaleError::system(format!("Glob error: {err}")))? {
         match entry {
             Ok(path) => {
                 let source = read_to_string(&path).map_err(TaleError::from)?;
-                results.push(state.nested_pipeline(
-                    symbols,
-                    path.to_string_lossy().to_string(),
-                    source,
-                )?);
+                results.push(state.nested_pipeline(symbols, &path.to_string_lossy(), &source)?);
             }
-            Err(err) => Err(TaleError::system(format!("Glob error: {}", err)))?,
+            Err(err) => Err(TaleError::system(format!("Glob error: {err}")))?,
         }
     }
     if results.is_empty() {
         Err(TaleError::system(format!(
-            "No such file or directory: {}",
-            name
+            "No such file or directory: {name}"
         )))?
     } else {
         Ok(SymbolValue::List(results))
@@ -343,7 +340,7 @@ fn show_stmt(
         let target = node.inner_t().1.to_lowercase();
         Ok(symbols
             .borrow()
-            .get_tags(target.to_string().split_whitespace().collect::<Vec<_>>()))
+            .get_tags(&target.to_string().split_whitespace().collect::<Vec<_>>()))
     } else {
         node.inner_t().1.eval(symbols, state)
     }
@@ -363,7 +360,7 @@ impl Eval for Expr {
                 other => Err(vec![TaleError::evaluator(
                     node.source_span(),
                     node.position(),
-                    format!("Cannot negate {:?}", other),
+                    format!("Cannot negate {other:?}"),
                 )]),
             },
             Expr::Add(lhs, rhs) => add_expr(symbols, state, lhs, rhs),
@@ -393,8 +390,7 @@ fn add_expr(
         (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l + r))
         }
-        (Err(err), Ok(_)) => Err(err),
-        (Ok(_), Err(err)) => Err(err),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
         (Err(mut l_err), Err(r_err)) => {
             l_err.extend(r_err);
             Err(l_err)
@@ -420,8 +416,7 @@ fn sub_expr(
         (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l - r))
         }
-        (Err(err), Ok(_)) => Err(err),
-        (Ok(_), Err(err)) => Err(err),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
         (Err(mut l_err), Err(r_err)) => {
             l_err.extend(r_err);
             Err(l_err)
@@ -447,8 +442,7 @@ fn mul_expr(
         (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l * r))
         }
-        (Err(err), Ok(_)) => Err(err),
-        (Ok(_), Err(err)) => Err(err),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
         (Err(mut l_err), Err(r_err)) => {
             l_err.extend(r_err);
             Err(l_err)
@@ -474,8 +468,7 @@ fn div_expr(
         (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l / r))
         }
-        (Err(err), Ok(_)) => Err(err),
-        (Ok(_), Err(err)) => Err(err),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
         (Err(mut l_err), Err(r_err)) => {
             l_err.extend(r_err);
             Err(l_err)
@@ -501,8 +494,7 @@ fn mod_expr(
         (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l % r))
         }
-        (Err(err), Ok(_)) => Err(err),
-        (Ok(_), Err(err)) => Err(err),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
         (Err(mut l_err), Err(r_err)) => {
             l_err.extend(r_err);
             Err(l_err)
@@ -525,11 +517,10 @@ fn pow_expr(
     let right_value = rhs.eval(symbols, state);
 
     match (left_value, right_value) {
-        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
-            Ok(SymbolValue::Numeric(l.pow(r as u32)))
-        }
-        (Err(err), Ok(_)) => Err(err),
-        (Ok(_), Err(err)) => Err(err),
+        (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => Ok(SymbolValue::Numeric(
+            l.pow(u32::try_from(r).map_err(TaleError::from)?),
+        )),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
         (Err(mut l_err), Err(r_err)) => {
             l_err.extend(r_err);
             Err(l_err)
@@ -551,7 +542,7 @@ fn lookup_expr(
     let key = value.eval(symbols, state)?;
     let target_val = target.eval(symbols, state)?;
     match &target_val {
-        SymbolValue::Table(table) => table.inner_t().lookup(symbols, state, key),
+        SymbolValue::Table(table) => table.inner_t().lookup(symbols, state, &key),
         _ => Err(vec![TaleError::evaluator(
             target.source_span(),
             target.position(),
@@ -647,6 +638,7 @@ impl Eval for Atom {
         _state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
         match self {
+            #[allow(clippy::cast_possible_wrap)] // > 2 Billion numerics aren't realistic for TALE
             Atom::Number(n) => Ok(SymbolValue::Numeric(*n as isize)),
             Atom::Dice(x, y) => roll_dice(*x, *y),
             Atom::Str(s) => Ok(SymbolValue::String(s.clone())),
@@ -671,7 +663,7 @@ fn roll_dice(x: usize, y: usize) -> TaleResultVec<SymbolValue> {
     for _ in 0..x {
         total += rng.random_range(1..=y);
     }
-
+    #[allow(clippy::cast_possible_wrap)] // > 2 Billion roll total isn't realistic
     Ok(SymbolValue::Numeric(total as isize))
 }
 

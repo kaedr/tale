@@ -29,6 +29,7 @@ pub enum TaleErrorKind {
 }
 
 impl TaleError {
+    #[must_use]
     pub fn system(msg: String) -> Self {
         Self {
             kind: TaleErrorKind::System,
@@ -38,6 +39,7 @@ impl TaleError {
         }
     }
 
+    #[must_use]
     pub fn lexer(span: Range<usize>, position: Position, msg: String) -> Self {
         Self {
             kind: TaleErrorKind::Lexical,
@@ -47,6 +49,7 @@ impl TaleError {
         }
     }
 
+    #[must_use]
     pub fn parser(span: Range<usize>, position: Position, msg: String) -> Self {
         Self {
             kind: TaleErrorKind::Parse,
@@ -56,6 +59,7 @@ impl TaleError {
         }
     }
 
+    #[must_use]
     pub fn from_parser_vec(errs: Vec<chumsky::error::Rich<'_, Token>>) -> Vec<Self> {
         errs.into_iter()
             .map(|err| {
@@ -68,14 +72,16 @@ impl TaleError {
             .collect::<Vec<Self>>()
     }
 
+    #[must_use]
     pub fn update_parser_vec_with_state(mut errs: Vec<Self>, state: &ParserState) -> Vec<Self> {
-        errs.iter_mut().for_each(|err| {
+        for err in &mut errs {
             err.update_span(state.get_source_span(&err.span()));
             err.update_position(state.get_source_position(&err.span()));
-        });
+        }
         errs
     }
 
+    #[must_use]
     pub fn analyzer(span: Range<usize>, position: Position, msg: String) -> Self {
         Self {
             kind: TaleErrorKind::Analysis,
@@ -85,6 +91,7 @@ impl TaleError {
         }
     }
 
+    #[must_use]
     pub fn evaluator(span: Range<usize>, position: Position, msg: String) -> Self {
         Self {
             kind: TaleErrorKind::Evaluation,
@@ -94,6 +101,7 @@ impl TaleError {
         }
     }
 
+    #[must_use]
     pub fn span(&self) -> Range<usize> {
         self.span.clone()
     }
@@ -102,14 +110,17 @@ impl TaleError {
         self.span = span;
     }
 
+    #[must_use]
     pub fn start(&self) -> usize {
         self.span.start
     }
 
+    #[must_use]
     pub fn end(&self) -> usize {
         self.span.end
     }
 
+    #[must_use]
     pub fn position(&self) -> Position {
         self.position
     }
@@ -122,10 +133,12 @@ impl TaleError {
         self.msg.push_str(add_msg);
     }
 
+    #[must_use]
     pub fn kind(&self) -> &TaleErrorKind {
         &self.kind
     }
 
+    #[must_use]
     pub fn msg(&self) -> &String {
         &self.msg
     }
@@ -134,6 +147,12 @@ impl TaleError {
 impl From<std::io::Error> for TaleError {
     fn from(value: std::io::Error) -> Self {
         Self::system(value.to_string())
+    }
+}
+
+impl From<std::num::TryFromIntError> for TaleError {
+    fn from(value: std::num::TryFromIntError) -> Self {
+        Self::evaluator(0..0, Position::default(), value.to_string())
     }
 }
 
@@ -146,10 +165,10 @@ impl From<TaleError> for Vec<TaleError> {
 pub fn render_tale_result_vec(
     prefix: &str,
     source_name: &str,
-    source: String,
-    trv: TaleResultVec<SymbolValue>,
+    source: &str,
+    tale_result_vec: TaleResultVec<SymbolValue>,
 ) -> TaleResultVec<SymbolValue> {
-    match trv {
+    match tale_result_vec {
         Ok(value) => {
             value.render(prefix);
             Ok(SymbolValue::Placeholder)
@@ -161,7 +180,7 @@ pub fn render_tale_result_vec(
 pub fn render_tale_error_vec(
     tev: Vec<TaleError>,
     source_name: &str,
-    source: String,
+    source: &str,
 ) -> TaleResultVec<SymbolValue> {
     for error in tev {
         Report::build(ariadne::ReportKind::Error, (source_name, error.span()))
@@ -172,7 +191,7 @@ pub fn render_tale_error_vec(
                     .with_color(Color::Red),
             )
             .finish()
-            .eprint((source_name, Source::from(&source)))
+            .eprint((source_name, Source::from(source)))
             .map_err(TaleError::from)?;
     }
     Ok(SymbolValue::Placeholder)

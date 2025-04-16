@@ -30,30 +30,30 @@ pub type StateCellMap<T> = Rc<RefCell<HashMap<String, T>>>;
 
 #[derive(Debug, Clone)]
 pub struct ParserState {
-    source: String,
+    source: Rc<String>,
     lexicon: Lexicon,
 }
 
 impl ParserState {
-    fn new(source: String, lexicon: Lexicon) -> Self {
+    fn new(source: Rc<String>, lexicon: Lexicon) -> Self {
         Self { source, lexicon }
     }
 
     pub fn get_source_span(&self, span: &Range<usize>) -> Range<usize> {
-        if !self.lexicon.is_empty() {
+        if self.lexicon.is_empty() {
+            0..0
+        } else {
             let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
             self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
-        } else {
-            0..0
         }
     }
 
     pub fn get_source_position(&self, span: &Range<usize>) -> Position {
-        if !self.lexicon.is_empty() {
+        if self.lexicon.is_empty() {
+            (0, 0)
+        } else {
             let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
             self.lexicon[start].2
-        } else {
-            (0, 0)
         }
     }
 
@@ -63,13 +63,13 @@ impl ParserState {
     }
 
     pub fn spanslate(&self, span: &Range<usize>) -> SourceInfo {
-        if !self.lexicon.is_empty() {
+        if self.lexicon.is_empty() {
+            (0..0, (0, 0))
+        } else {
             (
                 self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
                 self.lexicon[span.start].2,
             )
-        } else {
-            (0..0, (0, 0))
         }
     }
 }
@@ -78,7 +78,7 @@ impl ParserState {
 pub struct StateTable {
     prefix: &'static str,
     current: RefCell<String>,
-    sources: StateCellMap<String>,
+    sources: StateCellMap<Rc<String>>,
     tokens: StateCellMap<Lexicon>,
     asts: StateCellMap<Rc<Ast>>,
     outputs: StateCellMap<TaleResultVec<SymbolValue>>,
@@ -88,11 +88,11 @@ impl StateTable {
     pub fn new(prefix: &'static str) -> Self {
         Self {
             prefix,
-            current: Default::default(),
-            sources: Default::default(),
-            tokens: Default::default(),
-            asts: Default::default(),
-            outputs: Default::default(),
+            current: RefCell::default(),
+            sources: Rc::default(),
+            tokens: Rc::default(),
+            asts: Rc::default(),
+            outputs: Rc::default(),
         }
     }
 
@@ -116,32 +116,17 @@ impl StateTable {
         }
     }
 
-    pub fn source_of(&self, name: &str) -> TaleResultVec<SymbolValue> {
-        if let Some(source) = self.sources.borrow().get(name) {
-            Ok(SymbolValue::String(source.clone()))
-        } else {
-            Err(TaleError::system(format!("No source named: {}", self.current())).into())
-        }
+    pub fn source_of(&self, name: &str) -> Option<Rc<String>> {
+        self.sources.borrow().get(name).cloned()
     }
 
     pub fn asts(&self) -> StateCellMap<Rc<Ast>> {
         self.asts.clone()
     }
 
-    pub fn add_source(&self, name: String, source: String) -> TaleResult<()> {
-        *self.current.borrow_mut() = name.clone();
-        match self.sources.borrow_mut().insert(name, source) {
-            Some(_overwritten) => {
-                // TODO: Implement Warnings
-                // Err(TaleError::system(format!(
-                //     "Attempted to overwrite previous source: {}\nWith: {}",
-                //     self.current(),
-                //     overwritten.chars().take(50).collect::<Box<str>>()
-                // )))
-                Ok(())
-            }
-            None => Ok(()),
-        }
+    pub fn add_source(&self, name: String, source: String) {
+        self.current.replace(name.clone());
+        self.sources.borrow_mut().insert(name, source.into());
     }
 
     pub fn lex_current(&self) -> TaleResultVec<()> {
@@ -155,23 +140,10 @@ impl StateTable {
             )
             .into());
         };
-        match self
-            .tokens
+        self.tokens
             .borrow_mut()
-            .insert(self.current_clone(), lexicon)
-        {
-            Some(_) => Ok(()),
-            // Err(TaleError::lexer(
-            //     0..0,
-            //     (0, 0),
-            //     format!(
-            //         "Attempted to overwrite previous lexicon of: {}",
-            //         self.current()
-            //     ),
-            // )
-            // .into()),
-            None => Ok(()),
-        }
+            .insert(self.current_clone(), lexicon);
+        Ok(())
     }
 
     pub fn parse_current(&self) -> TaleResultVec<()> {
@@ -205,7 +177,12 @@ impl StateTable {
                 }
             }
         };
-        if !the_errs.is_empty() {
+        if the_errs.is_empty() {
+            self.asts
+                .borrow_mut()
+                .insert(self.current_clone(), Ast::new(output).into());
+            Ok(())
+        } else {
             // This has to happen in two parts because the source is borrowed by the
             // Parser errors
             let mapped_errs = TaleError::from_parser_vec(the_errs);
@@ -213,21 +190,6 @@ impl StateTable {
                 mapped_errs,
                 &state_inner,
             ))
-        } else {
-            match self
-                .asts
-                .borrow_mut()
-                .insert(self.current_clone(), Ast::new(output).into())
-            {
-                Some(_) => Ok(()),
-                // Err(TaleError::parser(
-                //     0..0,
-                //     (0, 0),
-                //     format!("Attempted to overwrite previous AST of: {}", self.current()),
-                // )
-                // .into()),
-                None => Ok(()),
-            }
         }
     }
 
@@ -261,7 +223,7 @@ impl StateTable {
         name: String,
         source: String,
     ) -> TaleResultVec<SymbolValue> {
-        self.add_source(name, source)?;
+        self.add_source(name, source);
         self.lex_current()?;
         self.parse_current()?;
         self.analyze_current(symbols)?;
@@ -278,25 +240,21 @@ impl StateTable {
     pub fn nested_pipeline(
         &self,
         symbols: &RefCell<SymbolTable>,
-        name: String,
-        source: String,
+        name: &str,
+        source: &str,
     ) -> TaleResultVec<SymbolValue> {
         let outer_name = self.current_clone();
         let pushed_ok = symbols.borrow_mut().push_scope();
-        match pushed_ok {
-            Ok(_) => {
-                let trv = self.pipeline(symbols, name.clone(), source.clone());
-                symbols.borrow_mut().pop_scope();
-                *self.current.borrow_mut() = outer_name;
-                render_tale_result_vec(self.prefix, &name, source, trv)
-            }
-            Err(_) => {
-                symbols.borrow_mut().pop_scope();
-                Err(vec![TaleError::system(format!(
-                    "Hit stack guard while loading: {}",
-                    name
-                ))])
-            }
+        if let Ok(()) = pushed_ok {
+            let tale_result_vec = self.pipeline(symbols, name.to_string(), source.to_string());
+            symbols.borrow_mut().pop_scope();
+            self.current.replace(outer_name);
+            render_tale_result_vec(self.prefix, name, source, tale_result_vec)
+        } else {
+            symbols.borrow_mut().pop_scope();
+            Err(vec![TaleError::system(format!(
+                "Hit stack guard while loading: {name}"
+            ))])
         }
     }
 
@@ -304,10 +262,7 @@ impl StateTable {
         if let Some(lexicon) = self.tokens.borrow().get(name) {
             Ok(lexicon.iter().map(|(token, _, _)| token.clone()).collect())
         } else {
-            Err(TaleError::system(format!(
-                "No Lexicon for source: {}",
-                name
-            )))
+            Err(TaleError::system(format!("No Lexicon for source: {name}")))
         }
     }
 }
@@ -354,8 +309,7 @@ impl SymbolTable {
     pub fn insert(&mut self, name: String, value: SymbolValue) -> bool {
         match value {
             SymbolValue::Placeholder => self.names.insert(name),
-            SymbolValue::Numeric(_) => self.scopes.insert(name, value),
-            SymbolValue::String(_) => self.scopes.insert(name, value),
+            SymbolValue::Numeric(_) | SymbolValue::String(_) => self.scopes.insert(name, value),
             SymbolValue::Script(node) => self.scripts.insert(name, node).is_none(),
             SymbolValue::Table(node) => self.tables.insert(name, node).is_none(),
             SymbolValue::List(_) => todo!(),
@@ -370,16 +324,16 @@ impl SymbolTable {
         BUILTIN_IDS.contains(&name) || self.names.contains(name)
     }
 
-    pub fn push_tags(&mut self, tags: Vec<String>, table_name: String) {
-        for tag in tags.into_iter() {
+    pub fn push_tags(&mut self, tags: Vec<String>, table_name: &str) {
+        for tag in tags {
             self.tags
                 .entry(tag)
-                .and_modify(|v| v.push(table_name.clone()))
-                .or_insert_with(|| vec![table_name.clone()]);
+                .and_modify(|v| v.push(table_name.to_string()))
+                .or_insert_with(|| vec![table_name.to_string()]);
         }
     }
 
-    pub fn get_tags(&self, tags: Vec<&str>) -> SymbolValue {
+    pub fn get_tags(&self, tags: &[&str]) -> SymbolValue {
         let mut matched_tables = tags.iter().map(|tag| self.tags.get(*tag));
         let mut intersection = match matched_tables.next() {
             Some(Some(t)) => t.clone(),
@@ -499,7 +453,7 @@ pub enum SymbolValue {
 }
 
 impl SymbolValue {
-    pub fn operation(&self, op: Op, other: &Self) -> TaleResultVec<SymbolValue> {
+    pub fn operation(&self, op: Op, other: &Self) -> TaleResult<SymbolValue> {
         match (self, other) {
             (SymbolValue::Numeric(lhs), SymbolValue::Numeric(rhs)) => match op {
                 Op::Add => Ok(SymbolValue::Numeric(lhs + rhs)),
@@ -507,7 +461,7 @@ impl SymbolValue {
                 Op::Mul => Ok(SymbolValue::Numeric(lhs * rhs)),
                 Op::Div => Ok(SymbolValue::Numeric(lhs / rhs)),
                 Op::Mod => Ok(SymbolValue::Numeric(lhs % rhs)),
-                Op::Pow => Ok(SymbolValue::Numeric(lhs.pow(*rhs as u32))),
+                Op::Pow => Ok(SymbolValue::Numeric(lhs.pow(u32::try_from(*rhs)?))),
             },
             _ => unimplemented!("operations are only valid for numeric values!"),
         }
@@ -533,10 +487,10 @@ impl Display for SymbolValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SymbolValue::Placeholder => write!(f, ""),
-            SymbolValue::Numeric(n) => write!(f, "{}", n),
-            SymbolValue::String(s) => write!(f, "{}", s),
-            SymbolValue::Script(s) => write!(f, "{}", s),
-            SymbolValue::Table(t) => write!(f, "{}", t),
+            SymbolValue::Numeric(n) => write!(f, "{n}"),
+            SymbolValue::String(s) => write!(f, "{s}"),
+            SymbolValue::Script(s) => write!(f, "{s}"),
+            SymbolValue::Table(t) => write!(f, "{t}"),
             SymbolValue::List(symbol_values) => write!(
                 f,
                 "[{}]",
@@ -635,7 +589,10 @@ mod tests {
     impl ParserState {
         pub fn from_source(source: String) -> Self {
             let lexicon = tokenize(&source).unwrap();
-            Self { source, lexicon }
+            Self {
+                source: source.into(),
+                lexicon,
+            }
         }
 
         pub fn tokens(&self) -> Vec<Token> {

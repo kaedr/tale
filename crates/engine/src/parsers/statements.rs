@@ -41,7 +41,7 @@ fn nonce<'src>(
     one_of([Token::Dash, Token::Minus])
         .then(terminator(end_tokens))
         .ignored()
-        .map_with(|_, extra| full_rc_node(Statement::Empty, extra))
+        .map_with(|(), extra| full_rc_node(Statement::Empty, extra))
         .labelled("Nonce")
 }
 
@@ -266,7 +266,7 @@ mod tests {
         let output = stubbed_parser(&mut p_state, &tokens, any_statement(EOI_ONLY));
         assert_eq!("Empty", format!("{output}"));
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, any_statement(EOI_ONLY));
         assert_eq!(
@@ -318,7 +318,7 @@ mod tests {
             format!("{output}")
         );
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, statement_sequence());
         assert_eq!(
@@ -346,7 +346,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, assignment(EOI_ONLY));
         assert_eq!(
@@ -373,7 +373,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, clear(EOI_ONLY));
         assert_eq!(
@@ -398,7 +398,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, invoke(EOI_ONLY));
         assert_eq!(
@@ -425,7 +425,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, load());
         assert_eq!(
@@ -452,7 +452,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, modify(EOI_ONLY));
         assert_eq!(
@@ -477,7 +477,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, output());
         assert_eq!(
@@ -506,7 +506,7 @@ mod tests {
             assert_eq!(check_vals[index], format!("{output}"));
         }
 
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, show());
         assert_eq!(

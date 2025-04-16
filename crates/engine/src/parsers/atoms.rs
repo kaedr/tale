@@ -64,6 +64,7 @@ pub fn term<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<
         .labelled("Arithmetic Term")
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Op {
     Add,
     Sub,
@@ -120,7 +121,7 @@ pub fn ident_maybe_sub<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExt
         .then(ident().or_not())
         .map(|(l, r)| {
             if let Some(r) = r {
-                ident_normalize(l, r)
+                ident_normalize(&l, &r)
             } else {
                 l
             }
@@ -130,7 +131,7 @@ pub fn ident_maybe_sub<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExt
 
 pub fn ident<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     wordlike()
-        .foldl(wordlike().repeated(), ident_normalize)
+        .foldl(wordlike().repeated(), |l, r| ident_normalize(&l, &r))
         .or(qstring())
         .map(|id| Atom::Ident(id.to_lowercase()))
         .boxed()
@@ -247,7 +248,7 @@ pub fn number<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>>
     number.labelled("Numeric")
 }
 
-pub fn ident_normalize(l: Atom, r: Atom) -> Atom {
+pub fn ident_normalize(l: &Atom, r: &Atom) -> Atom {
     Atom::Ident(format!("{} {}", l.to_lowercase(), r.to_lowercase()))
 }
 
@@ -367,7 +368,7 @@ mod tests {
             Token::Word("CaSeD_NuM83r5".into()),
             Token::Digits(42),
         ];
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let output = stubbed_parser(&mut p_state, &tokens[..1], value_name());
         assert_eq!("`bare`", output);
         let output = stubbed_parser(&mut p_state, &tokens[1..2], value_name());
@@ -407,7 +408,7 @@ mod tests {
             Token::Ten,
             Token::Once,
         ];
-        let mut p_state = ParserState::from_source("".into());
+        let mut p_state = ParserState::from_source(String::new());
         let output = stubbed_parser(&mut p_state, &tokens[..1], number());
         assert_eq!("100", output);
         let output = stubbed_parser(&mut p_state, &tokens[1..2], number());
