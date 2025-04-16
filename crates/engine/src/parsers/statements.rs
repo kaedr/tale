@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn parse_assignment() {
-        let check_vals = vec![
+        let check_vals = [
             "Assignment: `bird` = 42",
             "Assignment: `the_word` = `bird`",
             r#"Assignment: `the_word` = !["bird"]!"#,
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn parse_clear() {
-        let check_vals = vec![
+        let check_vals = [
             "Clear Next(10) `quality`",
             "Clear All `quality`",
             "Clear Next(10) `quality`",
@@ -385,7 +385,7 @@ mod tests {
 
     #[test]
     fn parse_invoke() {
-        let check_vals = vec![
+        let check_vals = [
             "Invoke: `some kind of bizarre ritual`",
             "Invoke: `last rites`",
         ];
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn parse_load() {
-        let check_vals = vec![
+        let check_vals = [
             r#"Load: "01_table_minimal.tale""#,
             r#"Load: "src/samples/01_table_minimal.tale""#,
             r#"Load: "../../tons of _odd-characters_.tale""#,
@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn parse_modify() {
-        let check_vals = vec![
+        let check_vals = [
             "Modify +2 All `quality`",
             "Modify +3 Next(7) `quality`",
             "Modify -2 Next(3) `quality`",
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn parse_output() {
-        let check_vals = vec![
+        let check_vals = [
             r#"Output: !["There are", (1d6 - 1), "lights illuminated out of a total of 5."]!"#,
             r#"Output: !["A lovely string"]!"#,
         ];
@@ -489,7 +489,7 @@ mod tests {
 
     #[test]
     fn parse_show() {
-        let check_vals = vec![
+        let check_vals = [
             "Show `minimalism`",
             "Show `midnight`",
             "Show `variables`",

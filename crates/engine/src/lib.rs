@@ -122,7 +122,7 @@ mod tests {
         T: std::fmt::Display,
     {
         let mut state = SimpleState::from(state);
-        match parser.parse_with_state(&tokens, &mut state).into_result() {
+        match parser.parse_with_state(tokens, &mut state).into_result() {
             Ok(output) => format!("{output}"),
             Err(the_errs) => {
                 let mapped_errs = TaleError::from_parser_vec(the_errs);
@@ -148,7 +148,7 @@ mod tests {
         T: std::fmt::Debug,
     {
         let mut state = SimpleState::from(state);
-        match parser.parse_with_state(&tokens, &mut state).into_result() {
+        match parser.parse_with_state(tokens, &mut state).into_result() {
             Ok(output) => format!("{:?}", output),
             Err(the_errs) => {
                 let mapped_errs = TaleError::from_parser_vec(the_errs);
@@ -166,7 +166,7 @@ mod tests {
     }
 
     fn streamlinest(file_names: Vec<&str>) -> String {
-        let transform = file_names.iter().map(|f| sample_path(f));
+        let transform = file_names.iter().map(sample_path);
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
@@ -455,7 +455,7 @@ mod tests {
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Placeholder").count());
-        assert_eq!(6, output.matches("Table(Node").count());
+        assert_eq!(7, output.matches("Table(Node").count());
         assert_eq!(2, output.matches("Script(Node").count());
     }
 

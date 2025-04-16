@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn parse_roll() {
-        let check_vals = vec![
+        let check_vals = [
             "Roll 1, 3d6",
             "Roll 1, (1d20 + 7)",
             "Roll 1, `magic item table a`",
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn parse_lookup() {
-        let check_vals = vec![
+        let check_vals = [
             "Lookup `a` on `textkeys`",
             "Lookup 3 on `numkeyed`",
             "Lookup 1d4 on `numkeyed`",
