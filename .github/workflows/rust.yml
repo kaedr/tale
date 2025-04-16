@@ -23,9 +23,30 @@ jobs:
       run: cargo clippy --benches --examples --tests --verbose --all-features -- -D warnings
     - name: Run cargo fmt
       run: cargo fmt --verbose --check
-    
-  test:
-    runs-on: [ubuntu-latest, windows-latest, macos-latest]
+
+  test_ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  test_windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+
+  test_macos:
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable

@@ -35,7 +35,7 @@ fn print_sidebarred(text: &str) {
 fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
     let lc_input = input.to_lowercase();
     if lc_input.starts_with("help") {
-        help(lc_input.as_str(), SIDEBAR);
+        help(lc_input.as_str());
     } else {
         engine
             .execute(SIDEBAR, input)
@@ -75,7 +75,10 @@ fn repl(mut engine: Interpreter) -> Result<()> {
     }
 
     #[cfg(feature = "with-file-history")]
-    rl.save_history(".tale_history");
+    if let Err(err) = rl.save_history(".tale_history") {
+        eprintln!("Failed to save history file:");
+        eprintln!("{err}");
+    };
 
     Ok(())
 }

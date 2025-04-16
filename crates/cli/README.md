@@ -29,7 +29,7 @@ For examples on how to define Table Groups, see [Table Group Basics](src/snippet
 
 
 ### Defining Scripts
-For examples of how to define Scripts, see [Script Basics](src/snippets/ex21_script_basics.tale). [Script Scopes](src/snippets/ex22_script_scopes.tale) contains information on some of the nuances of using Scripts.
+For examples of how to define Scripts, see [Script Basics](src/snippets/ex21_script_basics.tale).
 
 
 ### Using TALE
@@ -49,5 +49,5 @@ Or rolling on a defined table:
 TALE +-> Roll on Magic Item Table A
 ```
 
-## TALE Intermediate
-
+### Basic Interaction
+TALE evaluates (or tries to) whatever statements you enter into the prompt, then shows the output of that evaluation. These could be simple [Arithmetic Expressions](src/snippets/ex31_expressions.tale), [Roll Expressions](src/snippets/ex32_rolls.tale), [Lookup Expressions](src/snippets/ex33_lookup.tale), [Load Statements](src/snippets/ex41_load.tale) or one of TALE's more [Advanced Features](Advanced_Features.md)
