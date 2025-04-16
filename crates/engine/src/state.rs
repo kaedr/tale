@@ -442,6 +442,32 @@ impl Default for SymbolTable {
     }
 }
 
+impl Display for SymbolTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Names: {}",
+            self.names.iter().cloned().collect::<Vec<_>>().join(", ")
+        )?;
+        write!(f, "{}", self.scopes)?;
+        writeln!(
+            f,
+            "Scripts: {}",
+            self.scripts.keys().cloned().collect::<Vec<_>>().join(", ")
+        )?;
+        writeln!(
+            f,
+            "Tables: {}",
+            self.tables.keys().cloned().collect::<Vec<_>>().join(", ")
+        )?;
+        write!(
+            f,
+            "Tags: {}",
+            self.tags.keys().cloned().collect::<Vec<_>>().join(", ")
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SymbolValue {
     Placeholder,
@@ -577,6 +603,28 @@ impl Scopes {
         // If the internal Vecs are somehow a different length, we should probably break
         debug_assert_eq!(self.numerics.len(), self.strings.len());
         self.numerics.len()
+    }
+}
+
+impl Display for Scopes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Numerics:")?;
+        for (level, scope) in self.numerics.iter().enumerate() {
+            writeln!(
+                f,
+                "\t{level}: {}",
+                scope.keys().cloned().collect::<Vec<_>>().join(", ")
+            )?;
+        }
+        writeln!(f, "Strings:")?;
+        for (level, scope) in self.strings.iter().enumerate() {
+            writeln!(
+                f,
+                "\t{level}: {}",
+                scope.keys().cloned().collect::<Vec<_>>().join(", ")
+            )?;
+        }
+        Ok(())
     }
 }
 

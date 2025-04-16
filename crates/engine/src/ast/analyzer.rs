@@ -123,7 +123,10 @@ impl Analyze for Statement {
 }
 
 impl Analyze for Script {
-    fn analyze(&self, _symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        for statement in &self.statements {
+            statement.analyze(symbols)?;
+        }
         Ok(())
     }
 }

@@ -1,14 +1,14 @@
+Script: B
+Set item = 2
+output: [item]
+End Script
+
 Script: A
 Set item = 1
 output: [item]
 Invoke: B
 output: [item]
 Set item = 3
-output: [item]
-End Script
-
-Script: B
-Set item = 2
 output: [item]
 End Script
 

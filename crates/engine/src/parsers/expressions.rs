@@ -12,8 +12,8 @@ use crate::{
 use super::{
     TaleExtra,
     atoms::{
-        self, DELIMITING_WHITESPACE, RBRACKET, ident_maybe_sub, number, qstring, terminator,
-        value_name, words,
+        self, DELIMITING_WHITESPACE, PERIOD_OR_SEMICOLON, RBRACKET, ident_maybe_sub, number,
+        qstring, terminator, value_name, words,
     },
 };
 
@@ -22,7 +22,10 @@ pub fn any_expr<'src>(
 ) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     roll(end_tokens)
         .or(lookup(end_tokens))
-        .or(arithmetic().then_ignore(terminator(end_tokens)))
+        // NOTE: The end tokens for arithmetic is a consistent issue!
+        .or(arithmetic()
+            .then_ignore(terminator(end_tokens))
+            .and_is(value_name().then(one_of(PERIOD_OR_SEMICOLON)).not()))
         .or(interpolation())
         .boxed()
         .labelled("Any Expression")
