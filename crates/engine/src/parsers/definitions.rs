@@ -238,23 +238,23 @@ fn table_headings<'src>()
         .clone()
         // Possibly followed by a tags directive
         .then(tags_directive.clone().or_not())
-        .map(|(rd, td)| {
-            match (rd, td) {
+        .map(|(roll, tag)| {
+            match (roll, tag) {
                 // If we have both, we take filled side of each
-                ((rdl, _), Some((_, tdr))) => (rdl, tdr),
+                ((roll_full, _), Some((_, tag_full))) => (roll_full, tag_full),
                 // If just the roll, take its whole tuple
-                ((rdl, rdr), None) => (rdl, rdr),
+                ((roll_full, tag_empty), None) => (roll_full, tag_empty),
             }
         })
         // Or a tags directive
         .or(tags_directive
             // Possibly followed by roll directive
             .then(roll_directive.or_not())
-            .map(|(td, rd)| match (rd, td) {
+            .map(|(tag, roll)| match (roll, tag) {
                 // If we have both, we take filled side of each
-                (Some((rdl, _)), (_, tdr)) => (rdl, tdr),
+                (Some((roll_full, _)), (_, tag_full)) => (roll_full, tag_full),
                 // If just the tags, take its whole tuple
-                (None, (tdl, tdr)) => (tdl, tdr),
+                (None, (roll_empty, tag_full)) => (roll_empty, tag_full),
             }))
         // Or neither of those things
         .or_not()

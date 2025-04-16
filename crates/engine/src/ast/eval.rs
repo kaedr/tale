@@ -172,10 +172,9 @@ impl Eval for Statement {
             Statement::Invoke(target) => invoke_stmt(symbols, state, target),
             Statement::Load(target) => load_stmt(symbols, state, target),
             Statement::Modify(modifier, target) => modify_stmt(symbols, state, modifier, target),
-            Statement::Output(expr) => expr.eval(symbols, state),
             Statement::Show(node) => show_stmt(symbols, state, node),
             Statement::Sequence(seq) => seq.eval(symbols, state),
-            Statement::Expr(expr) => expr.eval(symbols, state),
+            Statement::Output(expr) | Statement::Expr(expr) => expr.eval(symbols, state),
         }
     }
 }
@@ -186,14 +185,15 @@ fn script_def(
     script: &RcNode<Script>,
 ) -> TaleResultVec<SymbolValue> {
     let name = script.eval(symbols, state)?.to_string();
-    match symbols
+    if symbols
         .borrow_mut()
         .insert(name.clone(), SymbolValue::Script(script.clone()))
     {
-        false => Ok(SymbolValue::String(format!(
+        Ok(SymbolValue::Script(script.clone()))
+    } else {
+        Ok(SymbolValue::String(format!(
             "Overwriting previous value stored in `{name}`"
-        ))),
-        true => Ok(SymbolValue::Script(script.clone())),
+        )))
     }
 }
 
@@ -228,14 +228,15 @@ fn insert_table_def(
     table: &RcNode<Table>,
 ) -> TaleResultVec<SymbolValue> {
     let name = table.eval(symbols, state)?.to_string();
-    match symbols
+    if symbols
         .borrow_mut()
         .insert(name.clone(), SymbolValue::Table(table.clone()))
     {
-        false => Ok(SymbolValue::String(format!(
+        Ok(SymbolValue::Table(table.clone()))
+    } else {
+        Ok(SymbolValue::String(format!(
             "Overwriting previous value stored in `{name}`"
-        ))),
-        true => Ok(SymbolValue::Table(table.clone())),
+        )))
     }
 }
 
@@ -247,11 +248,12 @@ fn assignment_stmt(
 ) -> TaleResultVec<SymbolValue> {
     let name = name.inner_t().to_string().trim_matches('`').to_string();
     let value = value.eval(symbols, state)?;
-    match symbols.borrow_mut().insert(name.to_string(), value) {
-        false => Ok(SymbolValue::String(format!(
+    if symbols.borrow_mut().insert(name.to_string(), value) {
+        Ok(SymbolValue::Placeholder)
+    } else {
+        Ok(SymbolValue::String(format!(
             "Overwriting previous value stored in `{name}`"
-        ))),
-        true => Ok(SymbolValue::Placeholder),
+        )))
     }
 }
 

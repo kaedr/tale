@@ -458,6 +458,7 @@ pub(crate) mod tests {
         }
 
         #[test]
+        #[allow(clippy::too_many_lines)] // It's a test and it's this long because of cargo fmt
         fn table_group() {
             let lex = Token::lexer(TABLE_GROUP);
 
@@ -1653,7 +1654,7 @@ pub(crate) mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::Digits(8))));
             assert_eq!(lex.next(), Some(Ok(Token::Digits(9))));
             assert_eq!(lex.next(), Some(Ok(Token::Digits(10))));
-            assert_eq!(lex.next(), Some(Ok(Token::Digits(8675309))));
+            assert_eq!(lex.next(), Some(Ok(Token::Digits(8_675_309))));
             assert_eq!(lex.next(), None);
         }
 
