@@ -334,10 +334,10 @@ mod tests {
     fn pipeline_full_15_lookup_with_deps() {
         let output = streamlinest(&["92_supporting_defs.tale", "15_statement_lookup.tale"]);
         eprintln!("{output}");
-        assert!(output.starts_with("Ok(List([Numeric(1), String(\"c\"), "));
+        assert!(output.starts_with("Ok(List([Numeric(1), String("));
         assert!(output.ends_with(")]))"));
         assert_eq!(3, output.matches("String").count());
-        assert!(0 < output.matches("(\"c\")").count());
+        assert!(0 < output.matches("3 => c").count());
     }
 
     #[test]
@@ -386,12 +386,9 @@ mod tests {
         eprintln!("{}", output.matches("Numeric(").count());
         assert!(11 <= output.matches("Numeric(").count());
         assert!(17 >= output.matches("Numeric(").count());
-        eprintln!(
-            "{}",
-            output.matches("String(\"Literally just a wand\"").count()
-        );
-        assert!(4 <= output.matches("String(\"Literally just a wand\"").count());
-        assert!(20 >= output.matches("String(\"Literally just a wand\"").count());
+        eprintln!("{}", output.matches("Literally just a wand").count());
+        assert!(4 <= output.matches("Literally just a wand").count());
+        assert!(20 >= output.matches("Literally just a wand").count());
         eprintln!("{}", output.matches("List(").count());
         assert!(10 >= output.matches("List(").count());
         assert!(4 <= output.matches("List(").count());
@@ -544,7 +541,8 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(128, output.matches("Placeholder").count());
-        assert_eq!(127, output.matches("Numeric").count());
+        assert_eq!(2, output.matches("Placeholder").count());
+        assert_eq!(126, output.matches("=> [").count());
+        assert_eq!(1, output.matches("Numeric").count());
     }
 }

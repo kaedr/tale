@@ -10,4 +10,5 @@ end script
 Script: "roll after load"
 invoke LoadSome
 	invoke Attack with Damage
+	// Comments shouldn't break things anywhere, even when indented
 end script

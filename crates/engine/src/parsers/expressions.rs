@@ -323,7 +323,8 @@ mod tests {
         let output = stubbed_parser(&mut p_state, &tokens, roll(EOI_ONLY));
         assert_eq!(
             "[TaleError { kind: Parse, span: 7..8, position: (1, 7), msg: \"found 'At' expected \
-            Arithmetic Operator, 'LParens', 'Times/Rolls', Roll Predicate, or end of input\" }]",
+            Arithmetic Operator, 'LParens', 'Times/Rolls', Roll Predicate, or end of input In: \
+            [Arithmetic Expression]\" }]",
             format!("{output}")
         );
     }
@@ -436,7 +437,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, repetition_clause());
         assert_eq!(
-            "[TaleError { kind: Parse, span: 9..10, position: (1, 11), msg: \"found 'At' expected Numeric\" }]",
+            "[TaleError { kind: Parse, span: 9..10, position: (1, 9), msg: \"found 'At' expected Numeric\" }]",
             format!("{output}")
         );
     }
@@ -462,8 +463,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, lookup(EOI_ONLY));
         assert_eq!(
-            "[TaleError { kind: Parse, span: 9..10, position: (1, 11), msg: \"found 'At' expected \
-            Arithmetic Operator, or 'On'\" }]",
+            "[TaleError { kind: Parse, span: 9..10, position: (1, 9), msg: \"found 'At' expected \
+            Arithmetic Operator, or 'On' In: [Arithmetic Expression]\" }]",
             format!("{output}")
         );
     }
@@ -516,7 +517,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, interpolation());
         assert_eq!(
-            "[TaleError { kind: Parse, span: 5..6, position: (1, 10), msg: \"found 'At' expected \
+            "[TaleError { kind: Parse, span: 5..6, position: (1, 5), msg: \"found 'At' expected \
             Wordlike, 'Colon', Identity, Terminator, or Arithmetic Operator\" }]",
             format!("{output}")
         );
@@ -581,8 +582,8 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, arithmetic());
         assert_eq!(
-            "[TaleError { kind: Parse, span: 4..5, position: (1, 6), msg: \"found 'At' expected \
-            Arithmetic Operator, or end of input\" }]",
+            "[TaleError { kind: Parse, span: 4..5, position: (1, 4), msg: \"found 'At' expected \
+            Arithmetic Operator, or end of input In: [Arithmetic Expression]\" }]",
             format!("{output}")
         );
     }
