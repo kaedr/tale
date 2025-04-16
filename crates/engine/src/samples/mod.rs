@@ -1,4 +1,4 @@
-//! Contains include_str! of all the samples files
+//! Contains `include_str`! of all the samples files
 //! These can then be used easily for testing or elsewhere
 
 // Since these are primarily for testing, they won't show up as used.

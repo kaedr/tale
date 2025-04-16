@@ -1,4 +1,4 @@
-//! Contains include_str! of all the examples files
+//! Contains `include_str`! of all the examples files
 //! These can then be used easily for help functions
 
 pub const HELP_GENERAL: &str = include_str!("h01_general.help");

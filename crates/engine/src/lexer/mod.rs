@@ -6,7 +6,7 @@ use regex::Regex;
 use crate::{error::TaleError, error::TaleResultVec};
 
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
-    let parts: Vec<_> = lex.slice().split("d").collect();
+    let parts: Vec<_> = lex.slice().split('d').collect();
     Some((
         parts.first()?.parse().ok().or(Some(1))?,
         parts.get(1)?.parse().ok()?,
@@ -17,8 +17,8 @@ fn digits(lex: &mut Lexer<Token>) -> Option<usize> {
     lex.slice().parse().ok()
 }
 
-fn verbatim(lex: &mut Lexer<Token>) -> Option<String> {
-    Some(lex.slice().to_string())
+fn verbatim(lex: &mut Lexer<Token>) -> String {
+    lex.slice().to_string()
 }
 
 // TODO: Add in unicode support -> |[\f\v\u{2028}\u{2029}\u{85}]
@@ -165,14 +165,14 @@ impl Token {
             Self::Digits(num) => num.to_string(),
             Self::Word(word) => word.to_lowercase(),
             Self::String(string) => string.to_lowercase(),
-            token => format!("{:?}", token).to_lowercase(),
+            token => format!("{token:?}").to_lowercase(),
         }
     }
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -189,26 +189,23 @@ pub fn tokenize(source: &str) -> TaleResultVec<Lexicon> {
 
     while let Some(token) = lex.next() {
         let span = lex.span();
-        match token {
-            Ok(token) => {
-                let position = find_position(span.start, &lex.extras.1);
-                tokens.push((token, span, position));
-            }
-            Err(_) => {
-                let position = find_position(span.start, &lex.extras.1);
-                errs.push(TaleError::lexer(
-                    span,
-                    position,
-                    format!("Invalid input character(s): '{}'", lex.slice()),
-                ))
-            }
+        if let Ok(token) = token {
+            let position = find_position(span.start, &lex.extras.1);
+            tokens.push((token, span, position));
+        } else {
+            let position = find_position(span.start, &lex.extras.1);
+            errs.push(TaleError::lexer(
+                span,
+                position,
+                format!("Invalid input character(s): '{}'", lex.slice()),
+            ));
         }
     }
 
-    if !errs.is_empty() {
-        Err(errs)
-    } else {
+    if errs.is_empty() {
         Ok(tokens)
+    } else {
+        Err(errs)
     }
 }
 
@@ -275,7 +272,7 @@ pub(crate) mod tests {
             assert_eq!(
                 token_vec[6..],
                 [
-                    (Token::String("".into()), 76..78, (6, 0)),
+                    (Token::String(String::new()), 76..78, (6, 0)),
                     (Token::NewLines, 78..79, (6, 2)),
                 ]
             );
@@ -1663,10 +1660,10 @@ pub(crate) mod tests {
         #[test]
         fn words() {
             let mut lex = Token::lexer(
-                r#"This is some text:
+                r"This is some text:
                 It spans three or four lines.
                 Potato!
-            "#,
+            ",
             );
 
             assert_eq!(lex.next(), Some(Ok(Token::Word("This".into()))));
@@ -1733,7 +1730,7 @@ pub(crate) mod tests {
             }
 
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
-            assert_eq!(lex.next(), Some(Ok(Token::String("".into()))));
+            assert_eq!(lex.next(), Some(Ok(Token::String(String::new()))));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
 
@@ -1854,7 +1851,7 @@ pub(crate) mod tests {
 
         #[test]
         fn sym_enclosures() {
-            let mut lex = Token::lexer(r#"<[{()}]>"#);
+            let mut lex = Token::lexer(r"<[{()}]>");
 
             assert_eq!(lex.next(), Some(Ok(Token::LAngle)));
             assert_eq!(lex.next(), Some(Ok(Token::LBracket)));

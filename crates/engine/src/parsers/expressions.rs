@@ -1,5 +1,8 @@
 use crate::lexer::Token;
-use chumsky::{pratt::*, prelude::*};
+use chumsky::{
+    pratt::{infix, left, prefix, right},
+    prelude::*,
+};
 
 use crate::{
     ast::{Atom, Expr, RcNode, full_rc_node},
@@ -47,17 +50,17 @@ pub fn roll<'src>(
         .map_with(|(lhs, rhs), extra| {
             let roll_expr_node = full_rc_node(Expr::Roll(lhs, rhs), extra);
             if extra.slice().iter().all(|token| match token {
-                // Keywords
-                Token::Roll | Token::Time | Token::On => false,
-                // Dice/digits
-                Token::DieRoll(_) | Token::Digits(_) => false,
+                // Keywords & Dice/digits
+                Token::Roll | Token::Time | Token::On | Token::DieRoll(_) | Token::Digits(_) => {
+                    false
+                }
                 _ => true,
             }) {
                 let span = extra.span().into_range();
                 roll_expr_node.add_detail(
                     "words_only".into(),
                     extra.state().get_source_slice(&span).to_string(),
-                )
+                );
             }
             roll_expr_node
         })

@@ -114,15 +114,15 @@ impl Display for Statement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Statement::Empty => write!(f, "Empty"),
-            Statement::Script(script) => write!(f, "Script: {}", script),
-            Statement::Table(table) => write!(f, "Table: {}", table),
-            Statement::TableGroup(group) => write!(f, "TableGroup: {}", group),
-            Statement::Assignment(ident, expr) => write!(f, "Assignment: {} = {}", ident, expr),
-            Statement::Clear(duration, expr) => write!(f, "Clear {} {}", duration, expr),
-            Statement::Invoke(ident) => write!(f, "Invoke: {}", ident),
-            Statement::Load(ident) => write!(f, "Load: {}", ident),
-            Statement::Modify(modifier, expr) => write!(f, "Modify {} {}", modifier, expr),
-            Statement::Output(expr) => write!(f, "Output: {}", expr),
+            Statement::Script(script) => write!(f, "Script: {script}"),
+            Statement::Table(table) => write!(f, "Table: {table}"),
+            Statement::TableGroup(group) => write!(f, "TableGroup: {group}"),
+            Statement::Assignment(ident, expr) => write!(f, "Assignment: {ident} = {expr}"),
+            Statement::Clear(duration, expr) => write!(f, "Clear {duration} {expr}"),
+            Statement::Invoke(ident) => write!(f, "Invoke: {ident}"),
+            Statement::Load(ident) => write!(f, "Load: {ident}"),
+            Statement::Modify(modifier, expr) => write!(f, "Modify {modifier} {expr}"),
+            Statement::Output(expr) => write!(f, "Output: {expr}"),
             Statement::Show(show) => write!(
                 f,
                 "Show {}{}",
@@ -220,21 +220,21 @@ impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Empty => write!(f, "Empty"),
-            Expr::Atom(atom) => write!(f, "{}", atom),
-            Expr::Neg(expr) => write!(f, "-{}", expr),
-            Expr::Add(lhs, rhs) => write!(f, "({} + {})", lhs, rhs),
-            Expr::Sub(lhs, rhs) => write!(f, "({} - {})", lhs, rhs),
-            Expr::Mul(lhs, rhs) => write!(f, "({} * {})", lhs, rhs),
-            Expr::Div(lhs, rhs) => write!(f, "({} / {})", lhs, rhs),
-            Expr::Mod(lhs, rhs) => write!(f, "({} % {})", lhs, rhs),
-            Expr::Pow(lhs, rhs) => write!(f, "({} ^ {})", lhs, rhs),
-            Expr::Lookup(lhs, rhs) => write!(f, "Lookup {} on {}", lhs, rhs),
-            Expr::Roll(lhs, rhs) => write!(f, "Roll {}, {}", lhs, rhs),
+            Expr::Atom(atom) => write!(f, "{atom}"),
+            Expr::Neg(expr) => write!(f, "-{expr}"),
+            Expr::Add(lhs, rhs) => write!(f, "({lhs} + {rhs})"),
+            Expr::Sub(lhs, rhs) => write!(f, "({lhs} - {rhs})"),
+            Expr::Mul(lhs, rhs) => write!(f, "({lhs} * {rhs})"),
+            Expr::Div(lhs, rhs) => write!(f, "({lhs} / {rhs})"),
+            Expr::Mod(lhs, rhs) => write!(f, "({lhs} % {rhs})"),
+            Expr::Pow(lhs, rhs) => write!(f, "({lhs} ^ {rhs})"),
+            Expr::Lookup(lhs, rhs) => write!(f, "Lookup {lhs} on {rhs}"),
+            Expr::Roll(lhs, rhs) => write!(f, "Roll {lhs}, {rhs}"),
             Expr::Interpol(exprs) => {
                 let exprs = exprs
                     .inner_t()
                     .iter()
-                    .map(|expr| format!("{}", expr))
+                    .map(|expr| format!("{expr}"))
                     .collect::<Vec<_>>();
                 write!(f, "![{}]!", exprs.join(", "))
             }
@@ -242,7 +242,7 @@ impl Display for Expr {
                 let exprs = exprs
                     .inner_t()
                     .iter()
-                    .map(|expr| format!("{}", expr))
+                    .map(|expr| format!("{expr}"))
                     .collect::<Vec<_>>();
                 write!(f, "[{}]", exprs.join(", "))
             }
@@ -290,8 +290,7 @@ impl Atom {
         match self {
             Self::Number(num) => num.to_string(),
             Self::Dice(num, sides) => format!("{num}d{sides}"),
-            Self::Str(s) => s.to_lowercase(),
-            Self::Ident(s) => s.to_lowercase(),
+            Atom::Str(s) | Atom::Ident(s) => s.to_lowercase(),
             Self::Raw(token) => token.to_lowercase(),
         }
     }
@@ -300,8 +299,7 @@ impl Atom {
         match self {
             Atom::Number(n) => n.to_string(),
             Atom::Dice(n, s) => format!("{n}d{s}"),
-            Atom::Str(s) => s.to_string(),
-            Atom::Ident(s) => s.to_string(),
+            Atom::Str(s) | Atom::Ident(s) => s.to_string(),
             Atom::Raw(token) => token.to_string(),
         }
     }
@@ -323,11 +321,11 @@ impl Atom {
 impl Display for Atom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Atom::Number(n) => write!(f, "{}", n),
-            Atom::Dice(n, s) => write!(f, "{}d{}", n, s),
-            Atom::Str(s) => write!(f, r#""{}""#, s),
-            Atom::Ident(s) => write!(f, "`{}`", s),
-            Atom::Raw(token) => write!(f, "{}", token),
+            Atom::Number(n) => write!(f, "{n}"),
+            Atom::Dice(n, s) => write!(f, "{n}d{s}"),
+            Atom::Str(s) => write!(f, r#""{s}""#),
+            Atom::Ident(s) => write!(f, "`{s}`"),
+            Atom::Raw(token) => write!(f, "{token}"),
         }
     }
 }
@@ -355,8 +353,7 @@ impl Ord for Atom {
         match (self, other) {
             (Atom::Number(l), Atom::Number(r)) => l.cmp(r),
             (Atom::Dice(ln, ls), Atom::Dice(rn, rs)) => (ln * ls).cmp(&(rn * rs)),
-            (Atom::Str(l), Atom::Str(r)) => l.cmp(r),
-            (Atom::Ident(l), Atom::Ident(r)) => l.cmp(r),
+            (Atom::Str(l), Atom::Str(r)) | (Atom::Ident(l), Atom::Ident(r)) => l.cmp(r),
             (l, r) => l.bare_string().cmp(&r.bare_string()),
         }
     }
@@ -414,6 +411,10 @@ where
 
     pub fn inner_t_mut(&self) -> RefMut<T> {
         self.actual.borrow_mut()
+    }
+
+    pub fn replace_inner_t(&self, new_inner: T) {
+        self.actual.replace(new_inner);
     }
 
     pub fn info(&self) -> (&MetaData, &SpanInfo, &SpanInfo) {
@@ -525,9 +526,9 @@ where
     fn from(value: T) -> Self {
         Self {
             actual: RefCell::new(value),
-            meta: Default::default(),
-            token_span: Default::default(),
-            source_span: Default::default(),
+            meta: MetaData::default(),
+            token_span: SpanInfo::default(),
+            source_span: SpanInfo::default(),
         }
     }
 }
@@ -644,12 +645,12 @@ impl Script {
     ) -> TaleResultVec<SymbolValue> {
         let stack_happy = symbols.borrow_mut().push_scope();
         match stack_happy {
-            Ok(_) => {
+            Ok(()) => {
                 let output = self.statements.eval(symbols, state);
                 symbols.borrow_mut().pop_scope();
                 output
             }
-            Err(_) => Err(vec![TaleError::evaluator(
+            Err(()) => Err(vec![TaleError::evaluator(
                 0..0,
                 (0, 0),
                 format!("Recursive Script: {} hit stack guard!", self.name),
@@ -724,10 +725,10 @@ impl Table {
     pub fn name_only(name: String) -> Self {
         Self {
             name: rc_node(Atom::Ident(name)),
-            roll: Default::default(),
-            tags: Default::default(),
-            modifiers: Default::default(),
-            rows: Default::default(),
+            roll: Rc::default(),
+            tags: Rc::default(),
+            modifiers: Vec::default(),
+            rows: Rc::default(),
         }
     }
 
@@ -747,13 +748,14 @@ impl Table {
         let roll_value = self.roll.eval(symbols, state)?;
         match &*self.rows.inner_t() {
             TableRows::Empty => Ok(roll_value),
-            TableRows::List(atoms) => {
-                list_form_match(self.roll_offset(symbols, state, roll_value)?, atoms)
-            }
+            TableRows::List(atoms) => Ok(list_form_match(
+                &self.roll_offset(symbols, state, roll_value)?,
+                atoms,
+            )),
             TableRows::Flat(nodes) => flat_form_match(
                 symbols,
                 state,
-                self.roll_offset(symbols, state, roll_value)?,
+                &self.roll_offset(symbols, state, roll_value)?,
                 nodes,
             ),
             TableRows::Keyed(items) => {
@@ -763,11 +765,11 @@ impl Table {
                     .expect("Analyzer Bug: Missing table key type!")
                     .as_str()
                 {
-                    "numeric" => num_keyed_form_match(symbols, state, roll_value, items),
+                    "numeric" => num_keyed_form_match(symbols, state, &roll_value, items),
                     "text" => text_keyed_form_match(
                         symbols,
                         state,
-                        self.roll_offset(symbols, state, roll_value)?,
+                        &self.roll_offset(symbols, state, roll_value)?,
                         items,
                     ),
                     _ => unreachable!("Analyzer Bug: Invalid table key type!"),
@@ -786,9 +788,10 @@ impl Table {
         state: &StateTable,
         val: SymbolValue,
     ) -> TaleResultVec<SymbolValue> {
-        let offset = Self::calc_floor(symbols, state, &self.roll)?;
+        let offset = Self::calc_floor(symbols, state, &self.roll)?
+            .operation(Op::Sub, &SymbolValue::Numeric(1))?;
         match val {
-            SymbolValue::Numeric(_) => val.operation(Op::Sub, &offset),
+            SymbolValue::Numeric(_) => Ok(val.operation(Op::Sub, &offset)?),
             other => Ok(other),
         }
     }
@@ -800,24 +803,24 @@ impl Table {
     ) -> TaleResultVec<SymbolValue> {
         match &*expr.inner_t() {
             Expr::Atom(atom) => match atom {
-                Atom::Number(_) => atom.eval(symbols, state),
-                Atom::Dice(x, _) => Ok(SymbolValue::Numeric((*x - 1) as isize)),
-                Atom::Ident(_) => atom.eval(symbols, state),
+                Atom::Number(_) | Atom::Ident(_) => atom.eval(symbols, state),
+                #[allow(clippy::cast_possible_wrap)] // > 2 Billion dice isn't realistic
+                Atom::Dice(x, _) => Ok(SymbolValue::Numeric(*x as isize)),
                 _ => unimplemented!("calc_floor is only valid for arithmetic expressions!"),
             },
             Expr::Neg(node) => Self::calc_floor(symbols, state, node),
-            Expr::Add(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
-                .operation(Op::Add, &Self::calc_floor(symbols, state, rhs)?),
-            Expr::Sub(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
-                .operation(Op::Sub, &Self::calc_floor(symbols, state, rhs)?),
-            Expr::Mul(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
-                .operation(Op::Mul, &Self::calc_floor(symbols, state, rhs)?),
-            Expr::Div(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
-                .operation(Op::Div, &Self::calc_floor(symbols, state, rhs)?),
-            Expr::Mod(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
-                .operation(Op::Mod, &Self::calc_floor(symbols, state, rhs)?),
-            Expr::Pow(lhs, rhs) => Self::calc_floor(symbols, state, lhs)?
-                .operation(Op::Pow, &Self::calc_floor(symbols, state, rhs)?),
+            Expr::Add(lhs, rhs) => Ok(Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Add, &Self::calc_floor(symbols, state, rhs)?)?),
+            Expr::Sub(lhs, rhs) => Ok(Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Sub, &Self::calc_floor(symbols, state, rhs)?)?),
+            Expr::Mul(lhs, rhs) => Ok(Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Mul, &Self::calc_floor(symbols, state, rhs)?)?),
+            Expr::Div(lhs, rhs) => Ok(Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Div, &Self::calc_floor(symbols, state, rhs)?)?),
+            Expr::Mod(lhs, rhs) => Ok(Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Mod, &Self::calc_floor(symbols, state, rhs)?)?),
+            Expr::Pow(lhs, rhs) => Ok(Self::calc_floor(symbols, state, lhs)?
+                .operation(Op::Pow, &Self::calc_floor(symbols, state, rhs)?)?),
             _ => unimplemented!("calc_floor is only valid for arithmetic expressions!"),
         }
     }
@@ -826,11 +829,11 @@ impl Table {
         &self,
         symbols: &RefCell<SymbolTable>,
         state: &StateTable,
-        key: SymbolValue,
+        key: &SymbolValue,
     ) -> TaleResultVec<SymbolValue> {
         match &*self.rows.inner_t() {
-            TableRows::Empty => Ok(key),
-            TableRows::List(atoms) => list_form_match(key, atoms),
+            TableRows::Empty => Ok(key.clone()),
+            TableRows::List(atoms) => Ok(list_form_match(key, atoms)),
             TableRows::Flat(nodes) => flat_form_match(symbols, state, key, nodes),
             TableRows::Keyed(items) => {
                 match self
@@ -839,14 +842,14 @@ impl Table {
                     .expect("Analyzer Bug: Missing table key type!")
                     .as_str()
                 {
-                    "numeric" => num_keyed_form_match(symbols, state, key, items),
-                    "text" => text_keyed_form_match(symbols, state, key, items),
+                    "numeric" => num_keyed_form_match(symbols, state, &key, items),
+                    "text" => text_keyed_form_match(symbols, state, &key, items),
                     _ => unreachable!("Analyzer Bug: Invalid table key type!"),
                 }
             }
             TableRows::SubTables(nodes) => nodes
                 .iter()
-                .map(|node| node.inner_t().lookup(symbols, state, key.clone()))
+                .map(|node| node.inner_t().lookup(symbols, state, key))
                 .collect(),
         }
     }
@@ -860,17 +863,18 @@ impl Table {
             Duration::All => self.modifiers.clear(),
             Duration::Next(value) => {
                 let amount = value
-                    .eval(&Default::default(), &Default::default())
+                    .eval(&RefCell::default(), &StateTable::default())
                     .expect("Error evaluating Clear Duration");
                 if let SymbolValue::Numeric(amount) = amount {
                     self.modifiers = self
                         .modifiers
                         .iter_mut()
-                        .filter_map(|modifier| match modifier.decrease_duration(amount) {
-                            true => Some(modifier.clone()),
-                            false => None,
+                        .filter_map(|modifier| {
+                            modifier
+                                .decrease_duration(amount)
+                                .then_some(modifier.clone())
                         })
-                        .collect()
+                        .collect();
                 } else {
                     unreachable!(
                         "Duration::Next should only contain numeric values, found: {:?}",
@@ -882,36 +886,37 @@ impl Table {
     }
 }
 
-fn list_form_match(key: SymbolValue, atoms: &[Atom]) -> TaleResultVec<SymbolValue> {
+#[allow(clippy::cast_sign_loss)] // *n < 1 match guard case prevents this
+fn list_form_match(key: &SymbolValue, atoms: &[Atom]) -> SymbolValue {
     match key {
-        SymbolValue::Numeric(n) if n < 1 => {
-            Ok(SymbolValue::String(format!("{key} => {}", atoms[0])))
+        SymbolValue::Numeric(n) if *n < 1 => SymbolValue::String(format!("{key} => {}", atoms[0])),
+        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < atoms.len() => {
+            SymbolValue::String(format!("{key} => {}", atoms[*n as usize - 1]))
         }
-        SymbolValue::Numeric(n) if n > 0 && (n as usize) < atoms.len() => Ok(SymbolValue::String(
-            format!("{key} => {}", atoms[n as usize - 1]),
-        )),
-        SymbolValue::Numeric(n) if n >= atoms.len() as isize => Ok(SymbolValue::String(format!(
-            "{key} => {}",
-            atoms.last().unwrap()
-        ))),
-        _ => Ok(SymbolValue::Placeholder),
+        #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
+        SymbolValue::Numeric(n) if *n >= atoms.len() as isize => {
+            SymbolValue::String(format!("{key} => {}", atoms.last().unwrap()))
+        }
+        _ => SymbolValue::Placeholder,
     }
 }
 
+#[allow(clippy::cast_sign_loss)] // *n < 1 match guard case prevents this
 fn flat_form_match(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
-    key: SymbolValue,
+    key: &SymbolValue,
     nodes: &[RcNode<Statement>],
 ) -> TaleResultVec<SymbolValue> {
     match key {
-        SymbolValue::Numeric(n) if n < 1 => nodes[0]
+        SymbolValue::Numeric(n) if *n < 1 => nodes[0]
             .eval(symbols, state)
             .map(|value| SymbolValue::String(format!("{key} => {value}"))),
-        SymbolValue::Numeric(n) if n > 0 && (n as usize) < nodes.len() => nodes[n as usize - 1]
+        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < nodes.len() => nodes[*n as usize - 1]
             .eval(symbols, state)
             .map(|value| SymbolValue::String(format!("{key} => {value}"))),
-        SymbolValue::Numeric(n) if n >= nodes.len() as isize => nodes
+        #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
+        SymbolValue::Numeric(n) if *n >= nodes.len() as isize => nodes
             .last()
             .unwrap()
             .eval(symbols, state)
@@ -923,7 +928,7 @@ fn flat_form_match(
 fn num_keyed_form_match(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
-    key: SymbolValue,
+    key: &SymbolValue,
     items: &[(RcNode<Expr>, RcNode<Statement>)],
 ) -> TaleResultVec<SymbolValue> {
     match key {
@@ -932,7 +937,7 @@ fn num_keyed_form_match(
             for (idx, (row_keys, _)) in items.iter().enumerate() {
                 match row_keys.eval(symbols, state)? {
                     SymbolValue::List(candidates) => {
-                        let closest_this_row = num_key_matcher(key, candidates);
+                        let closest_this_row = num_key_matcher(*key, candidates);
                         closest = if closest.0 > closest_this_row {
                             (closest_this_row, idx)
                         } else {
@@ -973,18 +978,19 @@ fn num_key_matcher(key: isize, candidates: Vec<SymbolValue>) -> usize {
     distance
 }
 
+#[allow(clippy::cast_sign_loss)] // *n < 1 match guard case prevents this
 fn text_keyed_form_match(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
-    key: SymbolValue,
+    key: &SymbolValue,
     items: &[(RcNode<Expr>, RcNode<Statement>)],
 ) -> TaleResultVec<SymbolValue> {
     match key {
         SymbolValue::String(key) => {
-            for (row_keys, stmt) in items.iter() {
+            for (row_keys, stmt) in items {
                 match row_keys.eval(symbols, state)? {
                     SymbolValue::String(candidate) => {
-                        if key == candidate {
+                        if key == &candidate {
                             return stmt.eval(symbols, state);
                         }
                     }
@@ -996,11 +1002,12 @@ fn text_keyed_form_match(
             }
             Ok(SymbolValue::Placeholder)
         }
-        SymbolValue::Numeric(n) if n < 1 => items[0].1.eval(symbols, state),
-        SymbolValue::Numeric(n) if n > 0 && (n as usize) < items.len() => {
-            items[n as usize - 1].1.eval(symbols, state)
+        SymbolValue::Numeric(n) if *n < 1 => items[0].1.eval(symbols, state),
+        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < items.len() => {
+            items[*n as usize - 1].1.eval(symbols, state)
         }
-        SymbolValue::Numeric(n) if n >= items.len() as isize => {
+        #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
+        SymbolValue::Numeric(n) if *n >= items.len() as isize => {
             items.last().unwrap().1.eval(symbols, state)
         }
         _ => Ok(SymbolValue::Placeholder),
@@ -1046,7 +1053,7 @@ impl From<TableGroup> for Table {
             name: value.name,
             roll,
             tags: value.tags,
-            modifiers: Default::default(),
+            modifiers: Vec::default(),
             rows: rc_node(TableRows::SubTables(value.sub_tables)),
         }
     }
@@ -1085,7 +1092,7 @@ impl Display for TableGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.name)?;
         for table in &self.sub_tables {
-            writeln!(f, "\t{}", table)?;
+            writeln!(f, "\t{table}")?;
         }
         Ok(())
     }
@@ -1133,7 +1140,7 @@ impl Display for TableRows {
             TableRows::Keyed(items) => items.len(),
             TableRows::SubTables(nodes) => nodes.len(),
         };
-        write!(f, "{}", num_rows)
+        write!(f, "{num_rows}")
     }
 }
 
@@ -1252,7 +1259,7 @@ impl Duration {
             Duration::All => true,
             Duration::Next(node) => {
                 let value = node
-                    .eval(&Default::default(), &Default::default())
+                    .eval(&RefCell::default(), &StateTable::default())
                     .expect("Error evaluating Duration");
                 if let SymbolValue::Numeric(num) = value {
                     let new_value = num - amount;
@@ -1262,7 +1269,8 @@ impl Duration {
                         false
                     } else {
                         // Update the node with the new value
-                        *node.inner_t_mut() = Expr::Atom(Atom::Number(new_value as usize));
+                        #[allow(clippy::cast_sign_loss)] // Above conditional guards against this
+                        node.replace_inner_t(Expr::Atom(Atom::Number(new_value as usize)));
                         true // Duration remains
                     }
                 } else {
@@ -1280,7 +1288,7 @@ impl Display for Duration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Duration::All => write!(f, "All"),
-            Duration::Next(expr) => write!(f, "Next({})", expr),
+            Duration::Next(expr) => write!(f, "Next({expr})"),
         }
     }
 }

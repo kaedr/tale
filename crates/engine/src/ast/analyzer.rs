@@ -26,7 +26,7 @@ where
 {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         self.inner_t().analyze(symbols).map_err(|mut errs| {
-            errs.iter_mut().for_each(|err| {
+            for err in &mut errs {
                 // Amend default spans with actual spans
                 if err.start() == 0 && err.end() == 0 {
                     err.update_span(self.source_span());
@@ -35,7 +35,7 @@ where
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
                 }
-            });
+            }
             errs
         })
     }
@@ -140,7 +140,7 @@ impl Analyze for Table {
                         (SymbolValue::String(_), SymbolValue::String(item)) => Ok(SymbolValue::String(item)),
                         _ => Err(vec![TaleError::analyzer(
                             row.0.source_span(), row.0.position(),
-                            format!("Keyed rows must all have the same key type.\n(Previous row was: {})", prev)
+                            format!("Keyed rows must all have the same key type.\n(Previous row was: {prev})")
                         )]),
                     }
                 }) {
@@ -167,7 +167,7 @@ impl Analyze for Table {
 
 impl Analyze for TableGroup {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
-        for table in self.sub_tables.iter() {
+        for table in &self.sub_tables {
             symbols
                 .borrow_mut()
                 .register(table.inner_t().name().inner_t().to_lowercase());
@@ -181,17 +181,17 @@ impl Analyze for TableRows {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
             TableRows::Keyed(items) => {
-                for (key, stmt) in items.iter() {
+                for (key, stmt) in items {
                     let key_copy = key.inner_t().clone();
                     if let Expr::Atom(Atom::Ident(id)) = key_copy {
-                        *key.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                        key.replace_inner_t(Expr::Atom(Atom::Str(id)));
                     }
                     stmt.analyze(symbols)?;
                 }
                 Ok(())
             }
             TableRows::Flat(items) => {
-                for item in items.iter() {
+                for item in items {
                     item.analyze(symbols)?;
                 }
                 Ok(())
@@ -207,9 +207,9 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
         Expr::Atom(Atom::Ident(id)) => {
             if !symbols.borrow().is_def(&id) {
                 if let Some(ogt) = expr.get_detail("original_text") {
-                    *expr.inner_t_mut() = Expr::Atom(Atom::Str(ogt));
+                    expr.replace_inner_t(Expr::Atom(Atom::Str(ogt)));
                 } else {
-                    *expr.inner_t_mut() = Expr::Atom(Atom::Str(id));
+                    expr.replace_inner_t(Expr::Atom(Atom::Str(id)));
                 }
             }
         }
@@ -219,7 +219,7 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
             {
                 if !symbols.borrow().is_def(idl) || !symbols.borrow().is_def(idr) {
                     if let Some(sauce) = expr.get_detail("words_only") {
-                        *expr.inner_t_mut() = Expr::Atom(Atom::Str(sauce));
+                        expr.replace_inner_t(Expr::Atom(Atom::Str(sauce)));
                     }
                 }
             }
@@ -283,8 +283,8 @@ fn analyze_roll(
             (false, false) => {
                 let joined = format!("{lhs} {rhs}");
                 if symbols.borrow().is_def(&joined) {
-                    *reps.inner_t_mut() = Expr::Atom(Atom::Number(1));
-                    *target.inner_t_mut() = Expr::Atom(Atom::Ident(joined.clone()));
+                    reps.replace_inner_t(Expr::Atom(Atom::Number(1)));
+                    target.replace_inner_t(Expr::Atom(Atom::Ident(joined.clone())));
                 } else {
                     return Err(vec![TaleError::analyzer(
                         reps.source_span(),
@@ -359,7 +359,7 @@ mod tests {
         table.add_source("roll".to_string(), STATEMENT_ROLL.to_string());
         table.lex_current();
         let errors = table.parse_current();
-        assert_eq!(format!("{:?}", errors), "Ok(())");
+        assert_eq!(format!("{errors:?}"), "Ok(())");
 
         symbols.borrow_mut().register("farm animals".to_string());
 
@@ -394,6 +394,6 @@ mod tests {
                 .get(&*table.current())
                 .unwrap()
                 .to_string()
-        )
+        );
     }
 }

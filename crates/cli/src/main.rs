@@ -24,12 +24,12 @@ const PROMPT: &str = "TALE +-> ";
 const SIDEBAR: &str = "     |   ";
 
 fn print_arrowed(banner: &str) {
-    let padded = format!(" {} ", banner);
-    println!("-----+-{:-<21}->", padded);
+    let padded = format!(" {banner} ");
+    println!("-----+-{padded:-<21}->");
 }
 
 fn print_sidebarred(text: &str) {
-    println!("{}{}", SIDEBAR, text)
+    println!("{SIDEBAR}{text}");
 }
 
 fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
@@ -38,8 +38,8 @@ fn process_input(engine: &mut Interpreter, input: String) -> Result<()> {
         help(lc_input.as_str());
     } else {
         engine
-            .execute(SIDEBAR, input)
-            .map_err(|err| io::Error::other(format!("{:?}", err)))?
+            .execute(SIDEBAR, &input)
+            .map_err(|err| io::Error::other(format!("{err:?}")))?
             .render(SIDEBAR);
     }
     Ok(())
@@ -68,7 +68,7 @@ fn repl(mut engine: Interpreter) -> Result<()> {
                 break;
             }
             Err(err) => {
-                println!("Error: {:?}", err);
+                println!("Error: {err:?}");
                 break;
             }
         }
@@ -92,7 +92,7 @@ fn main() -> Result<()> {
                 println!("{LOAD_LINE} {file}");
                 engine
                     .render_output_of(SIDEBAR, file)
-                    .map_err(|err| io::Error::other(format!("{:?}", err)))?
+                    .map_err(|err| io::Error::other(format!("{err:?}")))?
                     .render(SIDEBAR);
             }
             print_arrowed(WELCOME);
