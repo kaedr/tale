@@ -2,7 +2,8 @@
 
 use std::str::SplitWhitespace;
 
-use crate::{print_arrowed, print_sidebarred, snippets::{EXAMPLE_EXPRESSIONS, EXAMPLE_ROLLS, EXAMPLE_SCRIPT_BASICS, EXAMPLE_SCRIPT_SCOPES, EXAMPLE_TABLE_BASICS, EXAMPLE_TABLE_BLOCKS, EXAMPLE_TABLE_CSV_KEYS, EXAMPLE_TABLE_GROUP_BASICS, EXAMPLE_TABLE_GROUP_STATEMENTS, EXAMPLE_TABLE_LIST, EXAMPLE_TABLE_LOOKUP, EXAMPLE_TABLE_PROBABILITIES, EXAMPLE_TABLE_STATEMENTS, EXAMPLE_TABLE_TAGS, HELP_GENERAL, HELP_TOPICS}};
+#[allow(clippy::wildcard_imports)] // Everything in snippets is a Verbosely named const
+use crate::{print_arrowed, print_sidebarred, snippets::*};
 
 pub fn help(lc_input: &str) {
     let mut help_strs = lc_input.split_whitespace();
@@ -60,7 +61,9 @@ fn table_group_help(help_strs: &mut SplitWhitespace) {
 
 fn script_help(help_strs: &mut SplitWhitespace) {
     let maybe_sub_topic = help_strs.next();
-    if let Some("scopes") = maybe_sub_topic { flanked_example("Script Value Scopes", EXAMPLE_SCRIPT_BASICS) } else {
+    if let Some("scopes") = maybe_sub_topic {
+        flanked_example("Script Value Scopes", EXAMPLE_SCRIPT_BASICS);
+    } else {
         flanked_example("Script Basics", EXAMPLE_SCRIPT_SCOPES);
         print_sidebarred("Type: 'help script scopes' for more information.");
     }
