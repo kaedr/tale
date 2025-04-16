@@ -63,11 +63,19 @@ impl TaleError {
     pub fn from_parser_vec(errs: Vec<chumsky::error::Rich<'_, Token>>) -> Vec<Self> {
         errs.into_iter()
             .map(|err| {
-                Self::parser(
-                    err.span().into_range(),
-                    Default::default(),
-                    err.reason().to_string(),
-                )
+                // TODO: Better handling of context nesting
+                let context_list = err
+                    .contexts()
+                    .map(|context| context.0.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" -> ");
+                let msg = if context_list.is_empty() {
+                    err.reason().to_string()
+                } else {
+                    format!("{} In: [{context_list}]", err.reason())
+                };
+                println!("err span: {:?}", &err.span());
+                Self::parser(err.span().into_range(), Default::default(), msg)
             })
             .collect::<Vec<Self>>()
     }
@@ -75,8 +83,9 @@ impl TaleError {
     #[must_use]
     pub fn update_parser_vec_with_state(mut errs: Vec<Self>, state: &ParserState) -> Vec<Self> {
         for err in &mut errs {
-            err.update_span(state.get_source_span(&err.span()));
-            err.update_position(state.get_source_position(&err.span()));
+            let span = err.span();
+            err.update_span(state.get_source_span(&span));
+            err.update_position(state.get_source_position(&span));
         }
         errs
     }

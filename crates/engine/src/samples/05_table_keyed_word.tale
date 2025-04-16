@@ -1,4 +1,5 @@
 Table: TextKeys
 once	upon
+	// Comments shouldn't break things anywhere, even when indented
 a		time
 End Table

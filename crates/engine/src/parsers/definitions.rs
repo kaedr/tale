@@ -8,8 +8,8 @@ use crate::ast::{
 use super::{
     TaleExtra,
     atoms::{
-        CELL_ENDINGS, NEWLINES, PERIOD_OR_SEMICOLON, TABS, chomp_separator, dice, ident,
-        ident_normalize,
+        CELL_ENDINGS, NEWLINES, NOTHING, PERIOD_OR_SEMICOLON, TABS, chomp_disjoint_newlines,
+        chomp_separator, dice, ident, ident_normalize,
     },
     expressions::{arithmetic, number_range_list},
     statements::{any_statement, seq_or_statement},
@@ -25,7 +25,7 @@ pub fn script<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tal
             just(Token::Tabs)
                 .or_not()
                 .ignore_then(seq_or_statement(NEWLINES))
-                .then_ignore(just(Token::NewLines))
+                .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON))
                 .repeated()
                 .collect::<Vec<_>>(),
         )
@@ -45,7 +45,7 @@ pub fn table<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tale
     just(Token::Table)
         .then(just(Token::Colon))
         .ignore_then(ident().map_with(full_rc_node))
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
         .then(table_headings())
         .then(table_rows())
         .map_with(|((name, (roll, tags)), rows), extra| {
@@ -67,7 +67,7 @@ pub fn table_group<'src>()
         .then(just(Token::Group))
         .then(just(Token::Colon))
         .ignore_then(ident().map_with(full_rc_node::<Atom, Atom>))
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
         .then(
             tags_directive().or_not().map_with(|maybe_tags, extra| {
                 maybe_tags.unwrap_or(full_rc_node(Vec::new(), extra))
@@ -112,14 +112,14 @@ fn sub_tables_row<'src>()
         .map_with(full_rc_node)
         .then_ignore(just(Token::Tabs))
         .then(ident().separated_by(just(Token::Tabs)).collect::<Vec<_>>())
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
 }
 
 fn table_group_rows<'src>()
 -> impl Parser<'src, &'src [Token], Vec<RcNode<TableRows>>, TaleExtra<'src>> + Clone {
     row_key()
         .then(
-            any_statement(CELL_ENDINGS)
+            any_statement(CELL_ENDINGS).labelled("Table Group Cell")
                 .separated_by(chomp_separator(PERIOD_OR_SEMICOLON, TABS))
                 .collect::<Vec<_>>(),
         )
@@ -129,7 +129,7 @@ fn table_group_rows<'src>()
                 .map(|item| (key.clone(), item))
                 .collect::<Vec<_>>()
         })
-        .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
+        .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON)).labelled("Table Group Row")
         .repeated()
         .at_least(1)
         .collect::<Vec<_>>()
@@ -166,7 +166,7 @@ fn table_group_rows<'src>()
                 .map(|column| full_rc_node(TableRows::Keyed(column), extra))
                 .collect();
             Ok(columns)
-        })
+        }).labelled("Table Group Rows")
 }
 
 fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
@@ -178,7 +178,7 @@ fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
         .or(just(Token::End)
             .then(just(Token::Table))
             .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
-        .then_ignore(just(Token::NewLines).ignored().or(end()))
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
@@ -201,7 +201,7 @@ fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
 fn table_flat_rows<'src>()
 -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone {
     seq_or_statement(CELL_ENDINGS)
-        .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
+        .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON))
         .repeated()
         .at_least(1)
         .collect()
@@ -213,7 +213,7 @@ fn table_keyed_form<'src>()
 -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone {
     row_key()
         .then(seq_or_statement(CELL_ENDINGS))
-        .then_ignore(chomp_separator(PERIOD_OR_SEMICOLON, NEWLINES))
+        .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON))
         .repeated()
         .at_least(1)
         .collect()
@@ -226,7 +226,7 @@ fn table_headings<'src>()
     let roll_directive = just(Token::Roll)
         .then(just(Token::Colon))
         .ignore_then(arithmetic())
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
         .map_with(|item, extra| (item, full_rc_node(Vec::new(), extra)));
 
     let tags_directive =
@@ -281,7 +281,7 @@ fn tags_directive<'src>()
                 .collect::<Vec<_>>()
                 .map_with(full_rc_node),
         )
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
 }
 
 fn row_key<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
@@ -421,7 +421,7 @@ End Table"#;
         let output = stubbed_parser(&mut p_state, &tokens, table_group());
         assert_eq!(
             "[TaleError { kind: Parse, span: 0..155, position: (1, 0), msg: \"Table Group rows \
-            must all have same number of columns\" }]",
+            must all have same number of columns In: [Table Group Definition]\" }]",
             output
         );
     }
@@ -539,7 +539,7 @@ End Table"#;
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert_eq!(
             "[TaleError { kind: Parse, span: 5..6, position: (1, 5), msg: \"found 'At' expected \
-            Identity, or 'NewLines'\" }]",
+            Identity, or Separator\" }]",
             output
         );
 
@@ -591,7 +591,7 @@ End Table"#;
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, row_key());
         assert_eq!(
-            "[TaleError { kind: Parse, span: 4..12, position: (1, 13), msg: \"found \
+            "[TaleError { kind: Parse, span: 4..12, position: (1, 4), msg: \"found \
             'Word(\\\"Business\\\")' expected 'Comma', or 'Tabs'\" }]",
             format!("{output}")
         );

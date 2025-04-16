@@ -5,6 +5,9 @@ use chumsky::prelude::*;
 
 use super::TaleExtra;
 
+/// When you want to chomp nothing
+pub const NOTHING: &[Token] = &[];
+
 pub const RBRACKET: &[Token] = &[Token::RBracket];
 pub const COMMA_OR_RBRACKET: &[Token] = &[Token::RBracket, Token::Comma];
 
@@ -44,6 +47,15 @@ pub fn chomp_separator<'src>(
         .then(one_of(end_tokens))
         .ignored()
         .labelled("Separator")
+}
+
+// Take care of potentially commented/tabbed lines interspersed
+pub fn chomp_disjoint_newlines<'src>(
+    chomp_tokens: &'static [Token],
+) -> impl Parser<'src, &'src [Token], (), TaleExtra<'src>> + Clone {
+    chomp_separator(chomp_tokens, NEWLINES)
+        .then(chomp_separator(TABS, NEWLINES).repeated())
+        .ignored()
 }
 
 pub fn term<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
@@ -262,7 +274,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_words() {
+    fn parse_words() {
         let mut p_state = ParserState::from_source(r"This is a test: Once upon a time...".into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, words::<Atom>());
@@ -286,7 +298,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, words::<Atom>());
         assert_eq!(
-            "[TaleError { kind: Parse, span: 23..24, position: (1, 25), msg: \"found 'At' expected Wordlike, Typical Punctuation, or end of input\" }]",
+            "[TaleError { kind: Parse, span: 23..24, position: (1, 23), msg: \"found 'At' expected Wordlike, Typical Punctuation, or end of input\" }]",
             format!("{output}")
         );
     }
@@ -351,7 +363,7 @@ mod tests {
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, ident());
         assert_eq!(
-            "[TaleError { kind: Parse, span: 3..4, position: (1, 5), msg: \"found 'Colon' expected Wordlike, or end of input\" }]",
+            "[TaleError { kind: Parse, span: 3..4, position: (1, 3), msg: \"found 'Colon' expected Wordlike, or end of input\" }]",
             output
         );
     }

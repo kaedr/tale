@@ -15,7 +15,10 @@ use super::{
 pub fn seq_or_statement<'src>(
     end_tokens: &'static [Token],
 ) -> impl Parser<'src, &'src [Token], RcNode<Statement>, TaleExtra<'src>> + Clone {
-    statement_sequence().or(any_statement(end_tokens)).boxed()
+    statement_sequence()
+        .or(any_statement(end_tokens))
+        .boxed()
+        .labelled("Sequence or Statement")
 }
 
 pub fn any_statement<'src>(

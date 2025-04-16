@@ -3,12 +3,14 @@
 // To demonstrate:
 Set outer_value = 1
 Script: Scope Demo
-    Set outer_value = outer_value + 1
-    Set inner_value = 1
-    // At this point, if we used output statements:
-    Output: Outer: [outer_value]
-    Output: Inner: [inner_value]
-    // It would output 2 for outer_value and 1 for inner_value when run
+	Set outer_value = outer_value + 1
+	Set inner_value = 1
+	Set other_value = outer_value + inner_value
+	// At this point, if we used output statements:
+	Output: Outer: [outer_value]
+	Output: Inner: [inner_value]
+	Output: Inner: [other_value]
+	// It would output 2 for outer_value and 1 for inner_value when run
 End Script
 
 Invoke Scope Demo

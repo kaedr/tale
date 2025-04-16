@@ -36,6 +36,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tal
                 full_rc_node(Statement::Sequence(full_rc_node(items, extra)), extra)
             }
         })
+        .labelled("Source")
 }
 
 #[cfg(test)]

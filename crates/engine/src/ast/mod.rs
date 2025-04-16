@@ -889,13 +889,13 @@ impl Table {
 #[allow(clippy::cast_sign_loss)] // *n < 1 match guard case prevents this
 fn list_form_match(key: &SymbolValue, atoms: &[Atom]) -> SymbolValue {
     match key {
-        SymbolValue::Numeric(n) if *n < 1 => SymbolValue::String(atoms[0].to_string()),
+        SymbolValue::Numeric(n) if *n < 1 => SymbolValue::String(format!("{key} => {}", atoms[0])),
         SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < atoms.len() => {
-            SymbolValue::String(atoms[*n as usize - 1].to_string())
+            SymbolValue::String(format!("{key} => {}", atoms[*n as usize - 1]))
         }
         #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
         SymbolValue::Numeric(n) if *n >= atoms.len() as isize => {
-            SymbolValue::String(atoms.last().unwrap().to_string())
+            SymbolValue::String(format!("{key} => {}", atoms.last().unwrap()))
         }
         _ => SymbolValue::Placeholder,
     }
@@ -909,14 +909,18 @@ fn flat_form_match(
     nodes: &[RcNode<Statement>],
 ) -> TaleResultVec<SymbolValue> {
     match key {
-        SymbolValue::Numeric(n) if *n < 1 => nodes[0].eval(symbols, state),
-        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < nodes.len() => {
-            nodes[*n as usize - 1].eval(symbols, state)
-        }
+        SymbolValue::Numeric(n) if *n < 1 => nodes[0]
+            .eval(symbols, state)
+            .map(|value| SymbolValue::String(format!("{key} => {value}"))),
+        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < nodes.len() => nodes[*n as usize - 1]
+            .eval(symbols, state)
+            .map(|value| SymbolValue::String(format!("{key} => {value}"))),
         #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
-        SymbolValue::Numeric(n) if *n >= nodes.len() as isize => {
-            nodes.last().unwrap().eval(symbols, state)
-        }
+        SymbolValue::Numeric(n) if *n >= nodes.len() as isize => nodes
+            .last()
+            .unwrap()
+            .eval(symbols, state)
+            .map(|value| SymbolValue::String(format!("{key} => {value}"))),
         _ => Ok(SymbolValue::Placeholder),
     }
 }
@@ -946,7 +950,10 @@ fn num_keyed_form_match(
                     ),
                 }
             }
-            items[closest.1].1.eval(symbols, state)
+            items[closest.1]
+                .1
+                .eval(symbols, state)
+                .map(|value| SymbolValue::String(format!("{key} => {value}")))
         }
         _ => Ok(SymbolValue::Placeholder),
     }

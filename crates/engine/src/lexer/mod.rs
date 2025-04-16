@@ -446,6 +446,7 @@ pub(crate) mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::Word("upon".into()))));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
+            assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::Word("a".into()))));
             assert_eq!(lex.next(), Some(Ok(Token::Tabs)));
             assert_eq!(lex.next(), Some(Ok(Token::Time)));
@@ -1612,6 +1613,7 @@ pub(crate) mod tests {
                     Token::Word("Attack".into()),
                     Token::Word("with".into()),
                     Token::Word("Damage".into()),
+                    Token::NewLines,
                     Token::NewLines,
                     Token::End,
                     Token::Script,

@@ -31,11 +31,12 @@ where
                 // Amend default spans with actual spans
                 if err.start() == 0 && err.end() == 0 {
                     err.update_span(self.source_span());
-                    err.append_message(&format!(" (In: {})", self.node_type()));
                 }
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
                 }
+                // Add Node nesting to all errors?
+                err.append_message(&format!(" (In: {})", self.node_type()));
             }
             errs
         })
