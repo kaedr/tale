@@ -1,1 +1,12 @@
-// TODO!
+// Lookup expressions have the basic syntax:
+// Lookup <value> on <table name>
+// They have two main uses, the first of which is retrieving information from
+// Dictionary style tables, like the `Peoples of Middle Earth` table
+// from the Table w/ Textual Keys example
+Lookup Elves on Peoples of Middle Earth
+// ^ this will yield 'Immortal, wisest and fairest of all beings.'
+
+// The second use is retrieving a value from a table using an atypical roll
+Lookup 2d50 on "Treasure Hoard: Challenge 0-4"
+// ^ The above could be used for making treasure rolls with a distribution
+// that peaks in the middle of the table

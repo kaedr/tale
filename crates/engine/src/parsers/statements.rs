@@ -175,12 +175,12 @@ pub fn modify<'src>(
         });
     let leading_form = mod_by()
         .then_ignore(just(Token::To))
-        .then(duration())
+        .then(duration().or_not())
         .then(ident_maybe_sub())
         .then_ignore(just(Token::Roll))
         .then_ignore(terminator(end_tokens))
         .map_with(|((value, dur), id), extra| {
-            let modifier = Modifier::new(dur, value);
+            let modifier = Modifier::new(dur.unwrap_or(Duration::All), value);
             full_rc_node(
                 Statement::Modify(full_rc_node(modifier, extra), full_rc_node(id, extra)),
                 extra,

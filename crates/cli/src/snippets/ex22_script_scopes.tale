@@ -1,21 +1,26 @@
 // Scripts in TALE execute in a nested scope, meaning that any named values set
 // with a Script are gone when the script finishes executing.
 // To demonstrate:
-Set outer_value = 1
-Script: Scope Demo
-	Set outer_value = outer_value + 1
-	Set inner_value = 1
-	Set other_value = outer_value + inner_value
-	// At this point, if we used output statements:
-	Output: Outer: [outer_value]
-	Output: Inner: [inner_value]
-	Output: Inner: [other_value]
-	// It would output 2 for outer_value and 1 for inner_value when run
+Set deception_bonus = 5
+
+Script: Deception Check
+	Roll d20 + deception_bonus
 End Script
 
-Invoke Scope Demo
-// But the same output statements after the Invoke statement
-Output: Outer: [outer_value]
-Output: Inner: [inner_value]
-// Would show outer_value to be 1, as set on line 4
-// And would error on `inner_value`, due to it not being defined in the outer scope.
+Script: Deception with Guidance and Advantage
+	Set deception_bonus = deception_bonus + 1d4
+	Invoke Deception Check
+	Invoke Deception Check
+End Script
+
+// This invocation will yield a d20 + 5
+Invoke Deception Check
+
+// This invocation will yield two different results, each a d20 + 5 + a value between
+// 1 and 4, corresponding to the Guidance die roll.
+Invoke Deception with Guidance and Advantage
+
+// This invocation will yield a d20 + 5 again because the adjustment to `deception_bonus`
+// within `Deception with Guidance and Advantage` goes away as soon as its invocation
+// ends
+Invoke Deception Check

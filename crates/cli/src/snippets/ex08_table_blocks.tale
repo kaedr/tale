@@ -1,9 +1,11 @@
-//
-
+// This Trading Post Age table, from Spectacular Settlements, serves as an example of
+// block form table rows. This allows you to have multiple lines in a single table 'row'
+// It is particularly useful for tables like this one that have statements to execute
+// in addition to the textual output.
 Table: Trading Post Age
 Roll: d20
 1-3		Recent. The trading post was established within the past year.
-		[-1 to visitor traffic roll]
+		[-1 to visitor traffic roll]	// This statement applies a -1 modifier to all `visitor traffic` rolls
 4-8		Established. The trading post has been around for at least a couple of years.
 		[+0 to visitor traffic roll]
 9-13	Mature. The trading post was originally built decades ago.
