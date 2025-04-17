@@ -10,6 +10,7 @@ pub const TABLE_LIST: &str = include_str!("03_table_list.tale");
 pub const TABLE_KEYED_NUMERIC: &str = include_str!("04_table_keyed_numeric.tale");
 pub const TABLE_KEYED_WORD: &str = include_str!("05_table_keyed_word.tale");
 pub const TABLE_GROUP: &str = include_str!("06_table_group.tale");
+pub const TABLE_BLOCKS: &str = include_str!("07_table_blocks.tale");
 
 pub const STATEMENT_EXPRESSION: &str = include_str!("10_statement_expression.tale");
 pub const STATEMENT_ASSIGNMENT: &str = include_str!("11_statement_assignment.tale");

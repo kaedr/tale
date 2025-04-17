@@ -11,6 +11,8 @@ pub const NOTHING: &[Token] = &[];
 pub const RBRACKET: &[Token] = &[Token::RBracket];
 pub const COMMA_OR_RBRACKET: &[Token] = &[Token::RBracket, Token::Comma];
 
+pub const COLON: &[Token] = &[Token::Colon];
+
 pub const PERIOD_OR_SEMICOLON: &[Token] = &[Token::Period, Token::SemiColon];
 
 pub const TABS: &[Token] = &[Token::Tabs];
@@ -46,7 +48,10 @@ pub fn chomp_separator<'src>(
         .or_not()
         .then(one_of(end_tokens))
         .ignored()
-        .labelled("Separator")
+        .labelled(format!(
+            "Separator( {:?} -> {:?} )",
+            chomp_tokens, end_tokens
+        ))
 }
 
 // Take care of potentially commented/tabbed lines interspersed

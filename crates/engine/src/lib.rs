@@ -249,6 +249,16 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_full_07() {
+        let output = streamline(TABLE_BLOCKS);
+        eprintln!("{output}");
+        assert!(output.starts_with("Ok(List([List([Table(Node"));
+        assert!(output.ends_with("})])]))"));
+        assert!(output.contains("treasure hoard"));
+        assert!(output.contains("magic"));
+    }
+
+    #[test]
     fn pipeline_full_10_expr() {
         let output = streamline(STATEMENT_EXPRESSION);
         eprintln!("{output}");
