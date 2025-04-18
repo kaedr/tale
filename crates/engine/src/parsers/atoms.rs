@@ -11,6 +11,8 @@ pub const NOTHING: &[Token] = &[];
 pub const RBRACKET: &[Token] = &[Token::RBracket];
 pub const COMMA_OR_RBRACKET: &[Token] = &[Token::RBracket, Token::Comma];
 
+pub const COLON: &[Token] = &[Token::Colon];
+
 pub const PERIOD_OR_SEMICOLON: &[Token] = &[Token::Period, Token::SemiColon];
 
 pub const TABS: &[Token] = &[Token::Tabs];
@@ -46,7 +48,10 @@ pub fn chomp_separator<'src>(
         .or_not()
         .then(one_of(end_tokens))
         .ignored()
-        .labelled("Separator")
+        .labelled(format!(
+            "Separator( {:?} -> {:?} )",
+            chomp_tokens, end_tokens
+        ))
 }
 
 // Take care of potentially commented/tabbed lines interspersed
@@ -210,15 +215,16 @@ pub fn typical_punctuation<'src>() -> impl Parser<'src, &'src [Token], Atom, Tal
         Token::Ampersand => Atom::Raw(Token::Ampersand),
         Token::Apostrophe => Atom::Raw(Token::Apostrophe),
         Token::Asterisk => Atom::Raw(Token::Asterisk),
-        Token::Bang => Atom::Raw(Token::Bang),
+        Token::ExclamationPoint => Atom::Raw(Token::ExclamationPoint),
         Token::Colon => Atom::Raw(Token::Colon),
         Token::Comma => Atom::Raw(Token::Comma),
         Token::Dash => Atom::Raw(Token::Dash),
         Token::Ellipsis => Atom::Raw(Token::Ellipsis),
         Token::LParens => Atom::Raw(Token::LParens),
         Token::Minus => Atom::Raw(Token::Minus),
+        Token::Plus => Atom::Raw(Token::Plus),
         Token::Period => Atom::Raw(Token::Period),
-        Token::Question => Atom::Raw(Token::Question),
+        Token::QuestionMark => Atom::Raw(Token::QuestionMark),
         Token::RParens => Atom::Raw(Token::RParens),
         Token::SemiColon => Atom::Raw(Token::SemiColon),
         Token::Slash => Atom::Raw(Token::Slash),

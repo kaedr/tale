@@ -116,6 +116,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_full_07() {
+        let name = "07_table_group.tale";
+
+        let table = StateTable::default();
+        table.add_source(name.to_string(), TABLE_BLOCKS.to_string());
+        table.lex_current();
+        let errors = table.parse_current();
+        assert_eq!(format!("{errors:?}"), "Ok(())");
+    }
+
+    #[test]
     fn parse_full_10() {
         let name = "10_statement_expression.tale";
 

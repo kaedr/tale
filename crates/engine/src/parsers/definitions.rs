@@ -8,7 +8,7 @@ use crate::ast::{
 use super::{
     TaleExtra,
     atoms::{
-        CELL_ENDINGS, NEWLINES, NOTHING, PERIOD_OR_SEMICOLON, TABS, chomp_disjoint_newlines,
+        CELL_ENDINGS, COLON, NEWLINES, NOTHING, PERIOD_OR_SEMICOLON, TABS, chomp_disjoint_newlines,
         chomp_separator, dice, ident, ident_normalize,
     },
     expressions::{arithmetic, number_range_list},
@@ -117,7 +117,7 @@ fn sub_tables_row<'src>()
 
 fn table_group_rows<'src>()
 -> impl Parser<'src, &'src [Token], Vec<RcNode<TableRows>>, TaleExtra<'src>> + Clone {
-    row_key()
+    row_key(NOTHING, TABS)
         .then(
             any_statement(CELL_ENDINGS).labelled("Table Group Cell")
                 .separated_by(chomp_separator(PERIOD_OR_SEMICOLON, TABS))
@@ -167,18 +167,26 @@ fn table_group_rows<'src>()
                 .collect();
             Ok(columns)
         }).labelled("Table Group Rows")
+        .as_context()
 }
 
 fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
 {
-    table_list()
-        .or(table_flat_rows()
-            .or(table_keyed_form())
-            .then_ignore(just(Token::End).then(just(Token::Table))))
-        .or(just(Token::End)
-            .then(just(Token::Table))
-            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
-        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+    choice((
+        table_list(),
+        table_keyed_form(),
+        table_block_cell_form(),
+        table_flat_rows(),
+        end_table()
+            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra))
+            .then_ignore(chomp_disjoint_newlines(NOTHING).or(end())),
+    ))
+    .boxed()
+    .labelled("Table Rows")
+}
+
+fn end_table<'src>() -> impl Parser<'src, &'src [Token], (), TaleExtra<'src>> + Clone {
+    just(Token::End).then(just(Token::Table)).ignored()
 }
 
 fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
@@ -196,6 +204,8 @@ fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
         )
         .map_with(full_rc_node)
         .labelled("Table Rows (List)")
+        .as_context()
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_flat_rows<'src>()
@@ -207,18 +217,57 @@ fn table_flat_rows<'src>()
         .collect()
         .map_with(|rows, extra| full_rc_node(TableRows::Flat(rows), extra))
         .labelled("Table Rows (Flat)")
+        .as_context()
+        .then_ignore(end_table())
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_keyed_form<'src>()
 -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone {
-    row_key()
-        .then(seq_or_statement(CELL_ENDINGS))
-        .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON))
+    row_key(NOTHING, TABS)
+        .then(seq_or_statement(NEWLINES))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
         .repeated()
         .at_least(1)
         .collect()
         .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra))
         .labelled("Table Rows (Keyed)")
+        .as_context()
+        .then_ignore(end_table())
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+}
+
+fn table_block_cell_form<'src>()
+-> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone {
+    row_key(NOTHING, TABS) // Rowkey followed by tabs
+        .or(
+            row_key(COLON, NEWLINES) // Rowkey followed by colon and newlines
+                // Followed by the consumer of blank/comment lines
+                .then_ignore(
+                    chomp_disjoint_newlines(TABS)
+                        .or_not()
+                        .then(just(Token::Tabs)),
+                ),
+        )
+        .then(
+            seq_or_statement(NEWLINES)
+                .then_ignore(chomp_disjoint_newlines(NOTHING))
+                .separated_by(just(Token::Tabs))
+                .at_least(1)
+                .collect()
+                .map_with(|statements: Vec<RcNode<Statement>>, extra| {
+                    full_rc_node(Statement::Sequence(full_rc_node(statements, extra)), extra)
+                }),
+        )
+        .repeated()
+        .at_least(1)
+        .collect()
+        .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra))
+        .boxed()
+        .labelled("Table Rows (Block)")
+        .as_context()
+        .then_ignore(end_table())
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_headings<'src>()
@@ -284,12 +333,16 @@ fn tags_directive<'src>()
         .then_ignore(chomp_disjoint_newlines(NOTHING))
 }
 
-fn row_key<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
+fn row_key<'src>(
+    chomp_tokens: &'static [Token],
+    end_tokens: &'static [Token],
+) -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
     number_range_list()
-        .then_ignore(just(Token::Tabs))
+        .then_ignore(chomp_separator(chomp_tokens, end_tokens))
         .or(ident()
+            .and_is(end_table().not())
             .map_with(full_rc_node)
-            .then_ignore(just(Token::Tabs)))
+            .then_ignore(chomp_separator(chomp_tokens, end_tokens)))
 }
 
 #[cfg(test)]
@@ -375,6 +428,50 @@ End Table"#;
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_rows());
         assert_eq!("4", output);
+    }
+
+    #[test]
+    fn parse_table_block_rows() {
+        let source =
+"Reprisals:
+	An enemy faction moves against you or yours. Pay them 1 cred per Tier, allow them to mess with you, or fight back. If you have no faction with negative status, you avoid entanglements right now.
+
+Ship Trouble:
+	// Are comments a problem?
+	A ship system acts up. Damage a system (the GM will tell you which).
+	You may repair the system as normal, though you have to deal with the consequences of the damage at the time it occurs. This entanglement can happen while in flight between planets or systems, or on the way to or from a job.
+
+Unquiet Black:
+	An alien or Way creature finds its way on board. Acquire the services of a mystic or exterminator to destroy or banish it, or deal with it yourself.
+	Treat the magnitude (see page 278) of the Way creature as equal to the crew’s wanted level in the system. Parasites, cargo you weren’t told was alive, strange creatures hiding in unmapped lanes, and bizarre physics effects from using your jump drives way past capacity can all apply here.
+
+End Table";
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
+        assert_eq!("3", output);
+
+        let source = "1-2 	Vacant. No one seems to be visiting this place.
+		[+0 to size roll]
+		[+2 to crime roll]
+3-6 	Groups. Visitors are a rarity, though a few might be around.
+		[+1 to size roll]
+		[+1 to crime roll]
+7-14 	Crowds. It is typical to see some new visitors most days.
+		[+2 to size roll]
+		[+0 to crime roll]
+15-18 	Droves. There are lots of new faces on a regular basis.
+		[+3 to size roll]
+		[-1 to crime roll]
+19-20	Masses. New people are everywhere, coming and going at all times.
+		[+4 to size roll]
+		[-2 to crime roll]
+End Table
+";
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
+        assert_eq!("5", output);
     }
 
     #[test]
@@ -474,7 +571,8 @@ End Table"#;
         // Check the uneven rows case:
         assert_eq!(
             "[TaleError { kind: Parse, span: 69..70, position: (3, 31), msg: \"Table Group rows \
-            must all have same number of columns, row 2 has 1 columns but expected 2\" }]",
+            must all have same number of columns, row 2 has 1 columns but expected 2 In: \
+            [Table Group Rows]\" }]",
             output
         );
     }
@@ -539,7 +637,7 @@ End Table"#;
         let output = grubbed_parser(&mut p_state, &tokens, table_headings());
         assert_eq!(
             "[TaleError { kind: Parse, span: 5..6, position: (1, 5), msg: \"found 'At' expected \
-            Identity, or Separator\" }]",
+            Identity, or Separator( [] -> [NewLines] )\" }]",
             output
         );
 
@@ -559,40 +657,40 @@ End Table"#;
         let source = "22\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, row_key());
+        let output = stubbed_parser(&mut p_state, &tokens, row_key(NOTHING, TABS));
         assert_eq!("[22]", format!("{output}"));
 
         let source = "4,6-8\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, row_key());
+        let output = stubbed_parser(&mut p_state, &tokens, row_key(NOTHING, TABS));
         assert_eq!("[4, 6, 7, 8]", format!("{output}"));
 
         let source = "Elves\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, row_key());
+        let output = stubbed_parser(&mut p_state, &tokens, row_key(NOTHING, TABS));
         assert_eq!("`elves`", format!("{output}"));
 
         let source = "`Dwarves`\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, row_key());
+        let output = stubbed_parser(&mut p_state, &tokens, row_key(NOTHING, TABS));
         assert_eq!("`dwarves`", format!("{output}"));
 
         let source = "4 Non Blondes\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, row_key());
+        let output = stubbed_parser(&mut p_state, &tokens, row_key(NOTHING, TABS));
         assert_eq!("`4 non blondes`", format!("{output}"));
 
         let source = "3-4 Business Days\t";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
-        let output = stubbed_parser(&mut p_state, &tokens, row_key());
+        let output = stubbed_parser(&mut p_state, &tokens, row_key(NOTHING, TABS));
         assert_eq!(
             "[TaleError { kind: Parse, span: 4..12, position: (1, 4), msg: \"found \
-            'Word(\\\"Business\\\")' expected 'Comma', or 'Tabs'\" }]",
+            'Word(\\\"Business\\\")' expected 'Comma', or Separator( [] -> [Tabs] )\" }]",
             format!("{output}")
         );
     }

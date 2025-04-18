@@ -25,6 +25,7 @@ pub fn any_expr<'src>(
         // NOTE: The end tokens for arithmetic is a consistent issue!
         .or(arithmetic()
             .then_ignore(terminator(end_tokens))
+            // I think this clause will fix most of the arithmetic end token issues
             .and_is(value_name().then(one_of(PERIOD_OR_SEMICOLON)).not()))
         .or(interpolation())
         .boxed()

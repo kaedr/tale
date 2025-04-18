@@ -74,7 +74,6 @@ impl TaleError {
                 } else {
                     format!("{} In: [{context_list}]", err.reason())
                 };
-                println!("err span: {:?}", &err.span());
                 Self::parser(err.span().into_range(), Default::default(), msg)
             })
             .collect::<Vec<Self>>()
