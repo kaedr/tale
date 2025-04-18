@@ -167,21 +167,26 @@ fn table_group_rows<'src>()
                 .collect();
             Ok(columns)
         }).labelled("Table Group Rows")
+        .as_context()
 }
 
 fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
 {
-    //table_block_cell_form()
-    table_list()
-        .or(table_flat_rows()
-            .or(table_keyed_form())
-            .or(table_block_cell_form())
-            .then_ignore(just(Token::End).then(just(Token::Table))))
-        .or(just(Token::End)
-            .then(just(Token::Table))
-            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
-        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
-        .labelled("Table Rows")
+    choice((
+        table_list(),
+        table_keyed_form(),
+        table_block_cell_form(),
+        table_flat_rows(),
+        end_table()
+            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra))
+            .then_ignore(chomp_disjoint_newlines(NOTHING).or(end())),
+    ))
+    .boxed()
+    .labelled("Table Rows")
+}
+
+fn end_table<'src>() -> impl Parser<'src, &'src [Token], (), TaleExtra<'src>> + Clone {
+    just(Token::End).then(just(Token::Table)).ignored()
 }
 
 fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
@@ -199,6 +204,8 @@ fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
         )
         .map_with(full_rc_node)
         .labelled("Table Rows (List)")
+        .as_context()
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_flat_rows<'src>()
@@ -210,6 +217,9 @@ fn table_flat_rows<'src>()
         .collect()
         .map_with(|rows, extra| full_rc_node(TableRows::Flat(rows), extra))
         .labelled("Table Rows (Flat)")
+        .as_context()
+        .then_ignore(end_table())
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_keyed_form<'src>()
@@ -222,6 +232,9 @@ fn table_keyed_form<'src>()
         .collect()
         .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra))
         .labelled("Table Rows (Keyed)")
+        .as_context()
+        .then_ignore(end_table())
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_block_cell_form<'src>()
@@ -250,7 +263,11 @@ fn table_block_cell_form<'src>()
         .at_least(1)
         .collect()
         .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra))
+        .boxed()
         .labelled("Table Rows (Block)")
+        .as_context()
+        .then_ignore(end_table())
+        .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
 }
 
 fn table_headings<'src>()
@@ -323,6 +340,7 @@ fn row_key<'src>(
     number_range_list()
         .then_ignore(chomp_separator(chomp_tokens, end_tokens))
         .or(ident()
+            .and_is(end_table().not())
             .map_with(full_rc_node)
             .then_ignore(chomp_separator(chomp_tokens, end_tokens)))
 }
@@ -427,7 +445,7 @@ Unquiet Black:
 	An alien or Way creature finds its way on board. Acquire the services of a mystic or exterminator to destroy or banish it, or deal with it yourself.
 	Treat the magnitude (see page 278) of the Way creature as equal to the crew’s wanted level in the system. Parasites, cargo you weren’t told was alive, strange creatures hiding in unmapped lanes, and bizarre physics effects from using your jump drives way past capacity can all apply here.
 
-";
+End Table";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
@@ -448,6 +466,7 @@ Unquiet Black:
 19-20	Masses. New people are everywhere, coming and going at all times.
 		[+4 to size roll]
 		[-2 to crime roll]
+End Table
 ";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
@@ -552,7 +571,8 @@ Unquiet Black:
         // Check the uneven rows case:
         assert_eq!(
             "[TaleError { kind: Parse, span: 69..70, position: (3, 31), msg: \"Table Group rows \
-            must all have same number of columns, row 2 has 1 columns but expected 2\" }]",
+            must all have same number of columns, row 2 has 1 columns but expected 2 In: \
+            [Table Group Rows]\" }]",
             output
         );
     }

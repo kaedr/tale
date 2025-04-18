@@ -98,6 +98,13 @@ impl Interpreter {
                 .pipeline(&self.symbols, source_name.clone(), source.to_string());
         render_tale_result_vec(prefix, &source_name, source, tale_result_vec)
     }
+
+    pub fn execute_captured(&mut self, source: &str) {
+        self.repl_count += 1;
+        let source_name = format!("REPL({})", self.repl_count);
+        self.state
+            .captured_pipeline(&self.symbols, source_name.clone(), source.to_string());
+    }
 }
 
 #[cfg(test)]
@@ -169,14 +176,12 @@ mod tests {
         format!("{:?}", terp.current_output())
     }
 
-    fn streamlinest(file_names: &[&str]) -> String {
+    fn streamlinest(file_names: &[&str]) -> Interpreter {
         let transform = file_names.iter().map(sample_path);
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        let terp = Interpreter::new_with_files("", &file_names).unwrap();
-        println!("{}", terp.symbols.borrow());
-        format!("{:?}", terp.current_output())
+        Interpreter::new_with_files("", &file_names).unwrap()
     }
 
     #[test]
@@ -262,12 +267,13 @@ mod tests {
 
     #[test]
     fn pipeline_full_07_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "07_table_blocks.tale"]);
+        let mut terp = streamlinest(&["92_supporting_defs.tale", "07_table_blocks.tale"]);
+        terp.execute_captured("show tables");
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
-        assert!(output.starts_with("Ok"));
-        assert!(output.ends_with("}])"));
-        assert!(output.contains("size"));
-        assert!(output.contains("crime"));
+        assert!(output.contains("Defined Tables:"));
+        assert!(output.contains("`trading post visitor traffic`, 1d20, 5 Rows"));
+        assert!(output.contains("`wanted outcomes`, 1d14, 14 Rows"));
     }
 
     #[test]
@@ -290,7 +296,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_11_assign_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "11_statement_assignment.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "11_statement_assignment.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
@@ -308,7 +315,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_12_clear_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "12_statement_clear.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "12_statement_clear.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
@@ -326,7 +334,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_13_invoke_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "13_statement_invoke.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "13_statement_invoke.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([List([Placeholder"));
         assert!(output.ends_with(")]))"));
@@ -354,7 +363,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_15_lookup_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "15_statement_lookup.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "15_statement_lookup.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Numeric(1), String("));
         assert!(output.ends_with(")]))"));
@@ -373,7 +383,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_16_modify_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "16_statement_modify.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "16_statement_modify.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert_eq!(
             "Ok(List([Placeholder, Placeholder, Placeholder, Placeholder]))",
@@ -401,7 +412,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_18_roll_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "18_statement_roll.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "18_statement_roll.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
@@ -427,7 +439,8 @@ mod tests {
 
     #[test]
     fn pipeline_full_19_show_with_deps() {
-        let output = streamlinest(&["92_supporting_defs.tale", "19_statement_show.tale"]);
+        let terp = streamlinest(&["92_supporting_defs.tale", "19_statement_show.tale"]);
+        let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
