@@ -84,14 +84,14 @@ pub enum Token {
     #[token("*")]                       Asterisk,
     #[token("@")]                       At,
     #[token(r"\")]                      BackSlash,
-    #[token("!")]                       Bang,
+    #[token("!")]                       ExclamationPoint,
     #[token("|")]                       Bar,
     #[token("^")]                       Caret,
     #[token(":")]                       Colon,
     #[token(",")]                       Comma,
     #[token("\u{2013}")] // En Dash
     #[token("\u{2014}")] /* Em Dash */  Dash,
-    #[token("$")]                       Dollar,
+    #[token("$")]                       DollarSign,
     #[token("\u{2026}")] // Horizontal Ellipsis
     #[token("..")] #[token("...")]      Ellipsis,
     #[token("=")]                       Equals,
@@ -100,7 +100,7 @@ pub enum Token {
     #[token("%")]                       Modulo,
     #[token(".")]                       Period,
     #[token("+")]                       Plus,
-    #[token("?")]                       Question,
+    #[token("?")]                       QuestionMark,
     #[token(";")]                       SemiColon,
     #[token("/")]                       Slash,
     #[token("~")]                       Tilde,
@@ -1684,7 +1684,7 @@ pub(crate) mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::Period)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), Some(Ok(Token::Word("Potato".into()))));
-            assert_eq!(lex.next(), Some(Ok(Token::Bang)));
+            assert_eq!(lex.next(), Some(Ok(Token::ExclamationPoint)));
             assert_eq!(lex.next(), Some(Ok(Token::NewLines)));
             assert_eq!(lex.next(), None);
         }
@@ -1795,9 +1795,9 @@ pub(crate) mod tests {
             let mut lex = Token::lexer(r"~!@$%^&*_+=|\:;',.?/#");
 
             assert_eq!(lex.next(), Some(Ok(Token::Tilde)));
-            assert_eq!(lex.next(), Some(Ok(Token::Bang)));
+            assert_eq!(lex.next(), Some(Ok(Token::ExclamationPoint)));
             assert_eq!(lex.next(), Some(Ok(Token::At)));
-            assert_eq!(lex.next(), Some(Ok(Token::Dollar)));
+            assert_eq!(lex.next(), Some(Ok(Token::DollarSign)));
             assert_eq!(lex.next(), Some(Ok(Token::Modulo)));
             assert_eq!(lex.next(), Some(Ok(Token::Caret)));
             assert_eq!(lex.next(), Some(Ok(Token::Ampersand)));
@@ -1812,7 +1812,7 @@ pub(crate) mod tests {
             assert_eq!(lex.next(), Some(Ok(Token::Apostrophe)));
             assert_eq!(lex.next(), Some(Ok(Token::Comma)));
             assert_eq!(lex.next(), Some(Ok(Token::Period)));
-            assert_eq!(lex.next(), Some(Ok(Token::Question)));
+            assert_eq!(lex.next(), Some(Ok(Token::QuestionMark)));
             assert_eq!(lex.next(), Some(Ok(Token::Slash)));
             assert_eq!(lex.next(), Some(Ok(Token::Hash)));
             assert_eq!(lex.next(), None);

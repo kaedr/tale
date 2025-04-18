@@ -171,6 +171,7 @@ fn table_group_rows<'src>()
 
 fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
 {
+    //table_block_cell_form()
     table_list()
         .or(table_flat_rows()
             .or(table_keyed_form())
@@ -180,6 +181,7 @@ fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
             .then(just(Token::Table))
             .map_with(|_, extra| full_rc_node(TableRows::Empty, extra)))
         .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+        .labelled("Table Rows")
 }
 
 fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone
@@ -213,8 +215,8 @@ fn table_flat_rows<'src>()
 fn table_keyed_form<'src>()
 -> impl Parser<'src, &'src [Token], RcNode<TableRows>, TaleExtra<'src>> + Clone {
     row_key(NOTHING, TABS)
-        .then(seq_or_statement(CELL_ENDINGS))
-        .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON))
+        .then(seq_or_statement(NEWLINES))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
         .repeated()
         .at_least(1)
         .collect()
@@ -229,15 +231,14 @@ fn table_block_cell_form<'src>()
             row_key(COLON, NEWLINES) // Rowkey followed by colon and newlines
                 // Followed by the consumer of blank/comment lines
                 .then_ignore(
-                    just(Token::Tabs)
-                        .then(just(Token::NewLines).or_not())
-                        .repeated()
-                        .at_least(1),
+                    chomp_disjoint_newlines(TABS)
+                        .or_not()
+                        .then(just(Token::Tabs)),
                 ),
         )
         .then(
-            seq_or_statement(CELL_ENDINGS)
-                .then_ignore(chomp_disjoint_newlines(PERIOD_OR_SEMICOLON))
+            seq_or_statement(NEWLINES)
+                .then_ignore(chomp_disjoint_newlines(NOTHING))
                 .separated_by(just(Token::Tabs))
                 .at_least(1)
                 .collect()
@@ -413,7 +414,45 @@ End Table"#;
 
     #[test]
     fn parse_table_block_rows() {
-        todo!()
+        let source =
+"Reprisals:
+	An enemy faction moves against you or yours. Pay them 1 cred per Tier, allow them to mess with you, or fight back. If you have no faction with negative status, you avoid entanglements right now.
+
+Ship Trouble:
+	// Are comments a problem?
+	A ship system acts up. Damage a system (the GM will tell you which).
+	You may repair the system as normal, though you have to deal with the consequences of the damage at the time it occurs. This entanglement can happen while in flight between planets or systems, or on the way to or from a job.
+
+Unquiet Black:
+	An alien or Way creature finds its way on board. Acquire the services of a mystic or exterminator to destroy or banish it, or deal with it yourself.
+	Treat the magnitude (see page 278) of the Way creature as equal to the crew’s wanted level in the system. Parasites, cargo you weren’t told was alive, strange creatures hiding in unmapped lanes, and bizarre physics effects from using your jump drives way past capacity can all apply here.
+
+";
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
+        assert_eq!("3", output);
+
+        let source = "1-2 	Vacant. No one seems to be visiting this place.
+		[+0 to size roll]
+		[+2 to crime roll]
+3-6 	Groups. Visitors are a rarity, though a few might be around.
+		[+1 to size roll]
+		[+1 to crime roll]
+7-14 	Crowds. It is typical to see some new visitors most days.
+		[+2 to size roll]
+		[+0 to crime roll]
+15-18 	Droves. There are lots of new faces on a regular basis.
+		[+3 to size roll]
+		[-1 to crime roll]
+19-20	Masses. New people are everywhere, coming and going at all times.
+		[+4 to size roll]
+		[-2 to crime roll]
+";
+        let mut p_state = ParserState::from_source(source.into());
+        let tokens = p_state.tokens();
+        let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
+        assert_eq!("5", output);
     }
 
     #[test]

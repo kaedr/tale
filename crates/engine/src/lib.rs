@@ -175,6 +175,7 @@ mod tests {
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
         let terp = Interpreter::new_with_files("", &file_names).unwrap();
+        println!("{}", terp.symbols.borrow());
         format!("{:?}", terp.current_output())
     }
 
@@ -252,10 +253,21 @@ mod tests {
     fn pipeline_full_07() {
         let output = streamline(TABLE_BLOCKS);
         eprintln!("{output}");
-        assert!(output.starts_with("Ok(List([List([Table(Node"));
-        assert!(output.ends_with("})])]))"));
-        assert!(output.contains("treasure hoard"));
-        assert!(output.contains("magic"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
+        assert!(output.ends_with("}])"));
+        assert!(output.contains("size"));
+        assert!(output.contains("crime"));
+        assert_eq!(2, output.matches("is not defined").count());
+    }
+
+    #[test]
+    fn pipeline_full_07_with_deps() {
+        let output = streamlinest(&["92_supporting_defs.tale", "07_table_blocks.tale"]);
+        eprintln!("{output}");
+        assert!(output.starts_with("Ok"));
+        assert!(output.ends_with("}])"));
+        assert!(output.contains("size"));
+        assert!(output.contains("crime"));
     }
 
     #[test]
@@ -463,7 +475,7 @@ mod tests {
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Placeholder").count());
-        assert_eq!(7, output.matches("Table(Node").count());
+        assert_eq!(9, output.matches("Table(Node").count());
         assert_eq!(2, output.matches("Script(Node").count());
     }
 
