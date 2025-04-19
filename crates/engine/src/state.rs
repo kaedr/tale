@@ -13,7 +13,6 @@ use crate::{
     ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
     lexer::{Lexicon, Position, Token, tokenize},
     parsers::{Op, parser},
-    render_tale_result_vec,
 };
 
 use crate::error::TaleResultVec;
@@ -76,7 +75,6 @@ impl ParserState {
 
 #[derive(Debug)]
 pub struct StateTable {
-    prefix: &'static str,
     current: RefCell<String>,
     sources: StateCellMap<Rc<String>>,
     tokens: StateCellMap<Lexicon>,
@@ -85,9 +83,8 @@ pub struct StateTable {
 }
 
 impl StateTable {
-    pub fn new(prefix: &'static str) -> Self {
+    pub fn new() -> Self {
         Self {
-            prefix,
             current: RefCell::default(),
             sources: Rc::default(),
             tokens: Rc::default(),
@@ -249,7 +246,7 @@ impl StateTable {
             let tale_result_vec = self.pipeline(symbols, name.to_string(), source.to_string());
             symbols.borrow_mut().pop_scope();
             self.current.replace(outer_name);
-            render_tale_result_vec(self.prefix, name, source, tale_result_vec)
+            tale_result_vec
         } else {
             symbols.borrow_mut().pop_scope();
             Err(vec![TaleError::system(format!(
@@ -269,7 +266,7 @@ impl StateTable {
 
 impl Default for StateTable {
     fn default() -> Self {
-        Self::new("")
+        Self::new()
     }
 }
 
@@ -496,13 +493,13 @@ impl SymbolValue {
     pub fn render(&self, prefix: &str) {
         match self {
             SymbolValue::Placeholder => (),
-            SymbolValue::Numeric(n) => println!("{prefix}{n}"),
+            SymbolValue::Numeric(n) => println!("{prefix}= {n}"),
             SymbolValue::String(s) => println!("{prefix}{s}"),
-            SymbolValue::Script(script) => println!("{prefix}{script}"),
-            SymbolValue::Table(table) => println!("{prefix}{table}"),
+            SymbolValue::Script(script) => println!("{prefix}Script: {script}"),
+            SymbolValue::Table(table) => println!("{prefix}Table: {table}"),
             SymbolValue::List(symbol_values) => {
                 for value in symbol_values {
-                    value.render(prefix);
+                    value.render(&format!("{prefix}  "));
                 }
             }
         }

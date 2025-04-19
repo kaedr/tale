@@ -22,3 +22,5 @@ pub const EXAMPLE_SCRIPT_SCOPES: &str = include_str!("ex22_script_scopes.tale");
 pub const EXAMPLE_EXPRESSIONS: &str = include_str!("ex31_expressions.tale");
 pub const EXAMPLE_ROLLS: &str = include_str!("ex32_rolls.tale");
 pub const EXAMPLE_LOOKUP: &str = include_str!("ex33_lookup.tale");
+
+pub const EXAMPLE_LOAD: &str = include_str!("ex41_load.tale");

@@ -86,7 +86,7 @@ fn repl(mut engine: Interpreter) -> Result<()> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match Interpreter::new_with_files(SIDEBAR, &cli.files) {
+    match Interpreter::new_with_files(&cli.files) {
         Ok(engine) => {
             for file in &cli.files {
                 println!("{LOAD_LINE} {file}");

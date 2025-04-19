@@ -35,8 +35,11 @@ where
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
                 }
-                // Add Node nesting to all errors?
-                err.append_message(&format!(" (In: {})", self.node_type()));
+                // This added a lot of probably not super helpful info
+                // Will be able to do more intelligent messaging by improving errors
+                // with an ability to nest structs about there they came from. Additionally
+                // adding more info about the type of error it might be.
+                // err.append_message(&format!(" (In: {})", self.node_type()));
             }
             errs
         })
@@ -300,7 +303,13 @@ fn load_stmt(
         match entry {
             Ok(path) => {
                 let source = read_to_string(&path).map_err(TaleError::from)?;
-                results.push(state.nested_pipeline(symbols, &path.to_string_lossy(), &source)?);
+                let path_string = path.to_string_lossy();
+                results.push(SymbolValue::String(format!("Loading: '{}'", path_string)));
+                results.push(state.nested_pipeline(symbols, &path_string, &source)?);
+                results.push(SymbolValue::String(format!(
+                    "'{}' loaded successfully!",
+                    path_string
+                )));
             }
             Err(err) => Err(TaleError::system(format!("Glob error: {err}")))?,
         }

@@ -17,6 +17,7 @@ pub fn help(lc_input: &str) {
             Topic::Expression => flanked_example("Arithmetic Expressions", EXAMPLE_EXPRESSIONS),
             Topic::Roll => flanked_example("Roll Syntax", EXAMPLE_ROLLS),
             Topic::Lookup => flanked_example("Lookup Syntax", EXAMPLE_LOOKUP),
+            Topic::Load => flanked_example("Load Syntax", EXAMPLE_LOAD),
             Topic::Topics => print!("{HELP_TOPICS}"),
             Topic::Unknown(topic) => {
                 print_sidebarred(&format!("Uknown help topic: {topic}"));
@@ -77,6 +78,7 @@ enum Topic<'a> {
     Expression,
     Roll,
     Lookup,
+    Load,
     Topics,
     Unknown(&'a str),
 }
@@ -90,6 +92,7 @@ impl<'a> From<&'a str> for Topic<'a> {
             "expression" | "expressions" => Topic::Expression,
             "roll" | "rolls" => Topic::Roll,
             "lookup" | "lookups" => Topic::Lookup,
+            "load" => Topic::Load,
             "topics" => Topic::Topics,
             other => Self::Unknown(other),
         }
