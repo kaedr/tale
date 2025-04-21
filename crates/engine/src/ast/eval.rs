@@ -17,6 +17,19 @@ pub trait Eval {
     ) -> TaleResultVec<SymbolValue>;
 }
 
+impl<T> Eval for Rc<T>
+where
+    T: Eval,
+{
+    fn eval(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
+    ) -> TaleResultVec<SymbolValue> {
+        self.as_ref().eval(symbols, state)
+    }
+}
+
 impl<T> Eval for Node<T>
 where
     T: Eval + TypedNode,
@@ -65,36 +78,6 @@ where
                         SymbolValue::List(list)
                     } else {
                         unreachable!("Broken Eval for Vec<T> impl");
-                    }
-                }))
-        } else {
-            Err(errors.into_iter().flat_map(Result::unwrap_err).collect())
-        }
-    }
-}
-
-impl<T> Eval for Vec<RcNode<T>>
-where
-    T: Eval + TypedNode,
-{
-    fn eval(
-        &self,
-        symbols: &RefCell<SymbolTable>,
-        state: &StateTable,
-    ) -> TaleResultVec<SymbolValue> {
-        let (values, errors): (Vec<_>, Vec<_>) = self
-            .iter()
-            .map(|item| item.eval(symbols, state))
-            .partition(Result::is_ok);
-        if errors.is_empty() {
-            Ok(values
-                .into_iter()
-                .fold(SymbolValue::List(Vec::new()), |list, value| {
-                    if let SymbolValue::List(mut list) = list {
-                        list.push(value.unwrap());
-                        SymbolValue::List(list)
-                    } else {
-                        unreachable!("Broken Eval for Vec<RcNode<T>> impl");
                     }
                 }))
         } else {
@@ -300,7 +283,17 @@ fn load_stmt(
         match entry {
             Ok(path) => {
                 let source = read_to_string(&path).map_err(TaleError::from)?;
-                results.push(state.nested_pipeline(symbols, &path.to_string_lossy(), &source)?);
+                // This allows us to support relative path loading within .tale files
+                let return_loc = std::env::current_dir().map_err(TaleError::from)?;
+                let tale_path = path.to_string_lossy();
+                let parent_dir = path.parent().ok_or(TaleError::system(format!(
+                    "Error getting parent dir of: {tale_path}"
+                )))?;
+                if !parent_dir.display().to_string().is_empty() {
+                    std::env::set_current_dir(parent_dir).map_err(TaleError::from)?;
+                }
+                results.push(state.nested_pipeline(symbols, &tale_path, &source)?);
+                std::env::set_current_dir(return_loc).map_err(TaleError::from)?;
             }
             Err(err) => Err(TaleError::system(format!("Glob error: {err}")))?,
         }
