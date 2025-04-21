@@ -24,6 +24,12 @@ pub struct Interpreter {
     repl_count: usize,
 }
 
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Interpreter {
     #[must_use]
     pub fn new() -> Self {

@@ -295,11 +295,10 @@ fn load_stmt(
                 if !parent_dir.display().to_string().is_empty() {
                     std::env::set_current_dir(parent_dir).map_err(TaleError::from)?;
                 }
-                results.push(SymbolValue::String(format!("Loading: '{}'", tale_path)));
+                results.push(SymbolValue::String(format!("Loading: '{tale_path}'")));
                 results.push(state.nested_pipeline(symbols, &tale_path, &source)?);
                 results.push(SymbolValue::String(format!(
-                    "'{}' loaded successfully!",
-                    tale_path
+                    "'{tale_path}' loaded successfully!"
                 )));
                 std::env::set_current_dir(return_loc).map_err(TaleError::from)?;
             }

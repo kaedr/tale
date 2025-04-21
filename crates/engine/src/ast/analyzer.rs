@@ -212,7 +212,7 @@ impl Analyze for TableRows {
                         errs.extend(new_errs);
                     }
                 }
-                if let Err(keyhole_err) = check_set_holes(numkeys) {
+                if let Err(keyhole_err) = check_set_holes(&numkeys) {
                     errs.extend(keyhole_err);
                 }
                 if errs.is_empty() { Ok(()) } else { Err(errs) }
@@ -223,14 +223,14 @@ impl Analyze for TableRows {
     }
 }
 
-fn check_set_holes(numkeys: BTreeSet<usize>) -> TaleResultVec<()> {
+fn check_set_holes(numkeys: &BTreeSet<usize>) -> TaleResultVec<()> {
     if numkeys.is_empty() {
         Ok(())
     } else {
         let full_range = *numkeys.first().unwrap()..*numkeys.last().unwrap();
-        let full_range_set = BTreeSet::from_iter(full_range);
+        let full_range_set = full_range.collect::<BTreeSet<_>>();
         let gaps = full_range_set
-            .difference(&numkeys)
+            .difference(numkeys)
             .map(usize::to_string)
             .collect::<Vec<_>>();
 
