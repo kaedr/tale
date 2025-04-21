@@ -248,10 +248,21 @@ mod tests {
     fn pipeline_full_06() {
         let output = streamline(TABLE_GROUP);
         eprintln!("{output}");
-        assert!(output.starts_with("Ok(List([List([Table(Node"));
-        assert!(output.ends_with("})])]))"));
-        assert!(output.contains("treasure hoard"));
-        assert!(output.contains("magic"));
+        assert!(output.starts_with("Err([TaleError"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(29, output.matches("is not defined").count());
+    }
+
+    #[test]
+    fn pipeline_full_06_with_deps() {
+        let mut terp = streamlinest(&["92_supporting_defs.tale", "06_table_group.tale"]);
+        println!("{:?}", terp.current_output());
+        assert!(terp.current_output().is_ok());
+        terp.execute_captured("show tables");
+        let output = format!("{:?}", terp.current_output());
+        eprintln!("{output}");
+        assert!(output.contains("Defined Tables:"));
+        assert!(output.contains("`treasure hoard: challenge 0-4`, 1d100, 2 Columns, 17 Rows"));
     }
 
     #[test]
@@ -260,9 +271,9 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
-        assert!(output.contains("size"));
-        assert!(output.contains("crime"));
-        assert_eq!(2, output.matches("is not defined").count());
+        assert!(output.contains("'size' is not defined"));
+        assert!(output.contains("'crime' is not defined"));
+        assert_eq!(10, output.matches("is not defined").count());
     }
 
     #[test]
@@ -289,9 +300,9 @@ mod tests {
     fn pipeline_full_11_assign() {
         let output = streamline(STATEMENT_ASSIGNMENT);
         eprintln!("{output}");
-        assert!(output.starts_with("Err([TaleError { kind: Eval"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
-        assert_eq!(1, output.matches("non-numeric").count());
+        assert_eq!(3, output.matches("is not defined").count());
     }
 
     #[test]
@@ -407,7 +418,14 @@ mod tests {
         let output = streamline(STATEMENT_ROLL);
         eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
-        assert!(output.ends_with("msg: \"Roll: neither 'farm' nor 'animals' are defined\" }])"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(9, output.matches("is not defined").count());
+        assert_eq!(
+            1,
+            output
+                .matches("Roll: neither 'farm' nor 'animals' are defined")
+                .count()
+        );
     }
 
     #[test]
@@ -466,7 +484,7 @@ mod tests {
             1,
             output.matches("`magic item table a`, 1d1, 1 Rows").count()
         );
-        assert_eq!(1, output.matches("`minimalism`, 1d20, 0 Rows").count());
+        assert_eq!(1, output.matches("`minimalism`, 1d20, Empty").count());
         assert_eq!(1, output.matches("`quality`, 1d3, 3 Rows").count());
         assert_eq!(1, output.matches("`numkeyed`, 1d3, 3 Rows").count());
         assert_eq!(2, output.matches("`textkeys`, 1d1, 1 Rows").count());
@@ -476,9 +494,21 @@ mod tests {
     fn pipeline_full_21_scripts() {
         let output = streamline(SCRIPT);
         eprintln!("{output}");
-        assert!(output.starts_with("Ok(List(["));
-        assert!(output.ends_with("]))"));
-        assert_eq!(3, output.matches("Script(Node").count());
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
+        assert!(output.ends_with("}])"));
+        assert_eq!(1, output.matches("is not defined").count());
+    }
+
+    #[test]
+    fn pipeline_full_21_script_with_deps() {
+        let mut terp = streamlinest(&["02_table_roll_def.tale", "21_script.tale"]);
+        terp.execute_captured("show scripts");
+        let output = format!("{:?}", terp.current_output());
+        eprintln!("{output}");
+        assert!(output.contains("Defined Scripts:"));
+        assert!(output.contains("`attack with damage`, 2 Statements"));
+        assert!(output.contains("`loadsome`, 1 Statement"));
+        assert!(output.contains("`roll after load`, 2 Statements"));
     }
 
     #[test]
@@ -488,7 +518,7 @@ mod tests {
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Placeholder").count());
-        assert_eq!(9, output.matches("Table(Node").count());
+        assert_eq!(17, output.matches("Table(Node").count());
         assert_eq!(2, output.matches("Script(Node").count());
     }
 

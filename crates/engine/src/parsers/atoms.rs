@@ -48,10 +48,7 @@ pub fn chomp_separator<'src>(
         .or_not()
         .then(one_of(end_tokens))
         .ignored()
-        .labelled(format!(
-            "Separator( {:?} -> {:?} )",
-            chomp_tokens, end_tokens
-        ))
+        .labelled(format!("Separator( {chomp_tokens:?} -> {end_tokens:?} )"))
 }
 
 // Take care of potentially commented/tabbed lines interspersed

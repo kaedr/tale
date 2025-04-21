@@ -1,5 +1,5 @@
 Script: LoadSome
-load 02_table_def.tale
+load 02_table_roll_def.tale
 End Script
 
 script: Attack with Damage

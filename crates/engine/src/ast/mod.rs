@@ -1016,7 +1016,7 @@ fn text_keyed_form_match(
 
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}, {} Rows", self.name, self.roll, self.rows)
+        write!(f, "{}, {}, {}", self.name, self.roll, self.rows)
     }
 }
 
@@ -1133,14 +1133,17 @@ impl Default for TableRows {
 
 impl Display for TableRows {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let num_rows = match self {
-            TableRows::Empty => 0,
-            TableRows::List(atoms) => atoms.len(),
-            TableRows::Flat(stmts) => stmts.len(),
-            TableRows::Keyed(items) => items.len(),
-            TableRows::SubTables(nodes) => nodes.len(),
-        };
-        write!(f, "{num_rows}")
+        match self {
+            TableRows::Empty => write!(f, "Empty"),
+            TableRows::List(atoms) => write!(f, "{} Items", atoms.len()),
+            TableRows::Flat(stmts) => write!(f, "{} Rows", stmts.len()),
+            TableRows::Keyed(items) => write!(f, "{} Rows", items.len()),
+            TableRows::SubTables(nodes) => {
+                let num_cols = nodes.len();
+                let num_rows = nodes.first().unwrap().inner_t().rows.inner_t().to_string();
+                write!(f, "{num_cols} Columns, {num_rows}")
+            }
+        }
     }
 }
 
