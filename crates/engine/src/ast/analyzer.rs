@@ -20,6 +20,15 @@ impl Analyze for Ast {
     }
 }
 
+impl<T> Analyze for Rc<T>
+where
+    T: Analyze + TypedNode,
+{
+    fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        self.as_ref().analyze(symbols)
+    }
+}
+
 impl<T> Analyze for Node<T>
 where
     T: Analyze + TypedNode,
@@ -41,7 +50,7 @@ where
     }
 }
 
-impl<T> Analyze for Vec<Rc<Node<T>>>
+impl<T> Analyze for Vec<T>
 where
     T: Analyze + TypedNode,
 {
@@ -169,13 +178,16 @@ impl Analyze for Table {
 
 impl Analyze for TableGroup {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
+        let mut errs = Vec::new();
         for table in &self.sub_tables {
             symbols
                 .borrow_mut()
                 .register(table.inner_t().name().inner_t().to_lowercase());
-            table.analyze(symbols)?;
+            if let Err(new_errs) = table.analyze(symbols) {
+                errs.extend(new_errs);
+            }
         }
-        Ok(())
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 }
 
@@ -183,21 +195,19 @@ impl Analyze for TableRows {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
             TableRows::Keyed(items) => {
+                let mut errs = Vec::new();
                 for (key, stmt) in items {
                     let key_copy = key.inner_t().clone();
                     if let Expr::Atom(Atom::Ident(id)) = key_copy {
                         key.replace_inner_t(Expr::Atom(Atom::Str(id)));
                     }
-                    stmt.analyze(symbols)?;
+                    if let Err(new_errs) = stmt.analyze(symbols) {
+                        errs.extend(new_errs);
+                    }
                 }
-                Ok(())
+                if errs.is_empty() { Ok(()) } else { Err(errs) }
             }
-            TableRows::Flat(items) => {
-                for item in items {
-                    item.analyze(symbols)?;
-                }
-                Ok(())
-            }
+            TableRows::Flat(items) => items.analyze(symbols),
             _ => Ok(()),
         }
     }
@@ -227,7 +237,7 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
             }
         }
         _ => (),
-    };
+    }
     expr.analyze(symbols)
 }
 
@@ -235,18 +245,35 @@ impl Analyze for Expr {
     fn analyze(&self, symbols: &RefCell<SymbolTable>) -> TaleResultVec<()> {
         match self {
             Expr::Empty => Ok(()),
-            Expr::Atom(_atom) => Ok(()),
-            Expr::Neg(_expr) => Ok(()),
-            Expr::Add(_lhs, _rhs) => Ok(()),
-            Expr::Sub(_lhs, _rhs) => Ok(()),
-            Expr::Mul(_lhs, _rhs) => Ok(()),
-            Expr::Div(_lhs, _rhs) => Ok(()),
-            Expr::Mod(_lhs, _rhs) => Ok(()),
-            Expr::Pow(_lhs, _rhs) => Ok(()),
+            Expr::Atom(atom) => atom.analyze(symbols),
+            Expr::Neg(expr) => expr.analyze(symbols),
+            Expr::Add(lhs, rhs)
+            | Expr::Sub(lhs, rhs)
+            | Expr::Mul(lhs, rhs)
+            | Expr::Div(lhs, rhs)
+            | Expr::Mod(lhs, rhs)
+            | Expr::Pow(lhs, rhs) => analyze_operation(symbols, lhs, rhs),
             Expr::Lookup(key, target) => analyze_lookup(symbols, key, target),
             Expr::Roll(reps, target) => analyze_roll(symbols, reps, target),
-            Expr::Interpol(_exprs) => Ok(()),
-            Expr::List(_atoms) => Ok(()),
+            Expr::Interpol(exprs) => exprs.analyze(symbols),
+            Expr::List(atoms) => atoms.analyze(symbols),
+        }
+    }
+}
+
+fn analyze_operation(
+    symbols: &RefCell<SymbolTable>,
+    lhs: &RcNode<Expr>,
+    rhs: &RcNode<Expr>,
+) -> TaleResultVec<()> {
+    let left_result = lhs.analyze(symbols);
+    let right_result = rhs.analyze(symbols);
+    match (left_result, right_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(err), Ok(())) | (Ok(()), Err(err)) => Err(err),
+        (Err(mut l_err), Err(r_err)) => {
+            l_err.extend(r_err);
+            Err(l_err)
         }
     }
 }
@@ -296,7 +323,7 @@ fn analyze_roll(
                 }
             }
         }
-    };
+    }
     reps.analyze(symbols)?;
     target.analyze(symbols)
 }
@@ -361,6 +388,10 @@ mod tests {
         let errors = table.parse_current();
         assert_eq!(format!("{errors:?}"), "Ok(())");
 
+        symbols
+            .borrow_mut()
+            .register("magic item table a".to_string());
+        symbols.borrow_mut().register("magic items #3".to_string());
         symbols.borrow_mut().register("farm animals".to_string());
 
         let outcome = table.analyze_current(&symbols);

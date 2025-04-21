@@ -178,7 +178,7 @@ fn table_rows<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
         table_block_cell_form(),
         table_flat_rows(),
         end_table()
-            .map_with(|_, extra| full_rc_node(TableRows::Empty, extra))
+            .map_with(|(), extra| full_rc_node(TableRows::Empty, extra))
             .then_ignore(chomp_disjoint_newlines(NOTHING).or(end())),
     ))
     .boxed()
@@ -374,7 +374,7 @@ mod tests {
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table());
-        assert_eq!("Table: `colors`, 1d6, 6 Rows", format!("{output}"));
+        assert_eq!("Table: `colors`, 1d6, 6 Items", format!("{output}"));
 
         let source = "Table: Stub
                             Roll: d20
@@ -383,7 +383,7 @@ mod tests {
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table());
-        assert_eq!("Table: `stub`, 1d20, 0 Rows", format!("{output}"));
+        assert_eq!("Table: `stub`, 1d20, Empty", format!("{output}"));
 
         let source = "Table: Basic
                             Pork
@@ -417,7 +417,7 @@ End Table";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_rows());
-        assert_eq!("3", output);
+        assert_eq!("3 Rows", output);
 
         let source = r#"1–6		—
 7–11	1d6 rolls on Table: "Magic Items #3"
@@ -427,7 +427,7 @@ End Table"#;
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_rows());
-        assert_eq!("4", output);
+        assert_eq!("4 Rows", output);
     }
 
     #[test]
@@ -449,7 +449,7 @@ End Table";
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
-        assert_eq!("3", output);
+        assert_eq!("3 Rows", output);
 
         let source = "1-2 	Vacant. No one seems to be visiting this place.
 		[+0 to size roll]
@@ -471,7 +471,7 @@ End Table
         let mut p_state = ParserState::from_source(source.into());
         let tokens = p_state.tokens();
         let output = stubbed_parser(&mut p_state, &tokens, table_block_cell_form());
-        assert_eq!("5", output);
+        assert_eq!("5 Rows", output);
     }
 
     #[test]
