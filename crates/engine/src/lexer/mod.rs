@@ -1561,7 +1561,7 @@ pub(crate) mod tests {
                     Token::Word("LoadSome".into()),
                     Token::NewLines,
                     Token::Load,
-                    Token::Word("02_table_def".into()),
+                    Token::Word("02_table_roll_def".into()),
                     Token::Period,
                     Token::Word("tale".into()),
                     Token::NewLines,
