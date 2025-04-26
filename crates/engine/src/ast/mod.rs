@@ -741,11 +741,12 @@ impl Table {
     }
 
     pub fn roll_on(
-        &self,
+        &mut self,
         symbols: &RefCell<SymbolTable>,
         state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
         let roll_value = self.roll.eval(symbols, state)?;
+        let roll_value = self.apply_modifiers(&roll_value, symbols, state)?;
         match &*self.rows.inner_t() {
             TableRows::Empty => Ok(roll_value),
             TableRows::List(atoms) => Ok(list_form_match(
@@ -777,7 +778,7 @@ impl Table {
             }
             TableRows::SubTables(nodes) => nodes
                 .iter()
-                .map(|node| node.inner_t().roll_on(symbols, state))
+                .map(|node| node.inner_t_mut().roll_on(symbols, state))
                 .collect(),
         }
     }
@@ -884,19 +885,42 @@ impl Table {
             }
         }
     }
+
+    fn apply_modifiers(
+        &mut self,
+        roll_value: &SymbolValue,
+        symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
+    ) -> TaleResultVec<SymbolValue> {
+        let mut total_mod = SymbolValue::Numeric(0);
+        let mut new_mods = Vec::new();
+        for modifier in &self.modifiers {
+            total_mod = total_mod.operation(Op::Add, &modifier.value(symbols, state)?)?;
+            if modifier.decrease_duration(1) {
+                new_mods.push(modifier.clone());
+            }
+        }
+        self.modifiers = new_mods;
+        Ok(roll_value.operation(Op::Add, &total_mod)?)
+    }
 }
 
 #[allow(clippy::cast_sign_loss)] // *n < 1 match guard case prevents this
 fn list_form_match(key: &SymbolValue, atoms: &[Atom]) -> SymbolValue {
     match key {
-        SymbolValue::Numeric(n) if *n < 1 => SymbolValue::String(format!("{key} => {}", atoms[0])),
-        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < atoms.len() => {
-            SymbolValue::String(format!("{key} => {}", atoms[*n as usize - 1]))
-        }
+        SymbolValue::Numeric(n) if *n < 1 => SymbolValue::KeyValue(
+            key.clone().into(),
+            SymbolValue::String(atoms[0].bare_string()).into(),
+        ),
+        SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < atoms.len() => SymbolValue::KeyValue(
+            key.clone().into(),
+            SymbolValue::String(atoms[*n as usize - 1].bare_string()).into(),
+        ),
         #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
-        SymbolValue::Numeric(n) if *n >= atoms.len() as isize => {
-            SymbolValue::String(format!("{key} => {}", atoms.last().unwrap()))
-        }
+        SymbolValue::Numeric(n) if *n >= atoms.len() as isize => SymbolValue::KeyValue(
+            key.clone().into(),
+            SymbolValue::String(atoms.last().unwrap().bare_string()).into(),
+        ),
         _ => SymbolValue::Placeholder,
     }
 }
@@ -911,16 +935,16 @@ fn flat_form_match(
     match key {
         SymbolValue::Numeric(n) if *n < 1 => nodes[0]
             .eval(symbols, state)
-            .map(|value| SymbolValue::String(format!("{key} => {value}"))),
+            .map(|value| SymbolValue::KeyValue(key.clone().into(), value.into())),
         SymbolValue::Numeric(n) if *n > 0 && (*n as usize) < nodes.len() => nodes[*n as usize - 1]
             .eval(symbols, state)
-            .map(|value| SymbolValue::String(format!("{key} => {value}"))),
+            .map(|value| SymbolValue::KeyValue(key.clone().into(), value.into())),
         #[allow(clippy::cast_possible_wrap)] // > 2 Billion rows isn't realistic
         SymbolValue::Numeric(n) if *n >= nodes.len() as isize => nodes
             .last()
             .unwrap()
             .eval(symbols, state)
-            .map(|value| SymbolValue::String(format!("{key} => {value}"))),
+            .map(|value| SymbolValue::KeyValue(key.clone().into(), value.into())),
         _ => Ok(SymbolValue::Placeholder),
     }
 }
@@ -932,12 +956,12 @@ fn num_keyed_form_match(
     items: &[(RcNode<Expr>, RcNode<Statement>)],
 ) -> TaleResultVec<SymbolValue> {
     match key {
-        SymbolValue::Numeric(key) => {
+        SymbolValue::Numeric(i_key) => {
             let mut closest = (usize::MAX, 0usize);
             for (idx, (row_keys, _)) in items.iter().enumerate() {
                 match row_keys.eval(symbols, state)? {
                     SymbolValue::List(candidates) => {
-                        let closest_this_row = num_key_matcher(*key, candidates);
+                        let closest_this_row = num_key_matcher(*i_key, candidates);
                         closest = if closest.0 > closest_this_row {
                             (closest_this_row, idx)
                         } else {
@@ -953,7 +977,7 @@ fn num_keyed_form_match(
             items[closest.1]
                 .1
                 .eval(symbols, state)
-                .map(|value| SymbolValue::String(format!("{key} => {value}")))
+                .map(|value| SymbolValue::KeyValue(key.clone().into(), value.into()))
         }
         _ => Ok(SymbolValue::Placeholder),
     }
@@ -1222,9 +1246,17 @@ impl Modifier {
         Self { duration, value }
     }
 
+    fn value(
+        &self,
+        symbols: &RefCell<SymbolTable>,
+        state: &StateTable,
+    ) -> TaleResultVec<SymbolValue> {
+        self.value.eval(symbols, state)
+    }
+
     /// Decreases the duration by the specified amount
     /// Returns true if there is duration remaining
-    fn decrease_duration(&mut self, amount: isize) -> bool {
+    fn decrease_duration(&self, amount: isize) -> bool {
         // Decrease the duration by the specified amount
         self.duration.decrease(amount)
     }
@@ -1257,7 +1289,7 @@ pub enum Duration {
 impl Duration {
     /// Decreases the duration by the specified amount
     /// Returns true if there is duration remaining
-    fn decrease(&mut self, amount: isize) -> bool {
+    fn decrease(&self, amount: isize) -> bool {
         match self {
             Duration::All => true,
             Duration::Next(node) => {
@@ -1266,14 +1298,13 @@ impl Duration {
                     .expect("Error evaluating Duration");
                 if let SymbolValue::Numeric(num) = value {
                     let new_value = num - amount;
+                    // Update the node with the new value
+                    #[allow(clippy::cast_sign_loss)] // Above conditional guards against this
+                    node.replace_inner_t(Expr::Atom(Atom::Number(new_value as usize)));
                     if new_value <= 0 {
                         // Duration is exhausted
-                        *self = Duration::All; // Set to All
                         false
                     } else {
-                        // Update the node with the new value
-                        #[allow(clippy::cast_sign_loss)] // Above conditional guards against this
-                        node.replace_inner_t(Expr::Atom(Atom::Number(new_value as usize)));
                         true // Duration remains
                     }
                 } else {

@@ -594,7 +594,7 @@ fn roll_invoke_or_err(
 ) -> TaleResultVec<SymbolValue> {
     match target {
         SymbolValue::Script(script) => script.inner_t().invoke(symbols, state),
-        SymbolValue::Table(table) => table.inner_t().roll_on(symbols, state),
+        SymbolValue::Table(table) => table.inner_t_mut().roll_on(symbols, state),
         SymbolValue::Numeric(_) => Ok(target),
         _ => Err(vec![TaleError::evaluator(
             0..0,

@@ -401,10 +401,14 @@ mod tests {
         let terp = streamlinest(&["92_supporting_defs.tale", "15_statement_lookup.tale"]);
         let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
-        assert!(output.starts_with("Ok(List([Numeric(1), String("));
+        assert!(output.starts_with("Ok(List([Numeric(1), KeyValue("));
         assert!(output.ends_with(")]))"));
         assert_eq!(3, output.matches("String").count());
-        assert!(0 < output.matches("3 => c").count());
+        assert!(
+            0 < output
+                .matches("KeyValue(Numeric(3), String(\"c\"))")
+                .count()
+        );
     }
 
     #[test]
@@ -460,8 +464,11 @@ mod tests {
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
         eprintln!("{}", output.matches("Numeric(").count());
-        assert!(11 <= output.matches("Numeric(").count());
-        assert!(17 >= output.matches("Numeric(").count());
+        assert!(29 <= output.matches("Numeric(").count());
+        assert!(57 >= output.matches("Numeric(").count());
+        eprintln!("{}", output.matches("KeyValue(").count());
+        assert!(17 <= output.matches("KeyValue(").count());
+        assert!(40 >= output.matches("KeyValue(").count());
         eprintln!("{}", output.matches("Literally just a wand").count());
         assert!(4 <= output.matches("Literally just a wand").count());
         assert!(20 >= output.matches("Literally just a wand").count());
@@ -630,8 +637,8 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(2, output.matches("Placeholder").count());
-        assert_eq!(126, output.matches("=> [").count());
-        assert_eq!(1, output.matches("Numeric").count());
+        assert_eq!(128, output.matches("Placeholder").count());
+        assert_eq!(127, output.matches("KeyValue").count());
+        assert_eq!(254, output.matches("Numeric").count());
     }
 }

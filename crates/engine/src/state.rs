@@ -313,7 +313,7 @@ impl SymbolTable {
             SymbolValue::Numeric(_) | SymbolValue::String(_) => self.scopes.insert(name, value),
             SymbolValue::Script(node) => self.scripts.insert(name, node).is_none(),
             SymbolValue::Table(node) => self.tables.insert(name, node).is_none(),
-            SymbolValue::List(_) => todo!(),
+            SymbolValue::List(_) | SymbolValue::KeyValue(_, _) => todo!(),
         }
     }
 
@@ -474,6 +474,7 @@ pub enum SymbolValue {
     Placeholder,
     Numeric(isize),
     String(String),
+    KeyValue(Box<SymbolValue>, Box<SymbolValue>),
     Script(RcNode<Script>),
     Table(RcNode<Table>),
     List(Vec<SymbolValue>),
@@ -496,14 +497,22 @@ impl SymbolValue {
 
     pub fn render(&self, prefix: &str) {
         match self {
-            SymbolValue::Placeholder => (),
-            SymbolValue::Numeric(n) => println!("{prefix}{n}"),
-            SymbolValue::String(s) => println!("{prefix}{s}"),
-            SymbolValue::Script(script) => println!("{prefix}{script}"),
-            SymbolValue::Table(table) => println!("{prefix}{table}"),
-            SymbolValue::List(symbol_values) => {
-                for value in symbol_values {
+            Self::Placeholder => (),
+            Self::Numeric(n) => println!("{prefix}{n}"),
+            Self::String(s) => println!("{prefix}{s}"),
+            Self::KeyValue(key, value) => {
+                if let Self::List(_) = value.as_ref() {
+                    println!("{prefix}{key} =>");
                     value.render(prefix);
+                } else {
+                    println!("{prefix}{key} => {value}");
+                }
+            }
+            Self::Script(script) => println!("{prefix}{script}"),
+            Self::Table(table) => println!("{prefix}{table}"),
+            Self::List(symbol_values) => {
+                for value in symbol_values {
+                    value.render(&format!("{prefix}  "));
                 }
             }
         }
