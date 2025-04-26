@@ -100,21 +100,18 @@ impl Analyze for Statement {
                 symbols.borrow_mut().register(name.inner_t().to_lowercase());
                 // For `Assignment`, we need to analyze both the name and the value
                 name.analyze(symbols)?;
-                value.analyze(symbols)?;
-                Ok(())
+                amend_id_to_str(symbols, value)
             }
             Statement::Clear(duration, target) => {
                 // For `Clear`, we need to analyze the duration and the target
                 duration.analyze(symbols)?;
-                target.analyze(symbols)?;
-                Ok(())
+                target.analyze(symbols)
             }
             Statement::Invoke(node) | Statement::Load(node) => node.analyze(symbols),
             Statement::Modify(modifier, target) => {
                 // For `Modify`, we need to analyze the modifier and the target
                 modifier.analyze(symbols)?;
-                target.analyze(symbols)?;
-                Ok(())
+                target.analyze(symbols)
             }
             Statement::Output(node) => node.analyze(symbols),
             Statement::Show(node) => {
@@ -126,7 +123,7 @@ impl Analyze for Statement {
                 }
             }
             Statement::Sequence(node) => node.analyze(symbols),
-            Statement::Expr(expr) => ammend_id_to_str(symbols, expr),
+            Statement::Expr(expr) => amend_id_to_str(symbols, expr),
         }
     }
 }
@@ -249,7 +246,7 @@ fn check_set_holes(numkeys: &BTreeSet<usize>) -> TaleResultVec<()> {
     }
 }
 
-fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> TaleResultVec<()> {
+fn amend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> TaleResultVec<()> {
     let expr_copy = expr.inner_t().clone();
     match expr_copy {
         Expr::Atom(Atom::Ident(id)) => {
@@ -317,9 +314,10 @@ fn analyze_operation(
 fn analyze_lookup(
     symbols: &RefCell<SymbolTable>,
     key: &RcNode<Expr>,
-    _target: &RcNode<Expr>,
+    target: &RcNode<Expr>,
 ) -> TaleResultVec<()> {
-    ammend_id_to_str(symbols, key)
+    amend_id_to_str(symbols, key)?;
+    target.analyze(symbols)
 }
 
 fn analyze_roll(

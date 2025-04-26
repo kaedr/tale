@@ -1,5 +1,9 @@
 Set scope_tracker = 1
 
+// Behold, stub defintions to get around the one pass analysis
+Table: Please Continue
+End Table
+
 Script: Recursive
 	Set scope_tracker = scope_tracker + 1
 	Show scope_tracker
