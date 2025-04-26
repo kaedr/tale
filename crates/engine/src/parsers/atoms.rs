@@ -115,7 +115,7 @@ pub fn words<'src, T>() -> impl Parser<'src, &'src [Token], RcNode<T>, TaleExtra
 where
     T: From<Atom> + TypedNode + 'src,
 {
-    wordlike()
+    wordlike(true)
         .or(typical_punctuation())
         .repeated()
         .at_least(1)
@@ -144,26 +144,30 @@ pub fn ident_maybe_sub<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExt
 }
 
 pub fn ident<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
-    wordlike()
-        .foldl(wordlike().repeated(), |l, r| ident_normalize(&l, &r))
+    wordlike(false)
+        .foldl(wordlike(false).repeated(), |l, r| ident_normalize(&l, &r))
         .or(qstring())
         .map(|id| Atom::Ident(id.to_lowercase()))
         .boxed()
         .labelled("Identity")
 }
 
-pub fn wordlike<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
+pub fn wordlike<'src>(
+    allow_roll: bool,
+) -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     // Raw keywords coming before numbers is important
     // As numbers numeric keyswords that stand alone are parsed as their value, not the word
     word()
-        .or(raw_keywords())
+        .or(raw_keywords(allow_roll))
         .or(number())
         .or(dice())
         .boxed()
         .labelled("Wordlike")
 }
 
-pub fn raw_keywords<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
+pub fn raw_keywords<'src>(
+    allow_roll: bool,
+) -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     let raw_keywords = select! {
         Token::Once => Atom::Raw(Token::Once),
         Token::Twice => Atom::Raw(Token::Twice),
@@ -194,7 +198,7 @@ pub fn raw_keywords<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<
         Token::On => Atom::Raw(Token::On),
         Token::Output => Atom::Raw(Token::Output),
         // TODO: Figure out how to allow roll in some places without breaking a bunch of crap
-        // Token::Roll => Atom::Raw(Token::Roll),
+        Token::Roll if allow_roll => Atom::Raw(Token::Roll),
         Token::Script => Atom::Raw(Token::Script),
         Token::Set => Atom::Raw(Token::Set),
         Token::Show => Atom::Raw(Token::Show),
@@ -217,9 +221,11 @@ pub fn typical_punctuation<'src>() -> impl Parser<'src, &'src [Token], Atom, Tal
         Token::Comma => Atom::Raw(Token::Comma),
         Token::Dash => Atom::Raw(Token::Dash),
         Token::Ellipsis => Atom::Raw(Token::Ellipsis),
+        Token::Hash => Atom::Raw(Token::Hash),
         Token::LParens => Atom::Raw(Token::LParens),
         Token::Minus => Atom::Raw(Token::Minus),
         Token::Plus => Atom::Raw(Token::Plus),
+        Token::Modulo => Atom::Raw(Token::Modulo),
         Token::Period => Atom::Raw(Token::Period),
         Token::QuestionMark => Atom::Raw(Token::QuestionMark),
         Token::RParens => Atom::Raw(Token::RParens),

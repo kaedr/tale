@@ -11,6 +11,7 @@ use chumsky::{Parser, extra::SimpleState};
 
 use crate::{
     ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
+    error::render_tale_error_vec,
     lexer::{Lexicon, Position, Token, tokenize},
     parsers::{Op, parser},
 };
@@ -246,7 +247,10 @@ impl StateTable {
             let tale_result_vec = self.pipeline(symbols, name.to_string(), source.to_string());
             symbols.borrow_mut().pop_scope();
             self.current.replace(outer_name);
-            tale_result_vec
+            match tale_result_vec {
+                Ok(_) => tale_result_vec,
+                Err(tev) => render_tale_error_vec(tev, name, source),
+            }
         } else {
             symbols.borrow_mut().pop_scope();
             Err(vec![TaleError::system(format!(
@@ -309,7 +313,7 @@ impl SymbolTable {
             SymbolValue::Numeric(_) | SymbolValue::String(_) => self.scopes.insert(name, value),
             SymbolValue::Script(node) => self.scripts.insert(name, node).is_none(),
             SymbolValue::Table(node) => self.tables.insert(name, node).is_none(),
-            SymbolValue::List(_) => todo!(),
+            SymbolValue::List(_) | SymbolValue::KeyValue(_, _) => todo!(),
         }
     }
 
@@ -470,6 +474,7 @@ pub enum SymbolValue {
     Placeholder,
     Numeric(isize),
     String(String),
+    KeyValue(Box<SymbolValue>, Box<SymbolValue>),
     Script(RcNode<Script>),
     Table(RcNode<Table>),
     List(Vec<SymbolValue>),
@@ -478,13 +483,13 @@ pub enum SymbolValue {
 impl SymbolValue {
     pub fn operation(&self, op: Op, other: &Self) -> TaleResult<SymbolValue> {
         match (self, other) {
-            (SymbolValue::Numeric(lhs), SymbolValue::Numeric(rhs)) => match op {
-                Op::Add => Ok(SymbolValue::Numeric(lhs + rhs)),
-                Op::Sub => Ok(SymbolValue::Numeric(lhs - rhs)),
-                Op::Mul => Ok(SymbolValue::Numeric(lhs * rhs)),
-                Op::Div => Ok(SymbolValue::Numeric(lhs / rhs)),
-                Op::Mod => Ok(SymbolValue::Numeric(lhs % rhs)),
-                Op::Pow => Ok(SymbolValue::Numeric(lhs.pow(u32::try_from(*rhs)?))),
+            (Self::Numeric(lhs), Self::Numeric(rhs)) => match op {
+                Op::Add => Ok(Self::Numeric(lhs + rhs)),
+                Op::Sub => Ok(Self::Numeric(lhs - rhs)),
+                Op::Mul => Ok(Self::Numeric(lhs * rhs)),
+                Op::Div => Ok(Self::Numeric(lhs / rhs)),
+                Op::Mod => Ok(Self::Numeric(lhs % rhs)),
+                Op::Pow => Ok(Self::Numeric(lhs.pow(u32::try_from(*rhs)?))),
             },
             _ => unimplemented!("operations are only valid for numeric values!"),
         }
@@ -492,12 +497,20 @@ impl SymbolValue {
 
     pub fn render(&self, prefix: &str) {
         match self {
-            SymbolValue::Placeholder => (),
-            SymbolValue::Numeric(n) => println!("{prefix}= {n}"),
-            SymbolValue::String(s) => println!("{prefix}{s}"),
-            SymbolValue::Script(script) => println!("{prefix}Script: {script}"),
-            SymbolValue::Table(table) => println!("{prefix}Table: {table}"),
-            SymbolValue::List(symbol_values) => {
+            Self::Placeholder => (),
+            Self::Numeric(n) => println!("{prefix}{n}"),
+            Self::String(s) => println!("{prefix}{s}"),
+            Self::KeyValue(key, value) => {
+                if let Self::List(_) = value.as_ref() {
+                    println!("{prefix}{key} =>");
+                    value.render(prefix);
+                } else {
+                    println!("{prefix}{key} => {value}");
+                }
+            }
+            Self::Script(script) => println!("{prefix}{script}"),
+            Self::Table(table) => println!("{prefix}{table}"),
+            Self::List(symbol_values) => {
                 for value in symbol_values {
                     value.render(&format!("{prefix}  "));
                 }
@@ -509,17 +522,18 @@ impl SymbolValue {
 impl Display for SymbolValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SymbolValue::Placeholder => write!(f, ""),
-            SymbolValue::Numeric(n) => write!(f, "{n}"),
-            SymbolValue::String(s) => write!(f, "{s}"),
-            SymbolValue::Script(s) => write!(f, "{s}"),
-            SymbolValue::Table(t) => write!(f, "{t}"),
-            SymbolValue::List(symbol_values) => write!(
+            Self::Placeholder => write!(f, ""),
+            Self::Numeric(n) => write!(f, "{n}"),
+            Self::String(s) => write!(f, "{s}"),
+            Self::KeyValue(key, value) => write!(f, "{key} => {value}"),
+            Self::Script(s) => write!(f, "{s}"),
+            Self::Table(t) => write!(f, "{t}"),
+            Self::List(symbol_values) => write!(
                 f,
                 "[{}]",
                 symbol_values
                     .iter()
-                    .map(SymbolValue::to_string)
+                    .map(Self::to_string)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),

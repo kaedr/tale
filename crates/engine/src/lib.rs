@@ -3,7 +3,13 @@ mod lexer;
 mod parsers;
 mod utils;
 
-use std::{cell::RefCell, fs::read_to_string, io, path::Path, rc::Rc};
+use std::{
+    cell::RefCell,
+    fs::read_to_string,
+    io,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use error::{TaleError, TaleResultVec, render_tale_result_vec};
 use state::{StateTable, SymbolTable, SymbolValue};
@@ -60,7 +66,19 @@ impl Interpreter {
         let symbols = RefCell::default();
         for file_name in file_names {
             let source = read_to_string(file_name)?;
+            // This allows us to support relative path loading within .tale files
+            let return_loc = std::env::current_dir()?;
+            let tale_path = file_name.to_string();
+            let tale_path_buf = PathBuf::from(&tale_path);
+            let parent_dir = tale_path_buf.parent().ok_or(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                format!("Error getting parent dir of: {tale_path}"),
+            ))?;
+            if !parent_dir.display().to_string().is_empty() {
+                std::env::set_current_dir(parent_dir)?;
+            }
             state.captured_pipeline(&symbols, file_name.to_string(), source);
+            std::env::set_current_dir(return_loc)?;
         }
         Ok(Self {
             state,
@@ -262,7 +280,7 @@ mod tests {
     #[test]
     fn pipeline_full_06_with_deps() {
         let mut terp = streamlinest(&["92_supporting_defs.tale", "06_table_group.tale"]);
-        println!("{:?}", terp.current_output());
+        eprintln!("{:?}", terp.current_output());
         assert!(terp.current_output().is_ok());
         terp.execute_captured("show tables");
         let output = format!("{:?}", terp.current_output());
@@ -383,10 +401,14 @@ mod tests {
         let terp = streamlinest(&["92_supporting_defs.tale", "15_statement_lookup.tale"]);
         let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
-        assert!(output.starts_with("Ok(List([Numeric(1), String("));
+        assert!(output.starts_with("Ok(List([Numeric(1), KeyValue("));
         assert!(output.ends_with(")]))"));
         assert_eq!(3, output.matches("String").count());
-        assert!(0 < output.matches("3 => c").count());
+        assert!(
+            0 < output
+                .matches("KeyValue(Numeric(3), String(\"c\"))")
+                .count()
+        );
     }
 
     #[test]
@@ -442,8 +464,11 @@ mod tests {
         assert!(output.starts_with("Ok(List(["));
         assert!(output.ends_with(")]))"));
         eprintln!("{}", output.matches("Numeric(").count());
-        assert!(11 <= output.matches("Numeric(").count());
-        assert!(17 >= output.matches("Numeric(").count());
+        assert!(29 <= output.matches("Numeric(").count());
+        assert!(57 >= output.matches("Numeric(").count());
+        eprintln!("{}", output.matches("KeyValue(").count());
+        assert!(17 <= output.matches("KeyValue(").count());
+        assert!(40 >= output.matches("KeyValue(").count());
         eprintln!("{}", output.matches("Literally just a wand").count());
         assert!(4 <= output.matches("Literally just a wand").count());
         assert!(20 >= output.matches("Literally just a wand").count());
@@ -612,8 +637,8 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(2, output.matches("Placeholder").count());
-        assert_eq!(126, output.matches("=> [").count());
-        assert_eq!(1, output.matches("Numeric").count());
+        assert_eq!(128, output.matches("Placeholder").count());
+        assert_eq!(127, output.matches("KeyValue").count());
+        assert_eq!(254, output.matches("Numeric").count());
     }
 }
