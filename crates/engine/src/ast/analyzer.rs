@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
 use crate::{
     error::{TaleError, TaleResultVec},
@@ -196,19 +196,55 @@ impl Analyze for TableRows {
         match self {
             TableRows::Keyed(items) => {
                 let mut errs = Vec::new();
+                let mut numkeys = BTreeSet::new();
                 for (key, stmt) in items {
                     let key_copy = key.inner_t().clone();
                     if let Expr::Atom(Atom::Ident(id)) = key_copy {
                         key.replace_inner_t(Expr::Atom(Atom::Str(id)));
+                    } else if let Expr::List(atoms) = key_copy {
+                        for atom in atoms.inner_t().iter() {
+                            if let Atom::Number(n) = atom {
+                                numkeys.insert(*n);
+                            }
+                        }
                     }
                     if let Err(new_errs) = stmt.analyze(symbols) {
                         errs.extend(new_errs);
                     }
                 }
+                if let Err(keyhole_err) = check_set_holes(&numkeys) {
+                    errs.extend(keyhole_err);
+                }
                 if errs.is_empty() { Ok(()) } else { Err(errs) }
             }
             TableRows::Flat(items) => items.analyze(symbols),
             _ => Ok(()),
+        }
+    }
+}
+
+fn check_set_holes(numkeys: &BTreeSet<usize>) -> TaleResultVec<()> {
+    if numkeys.is_empty() {
+        Ok(())
+    } else {
+        let full_range = *numkeys.first().unwrap()..*numkeys.last().unwrap();
+        let full_range_set = full_range.collect::<BTreeSet<_>>();
+        let gaps = full_range_set
+            .difference(numkeys)
+            .map(usize::to_string)
+            .collect::<Vec<_>>();
+
+        let gap_list = gaps.join(", ");
+        if gaps.is_empty() {
+            Ok(())
+        } else {
+            let err_ln1 = format!("Numeric keys must be contiguous ({gap_list} are missing)");
+            let err_ln2 = "Did you mean to add an empty row?";
+            let err_ln3 = format!("{}\t-", gaps.first().unwrap());
+            Err(
+                TaleError::analyzer(0..0, (0, 0), format!("{err_ln1}\n{err_ln2}\n{err_ln3}\n"))
+                    .into(),
+            )
         }
     }
 }

@@ -1,1 +1,12 @@
-// TODO!
+// Load Statements in TALE allow you to pull in other `.tale` files.
+// When this happens, the entirety of the `.tale` file is evaluated
+// as if had been copied and pasted to the line where the Load was.
+Load ex01_table_basics.tale
+
+// Load statements also support wildcards/globs in them, so:
+Load *.tale
+// ^ Will load every `.tale` file in the current directory
+
+// They can also load from any valid filepath
+// Meaning you can potentially organize your `.tale` files into directories
+Load monsters/abberations.tale

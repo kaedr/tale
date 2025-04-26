@@ -17,6 +17,7 @@ struct Cli {
 }
 
 const LOAD_LINE: &str = "TALE +-  Loading:";
+const DONE_LOAD_LINE: &str = "TALE +-  Done loading:";
 const WELCOME: &str = "Welcome to TALE!";
 const TIP: &str =
     "Type a command to get started, 'help' if you're unsure what to do, or CTRL+C to exit.";
@@ -86,7 +87,7 @@ fn repl(mut engine: Interpreter) -> Result<()> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match Interpreter::new_with_files(SIDEBAR, &cli.files) {
+    match Interpreter::new_with_files(&cli.files) {
         Ok(engine) => {
             for file in &cli.files {
                 println!("{LOAD_LINE} {file}");
@@ -94,6 +95,7 @@ fn main() -> Result<()> {
                     .render_output_of(SIDEBAR, file)
                     .map_err(|err| io::Error::other(format!("{err:?}")))?
                     .render(SIDEBAR);
+                println!("{DONE_LOAD_LINE} {file}");
             }
             print_arrowed(WELCOME);
             print_sidebarred(TIP);

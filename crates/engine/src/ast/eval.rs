@@ -48,8 +48,11 @@ where
                 if err.position() == (0, 0) {
                     err.update_position(self.position());
                 }
-                // Add Node nesting to all errors?
-                err.append_message(&format!(" (In: {})", self.node_type()));
+                // This added a lot of probably not super helpful info
+                // Will be able to do more intelligent messaging by improving errors
+                // with an ability to nest structs about there they came from. Additionally
+                // adding more info about the type of error it might be.
+                // err.append_message(&format!(" (In: {})", self.node_type()));
             }
             errs
         })
@@ -292,7 +295,11 @@ fn load_stmt(
                 if !parent_dir.display().to_string().is_empty() {
                     std::env::set_current_dir(parent_dir).map_err(TaleError::from)?;
                 }
+                results.push(SymbolValue::String(format!("Loading: '{tale_path}'")));
                 results.push(state.nested_pipeline(symbols, &tale_path, &source)?);
+                results.push(SymbolValue::String(format!(
+                    "'{tale_path}' loaded successfully!"
+                )));
                 std::env::set_current_dir(return_loc).map_err(TaleError::from)?;
             }
             Err(err) => Err(TaleError::system(format!("Glob error: {err}")))?,
@@ -592,7 +599,7 @@ fn roll_invoke_or_err(
 ) -> TaleResultVec<SymbolValue> {
     match target {
         SymbolValue::Script(script) => script.inner_t().invoke(symbols, state),
-        SymbolValue::Table(table) => table.inner_t().roll_on(symbols, state),
+        SymbolValue::Table(table) => table.inner_t_mut().roll_on(symbols, state),
         SymbolValue::Numeric(_) => Ok(target),
         _ => Err(vec![TaleError::evaluator(
             0..0,
