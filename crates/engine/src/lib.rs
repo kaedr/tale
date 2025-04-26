@@ -3,7 +3,13 @@ mod lexer;
 mod parsers;
 mod utils;
 
-use std::{cell::RefCell, fs::read_to_string, io, path::Path, rc::Rc};
+use std::{
+    cell::RefCell,
+    fs::read_to_string,
+    io,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use error::{TaleError, TaleResultVec, render_tale_result_vec};
 use state::{StateTable, SymbolTable, SymbolValue};
@@ -26,17 +32,17 @@ pub struct Interpreter {
 
 impl Interpreter {
     #[must_use]
-    pub fn new(prefix: &'static str) -> Self {
+    pub fn new() -> Self {
         Self {
-            state: StateTable::new(prefix),
+            state: StateTable::new(),
             symbols: RefCell::default(),
             repl_count: 0,
         }
     }
 
     #[must_use]
-    pub fn new_with_source_string(prefix: &'static str, source: String) -> Self {
-        let state = StateTable::new(prefix);
+    pub fn new_with_source_string(source: String) -> Self {
+        let state = StateTable::new();
         let symbols = RefCell::default();
         state.captured_pipeline(&symbols, "InitialInput".into(), source);
         Self {
@@ -46,15 +52,27 @@ impl Interpreter {
         }
     }
 
-    pub fn new_with_files<P>(prefix: &'static str, file_names: &[P]) -> io::Result<Self>
+    pub fn new_with_files<P>(file_names: &[P]) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
-        let state = StateTable::new(prefix);
+        let state = StateTable::new();
         let symbols = RefCell::default();
         for file_name in file_names {
             let source = read_to_string(file_name)?;
+            // This allows us to support relative path loading within .tale files
+            let return_loc = std::env::current_dir()?;
+            let tale_path = file_name.to_string();
+            let tale_path_buf = PathBuf::from(&tale_path);
+            let parent_dir = tale_path_buf.parent().ok_or(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                format!("Error getting parent dir of: {tale_path}"),
+            ))?;
+            if !parent_dir.display().to_string().is_empty() {
+                std::env::set_current_dir(parent_dir)?;
+            }
             state.captured_pipeline(&symbols, file_name.to_string(), source);
+            std::env::set_current_dir(return_loc)?;
         }
         Ok(Self {
             state,
@@ -63,11 +81,11 @@ impl Interpreter {
         })
     }
 
-    pub fn new_with_file<P>(prefix: &'static str, file_name: P) -> io::Result<Self>
+    pub fn new_with_file<P>(file_name: P) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
-        Self::new_with_files(prefix, &[file_name])
+        Self::new_with_files(&[file_name])
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
@@ -104,6 +122,12 @@ impl Interpreter {
         let source_name = format!("REPL({})", self.repl_count);
         self.state
             .captured_pipeline(&self.symbols, source_name.clone(), source.to_string());
+    }
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -172,7 +196,7 @@ mod tests {
     }
 
     fn streamline(source: &str) -> String {
-        let terp = Interpreter::new_with_source_string("", source.to_string());
+        let terp = Interpreter::new_with_source_string(source.to_string());
         format!("{:?}", terp.current_output())
     }
 
@@ -181,7 +205,7 @@ mod tests {
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        Interpreter::new_with_files("", &file_names).unwrap()
+        Interpreter::new_with_files(&file_names).unwrap()
     }
 
     #[test]
@@ -256,7 +280,7 @@ mod tests {
     #[test]
     fn pipeline_full_06_with_deps() {
         let mut terp = streamlinest(&["92_supporting_defs.tale", "06_table_group.tale"]);
-        println!("{:?}", terp.current_output());
+        eprintln!("{:?}", terp.current_output());
         assert!(terp.current_output().is_ok());
         terp.execute_captured("show tables");
         let output = format!("{:?}", terp.current_output());

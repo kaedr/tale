@@ -11,9 +11,9 @@ use chumsky::{Parser, extra::SimpleState};
 
 use crate::{
     ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
+    error::render_tale_error_vec,
     lexer::{Lexicon, Position, Token, tokenize},
     parsers::{Op, parser},
-    render_tale_result_vec,
 };
 
 use crate::error::TaleResultVec;
@@ -76,7 +76,6 @@ impl ParserState {
 
 #[derive(Debug)]
 pub struct StateTable {
-    prefix: &'static str,
     current: RefCell<String>,
     sources: StateCellMap<Rc<String>>,
     tokens: StateCellMap<Lexicon>,
@@ -85,9 +84,8 @@ pub struct StateTable {
 }
 
 impl StateTable {
-    pub fn new(prefix: &'static str) -> Self {
+    pub fn new() -> Self {
         Self {
-            prefix,
             current: RefCell::default(),
             sources: Rc::default(),
             tokens: Rc::default(),
@@ -249,7 +247,10 @@ impl StateTable {
             let tale_result_vec = self.pipeline(symbols, name.to_string(), source.to_string());
             symbols.borrow_mut().pop_scope();
             self.current.replace(outer_name);
-            render_tale_result_vec(self.prefix, name, source, tale_result_vec)
+            match tale_result_vec {
+                Ok(_) => tale_result_vec,
+                Err(tev) => render_tale_error_vec(tev, name, source),
+            }
         } else {
             symbols.borrow_mut().pop_scope();
             Err(vec![TaleError::system(format!(
@@ -269,7 +270,7 @@ impl StateTable {
 
 impl Default for StateTable {
     fn default() -> Self {
-        Self::new("")
+        Self::new()
     }
 }
 
@@ -481,13 +482,13 @@ pub enum SymbolValue {
 impl SymbolValue {
     pub fn operation(&self, op: Op, other: &Self) -> TaleResult<SymbolValue> {
         match (self, other) {
-            (SymbolValue::Numeric(lhs), SymbolValue::Numeric(rhs)) => match op {
-                Op::Add => Ok(SymbolValue::Numeric(lhs + rhs)),
-                Op::Sub => Ok(SymbolValue::Numeric(lhs - rhs)),
-                Op::Mul => Ok(SymbolValue::Numeric(lhs * rhs)),
-                Op::Div => Ok(SymbolValue::Numeric(lhs / rhs)),
-                Op::Mod => Ok(SymbolValue::Numeric(lhs % rhs)),
-                Op::Pow => Ok(SymbolValue::Numeric(lhs.pow(u32::try_from(*rhs)?))),
+            (Self::Numeric(lhs), Self::Numeric(rhs)) => match op {
+                Op::Add => Ok(Self::Numeric(lhs + rhs)),
+                Op::Sub => Ok(Self::Numeric(lhs - rhs)),
+                Op::Mul => Ok(Self::Numeric(lhs * rhs)),
+                Op::Div => Ok(Self::Numeric(lhs / rhs)),
+                Op::Mod => Ok(Self::Numeric(lhs % rhs)),
+                Op::Pow => Ok(Self::Numeric(lhs.pow(u32::try_from(*rhs)?))),
             },
             _ => unimplemented!("operations are only valid for numeric values!"),
         }
@@ -512,17 +513,18 @@ impl SymbolValue {
 impl Display for SymbolValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SymbolValue::Placeholder => write!(f, ""),
-            SymbolValue::Numeric(n) => write!(f, "{n}"),
-            SymbolValue::String(s) => write!(f, "{s}"),
-            SymbolValue::Script(s) => write!(f, "{s}"),
-            SymbolValue::Table(t) => write!(f, "{t}"),
-            SymbolValue::List(symbol_values) => write!(
+            Self::Placeholder => write!(f, ""),
+            Self::Numeric(n) => write!(f, "{n}"),
+            Self::String(s) => write!(f, "{s}"),
+            Self::KeyValue(key, value) => write!(f, "{key} => {value}"),
+            Self::Script(s) => write!(f, "{s}"),
+            Self::Table(t) => write!(f, "{t}"),
+            Self::List(symbol_values) => write!(
                 f,
                 "[{}]",
                 symbol_values
                     .iter()
-                    .map(SymbolValue::to_string)
+                    .map(Self::to_string)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),

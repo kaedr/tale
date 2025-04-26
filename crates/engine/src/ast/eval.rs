@@ -292,7 +292,9 @@ fn load_stmt(
                 if !parent_dir.display().to_string().is_empty() {
                     std::env::set_current_dir(parent_dir).map_err(TaleError::from)?;
                 }
+                results.push(SymbolValue::String(format!("Loading: {tale_path}")));
                 results.push(state.nested_pipeline(symbols, &tale_path, &source)?);
+                results.push(SymbolValue::String(format!("Done loading: {tale_path}")));
                 std::env::set_current_dir(return_loc).map_err(TaleError::from)?;
             }
             Err(err) => Err(TaleError::system(format!("Glob error: {err}")))?,
