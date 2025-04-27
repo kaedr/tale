@@ -388,7 +388,6 @@ fn add_expr(
 ) -> TaleResultVec<SymbolValue> {
     let left_value = lhs.eval(symbols, state);
     let right_value = rhs.eval(symbols, state);
-
     match (left_value, right_value) {
         (Ok(SymbolValue::Numeric(l)), Ok(SymbolValue::Numeric(r))) => {
             Ok(SymbolValue::Numeric(l + r))
@@ -562,7 +561,9 @@ fn roll_expr(
 ) -> TaleResultVec<SymbolValue> {
     let reps_val = reps.eval(symbols, state)?;
     let target_val = match target.eval(symbols, state)? {
-        SymbolValue::String(target_string) => symbols.borrow().get_value(&target_string),
+        SymbolValue::String(target_string) => {
+            symbols.borrow().get_value(&target_string.to_lowercase())
+        }
         other => other,
     };
     match (reps_val, target_val.clone()) {

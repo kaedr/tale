@@ -326,7 +326,7 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
-        assert_eq!(3, output.matches("is not defined").count());
+        assert_eq!(2, output.matches("is not defined").count());
     }
 
     #[test]
@@ -391,9 +391,9 @@ mod tests {
     fn pipeline_full_15_lookup() {
         let output = streamline(STATEMENT_LOOKUP);
         eprintln!("{output}");
-        assert!(output.starts_with("Err([TaleError { kind: Evaluation"));
+        assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
-        assert_eq!(4, output.matches("Not a Table or Group name").count());
+        assert_eq!(4, output.matches("is not defined").count());
     }
 
     #[test]
@@ -637,7 +637,7 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
-        assert_eq!(128, output.matches("Placeholder").count());
+        assert_eq!(129, output.matches("Placeholder").count());
         assert_eq!(127, output.matches("KeyValue").count());
         assert_eq!(254, output.matches("Numeric").count());
     }

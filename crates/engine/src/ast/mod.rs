@@ -746,6 +746,9 @@ impl Table {
         state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
         let roll_value = self.roll.eval(symbols, state)?;
+        if let SymbolValue::Placeholder = roll_value {
+            return Ok(roll_value);
+        }
         let roll_value = self.apply_modifiers(&roll_value, symbols, state)?;
         match &*self.rows.inner_t() {
             TableRows::Empty => Ok(roll_value),

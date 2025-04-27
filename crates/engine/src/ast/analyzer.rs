@@ -100,21 +100,18 @@ impl Analyze for Statement {
                 symbols.borrow_mut().register(name.inner_t().to_lowercase());
                 // For `Assignment`, we need to analyze both the name and the value
                 name.analyze(symbols)?;
-                value.analyze(symbols)?;
-                Ok(())
+                amend_id_to_str(symbols, value)
             }
             Statement::Clear(duration, target) => {
                 // For `Clear`, we need to analyze the duration and the target
                 duration.analyze(symbols)?;
-                target.analyze(symbols)?;
-                Ok(())
+                target.analyze(symbols)
             }
             Statement::Invoke(node) | Statement::Load(node) => node.analyze(symbols),
             Statement::Modify(modifier, target) => {
                 // For `Modify`, we need to analyze the modifier and the target
                 modifier.analyze(symbols)?;
-                target.analyze(symbols)?;
-                Ok(())
+                target.analyze(symbols)
             }
             Statement::Output(node) => node.analyze(symbols),
             Statement::Show(node) => {
@@ -126,7 +123,7 @@ impl Analyze for Statement {
                 }
             }
             Statement::Sequence(node) => node.analyze(symbols),
-            Statement::Expr(expr) => ammend_id_to_str(symbols, expr),
+            Statement::Expr(expr) => amend_id_to_str(symbols, expr),
         }
     }
 }
@@ -249,7 +246,7 @@ fn check_set_holes(numkeys: &BTreeSet<usize>) -> TaleResultVec<()> {
     }
 }
 
-fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> TaleResultVec<()> {
+fn amend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> TaleResultVec<()> {
     let expr_copy = expr.inner_t().clone();
     match expr_copy {
         Expr::Atom(Atom::Ident(id)) => {
@@ -261,17 +258,31 @@ fn ammend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> Tale
                 }
             }
         }
-        Expr::Roll(reps, target) => {
-            if let (Expr::Atom(Atom::Ident(idl)), Expr::Atom(Atom::Ident(idr))) =
-                (&*reps.inner_t(), &*target.inner_t())
-            {
-                if !symbols.borrow().is_def(idl) || !symbols.borrow().is_def(idr) {
+        Expr::Roll(reps, target) => match (&*reps.inner_t(), &*target.inner_t()) {
+            (Expr::Atom(Atom::Ident(lhs_id)), Expr::Atom(Atom::Ident(rhs_id))) => {
+                if !symbols.borrow().is_def(lhs_id) || !symbols.borrow().is_def(rhs_id) {
                     if let Some(sauce) = expr.get_detail("words_only") {
                         expr.replace_inner_t(Expr::Atom(Atom::Str(sauce)));
                     }
                 }
             }
-        }
+            (lhs, rhs) => {
+                if let (Err(lhs_err), Err(rhs_err)) = (lhs.analyze(symbols), rhs.analyze(symbols)) {
+                    // TODO: Better error types to make this cleaner!
+                    if lhs_err
+                        .iter()
+                        .all(|err| err.msg().contains("is not defined"))
+                        && rhs_err
+                            .iter()
+                            .all(|err| err.msg().contains("is not defined"))
+                    {
+                        if let Some(sauce) = expr.get_detail("words_only") {
+                            expr.replace_inner_t(Expr::Atom(Atom::Str(sauce)));
+                        }
+                    }
+                }
+            }
+        },
         _ => (),
     }
     expr.analyze(symbols)
@@ -317,9 +328,16 @@ fn analyze_operation(
 fn analyze_lookup(
     symbols: &RefCell<SymbolTable>,
     key: &RcNode<Expr>,
-    _target: &RcNode<Expr>,
+    target: &RcNode<Expr>,
 ) -> TaleResultVec<()> {
-    ammend_id_to_str(symbols, key)
+    let key_copy = key.inner_t().clone();
+    // We do this like this to maintain lowercase for matching
+    if let Expr::Atom(Atom::Ident(id)) = key_copy {
+        if !symbols.borrow().is_def(&id) {
+            key.replace_inner_t(Expr::Atom(Atom::Str(id)));
+        }
+    }
+    target.analyze(symbols)
 }
 
 fn analyze_roll(
@@ -360,8 +378,7 @@ fn analyze_roll(
             }
         }
     }
-    reps.analyze(symbols)?;
-    target.analyze(symbols)
+    analyze_operation(symbols, reps, target)
 }
 
 impl Analyze for Atom {
