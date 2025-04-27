@@ -36,7 +36,11 @@ impl ParserState {
             0..0
         } else {
             let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
-            self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
+            let end = min(
+                span.end.saturating_sub(1),
+                self.lexicon.len().saturating_sub(1),
+            );
+            self.lexicon[start].1.start..self.lexicon[end].1.end
         }
     }
 
@@ -58,10 +62,7 @@ impl ParserState {
         if self.lexicon.is_empty() {
             (0..0, (0, 0))
         } else {
-            (
-                self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
-                self.lexicon[span.start].2,
-            )
+            (self.get_source_span(span), self.get_source_position(span))
         }
     }
 }
