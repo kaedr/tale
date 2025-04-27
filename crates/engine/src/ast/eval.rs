@@ -1,12 +1,13 @@
 use std::{cell::RefCell, fs::read_to_string};
 
+use glob::glob;
+use rand::Rng;
+
 use crate::{
     ast::*,
     error::{TaleError, TaleResultVec},
     state::{StateTable, SymbolTable, SymbolValue},
 };
-use glob::glob;
-use rand::Rng;
 
 pub trait Eval {
     /// Evaluates the expression in the context of the provided symbol table.

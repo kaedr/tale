@@ -1,12 +1,6 @@
-use crate::lexer::Token;
 use chumsky::{
     pratt::{infix, left, prefix, right},
     prelude::*,
-};
-
-use crate::{
-    ast::{Atom, Expr, RcNode, full_rc_node},
-    state::SimpleParserState,
 };
 
 use super::{
@@ -15,6 +9,11 @@ use super::{
         self, DELIMITING_WHITESPACE, PERIOD_OR_SEMICOLON, RBRACKET, ident_maybe_sub, number,
         qstring, terminator, value_name, words,
     },
+};
+use crate::{
+    ast::{Atom, Expr, RcNode, full_rc_node},
+    lexer::Token,
+    state::SimpleParserState,
 };
 
 pub fn any_expr<'src>(
@@ -285,11 +284,11 @@ pub fn number_range_list<'src>()
 #[allow(unused_must_use)]
 mod tests {
     use super::*;
-
-    use crate::parsers::tests::EOI_ONLY;
-    use crate::state::ParserState;
     use crate::{
-        parsers::expressions::arithmetic, tests::stubbed_parser, utils::tests::read_sample_lines,
+        parsers::{expressions::arithmetic, tests::EOI_ONLY},
+        state::ParserState,
+        tests::stubbed_parser,
+        utils::tests::read_sample_lines,
     };
 
     #[test]

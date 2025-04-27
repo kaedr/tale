@@ -1,9 +1,4 @@
-use crate::lexer::Token;
 use chumsky::prelude::*;
-
-use crate::ast::{
-    Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node,
-};
 
 use super::{
     TaleExtra,
@@ -13,6 +8,10 @@ use super::{
     },
     expressions::{arithmetic, number_range_list},
     statements::{any_statement, seq_or_statement},
+};
+use crate::{
+    ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
+    lexer::Token,
 };
 
 pub fn script<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, TaleExtra<'src>> + Clone
@@ -348,12 +347,11 @@ fn row_key<'src>(
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
+    use super::*;
     use crate::{
         state::ParserState,
         tests::{grubbed_parser, stubbed_parser},
     };
-
-    use super::*;
 
     #[test]
     fn parse_script() {

@@ -10,19 +10,11 @@ use std::{
 use chumsky::{Parser, extra::SimpleState};
 
 use crate::{
-    ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
-    error::render_tale_error_vec,
+    ast::{Analyze as _, Ast, Eval as _, RcNode, Script, SourceInfo, Statement, Table, rc_node},
+    error::{TaleError, TaleResult, TaleResultVec, render_tale_error_vec},
     lexer::{Lexicon, Position, Token, tokenize},
     parsers::{Op, parser},
 };
-
-use crate::error::TaleResultVec;
-
-use crate::error::TaleError;
-
-use crate::error::TaleResult;
-
-use crate::ast::{Analyze as _, Ast, Eval as _};
 
 pub type SimpleParserState<'src> = SimpleState<&'src mut ParserState>;
 
@@ -641,9 +633,8 @@ impl Display for Scopes {
 
 #[cfg(test)]
 mod tests {
-    use crate::lexer::{Token, tokenize};
-
     use super::ParserState;
+    use crate::lexer::{Token, tokenize};
 
     impl ParserState {
         pub fn from_source(source: String) -> Self {

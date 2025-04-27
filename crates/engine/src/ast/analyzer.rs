@@ -1,13 +1,12 @@
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
-use crate::{
-    error::{TaleError, TaleResultVec},
-    state::{StateTable, SymbolTable, SymbolValue},
-};
-
 use super::{
     Ast, Atom, Duration, Eval, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
     TableRows, TypedNode,
+};
+use crate::{
+    error::{TaleError, TaleResultVec},
+    state::{StateTable, SymbolTable, SymbolValue},
 };
 
 pub trait Analyze {
@@ -428,9 +427,10 @@ impl Analyze for Duration {
 mod tests {
     use std::cell::RefCell;
 
-    use crate::samples::STATEMENT_ROLL;
-
-    use crate::state::{StateTable, SymbolTable};
+    use crate::{
+        samples::STATEMENT_ROLL,
+        state::{StateTable, SymbolTable},
+    };
 
     #[test]
     fn analyze_roll() {

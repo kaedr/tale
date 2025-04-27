@@ -1,7 +1,4 @@
-use crate::lexer::Token;
 use chumsky::prelude::*;
-
-use crate::ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node};
 
 use super::{
     TaleExtra,
@@ -10,6 +7,10 @@ use super::{
         qstring, terminator, value_name, words,
     },
     expressions::{any_expr, arithmetic, implied_roll_expr, interpolation},
+};
+use crate::{
+    ast::{Duration, Expr, Modifier, RcNode, Statement, full_rc_node},
+    lexer::Token,
 };
 
 pub fn seq_or_statement<'src>(
@@ -246,11 +247,11 @@ pub fn show<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, TaleE
 #[allow(unused_must_use)]
 mod tests {
 
-    use crate::parsers::tests::EOI_ONLY;
-    use crate::state::ParserState;
-    use crate::{tests::stubbed_parser, utils::tests::read_sample_lines};
-
     use super::*;
+    use crate::{
+        parsers::tests::EOI_ONLY, state::ParserState, tests::stubbed_parser,
+        utils::tests::read_sample_lines,
+    };
 
     #[test]
     fn parse_nonce() {

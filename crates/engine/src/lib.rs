@@ -19,9 +19,11 @@ mod samples;
 mod state;
 
 pub mod prelude {
-    pub use crate::Interpreter;
-    pub use crate::error::{TaleError, TaleResultVec};
-    pub use crate::state::SymbolValue;
+    pub use crate::{
+        Interpreter,
+        error::{TaleError, TaleResultVec},
+        state::SymbolValue,
+    };
 }
 
 pub struct Interpreter {
@@ -136,12 +138,11 @@ impl Interpreter {
 mod tests {
     use chumsky::{extra::SimpleState, prelude::*};
 
+    use super::*;
     use crate::{
         error::TaleError, lexer::Token, samples::*, state::SimpleParserState,
         utils::tests::sample_path,
     };
-
-    use super::*;
 
     pub fn stubbed_parser<'src, T>(
         state: &'src mut state::ParserState,

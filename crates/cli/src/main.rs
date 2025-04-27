@@ -2,9 +2,7 @@ use std::io;
 
 use clap::Parser;
 use help::help;
-use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Result};
-
+use rustyline::{DefaultEditor, Result, error::ReadlineError};
 use tale_lib::prelude::*;
 
 mod help;

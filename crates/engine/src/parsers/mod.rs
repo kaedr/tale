@@ -1,4 +1,4 @@
-use crate::lexer::Token;
+pub use atoms::Op;
 use atoms::{NEWLINES, TABS, chomp_separator};
 use chumsky::prelude::*;
 use definitions::{script, table, table_group};
@@ -6,10 +6,9 @@ use statements::seq_or_statement;
 
 use crate::{
     ast::{RcNode, Statement, full_rc_node},
+    lexer::Token,
     state::SimpleParserState,
 };
-
-pub use atoms::Op;
 
 mod atoms;
 mod definitions;
@@ -42,10 +41,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tal
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod tests {
-    use crate::lexer::Token;
-    use crate::samples::*;
-
-    use crate::state::StateTable;
+    use crate::{lexer::Token, samples::*, state::StateTable};
 
     pub const EOI_ONLY: &[Token] = &[];
 

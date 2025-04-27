@@ -1,18 +1,21 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::hash::Hash;
-use std::{ops::Range, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    fmt::Display,
+    hash::Hash,
+    ops::Range,
+    rc::Rc,
+};
 
-use crate::error::{TaleError, TaleResultVec};
-use crate::lexer::{Position, Token};
-use crate::parsers::Op;
-use crate::state::StateTable;
-use chumsky::prelude::*;
-use chumsky::span::Span;
+use chumsky::{prelude::*, span::Span};
 pub use eval::Eval;
 
-use crate::{state::SimpleParserState, state::SymbolTable, state::SymbolValue};
+use crate::{
+    error::{TaleError, TaleResultVec},
+    lexer::{Position, Token},
+    parsers::Op,
+    state::{SimpleParserState, StateTable, SymbolTable, SymbolValue},
+};
 
 mod analyzer;
 mod eval;

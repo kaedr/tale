@@ -1,9 +1,10 @@
-use crate::ast::TypedNode;
-use crate::ast::{Atom, Expr, RcNode, full_rc_node};
-use crate::lexer::Token;
 use chumsky::prelude::*;
 
 use super::TaleExtra;
+use crate::{
+    ast::{Atom, Expr, RcNode, TypedNode, full_rc_node},
+    lexer::Token,
+};
 
 /// When you want to chomp nothing
 pub const NOTHING: &[Token] = &[];
@@ -277,10 +278,8 @@ pub fn ident_normalize(l: &Atom, r: &Atom) -> Atom {
 #[allow(unused_must_use)]
 mod tests {
 
-    use crate::state::ParserState;
-    use crate::tests::stubbed_parser;
-
     use super::*;
+    use crate::{state::ParserState, tests::stubbed_parser};
 
     #[test]
     fn parse_words() {
