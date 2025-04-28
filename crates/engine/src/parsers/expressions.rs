@@ -186,6 +186,7 @@ pub fn implied_roll_expr<'src>()
     ident_maybe_sub()
         .map_with(full_rc_node)
         .map_with(|target, extra| {
+            target.add_detail("implied".into(), "true".into());
             let implied_rep = full_rc_node(Atom::Number(1), extra);
             full_rc_node(Expr::Roll(implied_rep, target), extra)
         })

@@ -274,7 +274,7 @@ fn invoke_stmt(
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
     let value = target.eval(symbols, state)?;
-    roll_invoke_or_err(symbols, state, value)
+    roll_invoke_or_err(symbols, state, &value)
 }
 
 fn load_stmt(
@@ -571,11 +571,20 @@ fn roll_expr(
     let reps_val = reps.eval(symbols, state)?;
     let target_val = match target.eval(symbols, state)? {
         SymbolValue::String(target_string) => {
-            symbols.borrow().get_value(&target_string.to_lowercase())
+            if let Some(target_lookup) = symbols.borrow().get_value(&target_string.to_lowercase()) {
+                target_lookup
+            } else {
+                if let Some(_) = target.get_detail("implied") {
+                    // Return early if this is just implied roll variable interpolation
+                    return Ok(SymbolValue::String(target_string));
+                } else {
+                    SymbolValue::String(target_string)
+                }
+            }
         }
         other => other,
     };
-    match (reps_val, target_val.clone()) {
+    match (reps_val, &target_val) {
         (SymbolValue::Numeric(x), SymbolValue::Numeric(_)) => match x {
             ..=0 => Ok(SymbolValue::Placeholder),
             1..=1 => Ok(target_val),

@@ -358,24 +358,24 @@ impl SymbolTable {
         )
     }
 
-    pub fn get_value(&self, name: &str) -> SymbolValue {
+    pub fn get_value(&self, name: &str) -> Option<SymbolValue> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.scopes.resolve(name) {
-                v
+                Some(v)
             } else if let Some(v) = self.scripts.get(name) {
-                SymbolValue::Script(v.clone())
+                Some(SymbolValue::Script(v.clone()))
             } else if let Some(v) = self.tables.get(name) {
-                SymbolValue::Table(v.clone())
+                Some(SymbolValue::Table(v.clone()))
             } else {
-                SymbolValue::String(name.to_string())
+                Some(SymbolValue::String(name.to_string()))
             }
         } else {
             match name {
-                "tables" | "table" => self.list_tables(),
-                "scripts" | "script" => self.list_scripts(),
-                "values" | "variables" | "names" | "identifiers" => self.list_names(),
-                other => SymbolValue::String(other.to_string()),
+                "tables" | "table" => Some(self.list_tables()),
+                "scripts" | "script" => Some(self.list_scripts()),
+                "values" | "variables" | "names" | "identifiers" => Some(self.list_names()),
+                _ => None,
             }
         }
     }
