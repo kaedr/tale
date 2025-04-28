@@ -246,9 +246,7 @@ impl StateTable {
             }
         } else {
             symbols.borrow_mut().pop_scope();
-            Err(vec![TaleError::system(format!(
-                "Hit stack guard while loading: {name}"
-            ))])
+            Err(TaleError::system(format!("Hit stack guard while loading: {name}")).into())
         }
     }
 

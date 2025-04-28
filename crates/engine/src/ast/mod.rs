@@ -653,11 +653,12 @@ impl Script {
                 symbols.borrow_mut().pop_scope();
                 output
             }
-            Err(()) => Err(vec![TaleError::evaluator(
+            Err(()) => Err(TaleError::evaluator(
                 0..0,
                 (0, 0),
                 format!("Recursive Script: {} hit stack guard!", self.name),
-            )]),
+            )
+            .into()),
         }
     }
 }
