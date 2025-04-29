@@ -1,20 +1,19 @@
-use crate::lexer::Token;
 use chumsky::{
     pratt::{infix, left, prefix, right},
     prelude::*,
 };
 
-use crate::{
-    ast::{Atom, Expr, RcNode, full_rc_node},
-    state::SimpleParserState,
-};
-
 use super::{
     TaleExtra,
     atoms::{
-        self, DELIMITING_WHITESPACE, PERIOD_OR_SEMICOLON, RBRACKET, ident_maybe_sub, number,
-        qstring, terminator, value_name, words,
+        self, DELIMITING_WHITESPACE, PERIOD_OR_SEMICOLON, RBRACKET, dice_expr, ident_maybe_sub,
+        number, qstring, terminator, value_name, words,
     },
+};
+use crate::{
+    ast::{Atom, Expr, RcNode, full_rc_node},
+    lexer::Token,
+    state::SimpleParserState,
 };
 
 pub fn any_expr<'src>(
@@ -184,12 +183,13 @@ fn embed_expr<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtr
 
 pub fn implied_roll_expr<'src>()
 -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
-    ident_maybe_sub()
+    dice_expr().or(ident_maybe_sub()
         .map_with(full_rc_node)
         .map_with(|target, extra| {
+            target.add_detail("implied".into(), "true".into());
             let implied_rep = full_rc_node(Atom::Number(1), extra);
             full_rc_node(Expr::Roll(implied_rep, target), extra)
-        })
+        }))
 }
 
 pub fn arithmetic<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone
@@ -285,11 +285,11 @@ pub fn number_range_list<'src>()
 #[allow(unused_must_use)]
 mod tests {
     use super::*;
-
-    use crate::parsers::tests::EOI_ONLY;
-    use crate::state::ParserState;
     use crate::{
-        parsers::expressions::arithmetic, tests::stubbed_parser, utils::tests::read_sample_lines,
+        parsers::{expressions::arithmetic, tests::EOI_ONLY},
+        state::ParserState,
+        tests::stubbed_parser,
+        utils::tests::read_sample_lines,
     };
 
     #[test]

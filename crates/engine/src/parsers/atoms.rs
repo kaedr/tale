@@ -1,9 +1,10 @@
-use crate::ast::TypedNode;
-use crate::ast::{Atom, Expr, RcNode, full_rc_node};
-use crate::lexer::Token;
 use chumsky::prelude::*;
 
 use super::TaleExtra;
+use crate::{
+    ast::{Atom, Expr, RcNode, TypedNode, full_rc_node},
+    lexer::Token,
+};
 
 /// When you want to chomp nothing
 pub const NOTHING: &[Token] = &[];
@@ -61,10 +62,9 @@ pub fn chomp_disjoint_newlines<'src>(
 }
 
 pub fn term<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
-    let (number, dice, value_name) = (number(), dice(), value_name());
-    number
-        .or(dice)
-        .or(value_name)
+    number()
+        .or(dice())
+        .or(value_name())
         .map_with(|term, extra| {
             let term_node = full_rc_node(term, extra);
             let span = extra.span().into_range();
@@ -143,6 +143,7 @@ pub fn ident_maybe_sub<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExt
         .labelled("Identity")
 }
 
+/// `wordlike` or `qstring`
 pub fn ident<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     wordlike(false)
         .foldl(wordlike(false).repeated(), |l, r| ident_normalize(&l, &r))
@@ -152,6 +153,7 @@ pub fn ident<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> 
         .labelled("Identity")
 }
 
+/// `word`, `raw_keywords`, `number`, or `dice`
 pub fn wordlike<'src>(
     allow_roll: bool,
 ) -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
@@ -245,6 +247,11 @@ pub fn word<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> +
     word.labelled("Word")
 }
 
+pub fn dice_expr<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone
+{
+    dice().map_with(full_rc_node)
+}
+
 pub fn dice<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     let dice = select! { Token::DieRoll((x, y)) => Atom::Dice(x, y) };
     dice.labelled("Dice")
@@ -277,10 +284,8 @@ pub fn ident_normalize(l: &Atom, r: &Atom) -> Atom {
 #[allow(unused_must_use)]
 mod tests {
 
-    use crate::state::ParserState;
-    use crate::tests::stubbed_parser;
-
     use super::*;
+    use crate::{state::ParserState, tests::stubbed_parser};
 
     #[test]
     fn parse_words() {

@@ -10,19 +10,11 @@ use std::{
 use chumsky::{Parser, extra::SimpleState};
 
 use crate::{
-    ast::{RcNode, Script, SourceInfo, Statement, Table, rc_node},
-    error::render_tale_error_vec,
+    ast::{Analyze as _, Ast, Eval as _, RcNode, Script, SourceInfo, Statement, Table, rc_node},
+    error::{TaleError, TaleResult, TaleResultVec, render_tale_error_vec},
     lexer::{Lexicon, Position, Token, tokenize},
     parsers::{Op, parser},
 };
-
-use crate::error::TaleResultVec;
-
-use crate::error::TaleError;
-
-use crate::error::TaleResult;
-
-use crate::ast::{Analyze as _, Ast, Eval as _};
 
 pub type SimpleParserState<'src> = SimpleState<&'src mut ParserState>;
 
@@ -44,7 +36,11 @@ impl ParserState {
             0..0
         } else {
             let start = min(span.start, self.lexicon.len().saturating_sub(1)); // Avoid out of bounds
-            self.lexicon[start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end
+            let end = min(
+                span.end.saturating_sub(1),
+                self.lexicon.len().saturating_sub(1),
+            );
+            self.lexicon[start].1.start..self.lexicon[end].1.end
         }
     }
 
@@ -66,10 +62,7 @@ impl ParserState {
         if self.lexicon.is_empty() {
             (0..0, (0, 0))
         } else {
-            (
-                self.lexicon[span.start].1.start..self.lexicon[span.end.saturating_sub(1)].1.end,
-                self.lexicon[span.start].2,
-            )
+            (self.get_source_span(span), self.get_source_position(span))
         }
     }
 }
@@ -253,9 +246,7 @@ impl StateTable {
             }
         } else {
             symbols.borrow_mut().pop_scope();
-            Err(vec![TaleError::system(format!(
-                "Hit stack guard while loading: {name}"
-            ))])
+            Err(TaleError::system(format!("Hit stack guard while loading: {name}")).into())
         }
     }
 
@@ -367,24 +358,24 @@ impl SymbolTable {
         )
     }
 
-    pub fn get_value(&self, name: &str) -> SymbolValue {
+    pub fn get_value(&self, name: &str) -> Option<SymbolValue> {
         if self.names.contains(name) {
             // If the name exists, return the corresponding value if it exists
             if let Some(v) = self.scopes.resolve(name) {
-                v
+                Some(v)
             } else if let Some(v) = self.scripts.get(name) {
-                SymbolValue::Script(v.clone())
+                Some(SymbolValue::Script(v.clone()))
             } else if let Some(v) = self.tables.get(name) {
-                SymbolValue::Table(v.clone())
+                Some(SymbolValue::Table(v.clone()))
             } else {
-                SymbolValue::String(name.to_string())
+                Some(SymbolValue::String(name.to_string()))
             }
         } else {
             match name {
-                "tables" | "table" => self.list_tables(),
-                "scripts" | "script" => self.list_scripts(),
-                "values" | "variables" | "names" | "identifiers" => self.list_names(),
-                other => SymbolValue::String(other.to_string()),
+                "tables" | "table" => Some(self.list_tables()),
+                "scripts" | "script" => Some(self.list_scripts()),
+                "values" | "variables" | "names" | "identifiers" => Some(self.list_names()),
+                _ => None,
             }
         }
     }
@@ -413,6 +404,10 @@ impl SymbolTable {
         SymbolValue::List(scripts_list)
     }
 
+    pub fn number_of_scripts(&self) -> usize {
+        self.scripts.len()
+    }
+
     pub fn list_tables(&self) -> SymbolValue {
         let mut tables_list = vec![SymbolValue::String("Defined Tables:".into())];
         tables_list.extend(
@@ -421,6 +416,10 @@ impl SymbolTable {
                 .map(|n| SymbolValue::String(n.to_string())),
         );
         SymbolValue::List(tables_list)
+    }
+
+    pub fn number_of_tables(&self) -> usize {
+        self.tables.len()
     }
 
     pub fn push_scope(&mut self) -> Result<(), ()> {
@@ -641,9 +640,8 @@ impl Display for Scopes {
 
 #[cfg(test)]
 mod tests {
-    use crate::lexer::{Token, tokenize};
-
     use super::ParserState;
+    use crate::lexer::{Token, tokenize};
 
     impl ParserState {
         pub fn from_source(source: String) -> Self {

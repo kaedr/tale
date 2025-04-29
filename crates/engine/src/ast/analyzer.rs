@@ -1,13 +1,13 @@
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
-use crate::{
-    error::{TaleError, TaleResultVec},
-    state::{StateTable, SymbolTable, SymbolValue},
-};
-
 use super::{
     Ast, Atom, Duration, Eval, Expr, Modifier, Node, RcNode, Script, Statement, Table, TableGroup,
     TableRows, TypedNode,
+};
+use crate::{
+    error::{TaleError, TaleResultVec},
+    state::{StateTable, SymbolTable, SymbolValue},
+    utils::plural_is_are,
 };
 
 pub trait Analyze {
@@ -146,10 +146,10 @@ impl Analyze for Table {
                         (SymbolValue::Placeholder, other) => Ok(other),
                         (SymbolValue::List(_), SymbolValue::List(item)) => Ok(SymbolValue::List(item)),
                         (SymbolValue::String(_), SymbolValue::String(item)) => Ok(SymbolValue::String(item)),
-                        _ => Err(vec![TaleError::analyzer(
+                        _ => Err(TaleError::analyzer(
                             row.0.source_span(), row.0.position(),
                             format!("Keyed rows must all have the same key type.\n(Previous row was: {prev})")
-                        )]),
+                        ).into()),
                     }
                 }) {
                     Ok(key_kind) => {
@@ -235,7 +235,10 @@ fn check_set_holes(numkeys: &BTreeSet<usize>) -> TaleResultVec<()> {
         if gaps.is_empty() {
             Ok(())
         } else {
-            let err_ln1 = format!("Numeric keys must be contiguous ({gap_list} are missing)");
+            let err_ln1 = format!(
+                "Numeric keys must be contiguous ({gap_list} {} missing)",
+                plural_is_are(gap_list.len())
+            );
             let err_ln2 = "Did you mean to add an empty row?";
             let err_ln3 = format!("{}\t-", gaps.first().unwrap());
             Err(
@@ -350,18 +353,20 @@ fn analyze_roll(
         match (symbols.borrow().is_def(&lhs), symbols.borrow().is_def(&rhs)) {
             (true, true) => (),
             (true, false) => {
-                return Err(vec![TaleError::analyzer(
+                return Err(TaleError::analyzer(
                     target.source_span(),
                     target.position(),
                     format!("Roll target '{rhs}' is not defined"),
-                )]);
+                )
+                .into());
             }
             (false, true) => {
-                return Err(vec![TaleError::analyzer(
+                return Err(TaleError::analyzer(
                     reps.source_span(),
                     reps.position(),
                     format!("Roll reps '{lhs}' is not defined"),
-                )]);
+                )
+                .into());
             }
             (false, false) => {
                 let joined = format!("{lhs} {rhs}");
@@ -369,11 +374,12 @@ fn analyze_roll(
                     reps.replace_inner_t(Expr::Atom(Atom::Number(1)));
                     target.replace_inner_t(Expr::Atom(Atom::Ident(joined.clone())));
                 } else {
-                    return Err(vec![TaleError::analyzer(
+                    return Err(TaleError::analyzer(
                         reps.source_span(),
                         reps.position(),
                         format!("Roll: neither '{lhs}' nor '{rhs}' are defined"),
-                    )]);
+                    )
+                    .into());
                 }
             }
         }
@@ -386,11 +392,12 @@ impl Analyze for Atom {
         match self {
             Atom::Dice(x, y) => {
                 if x == &0 || y == &0 {
-                    Err(vec![TaleError::evaluator(
+                    Err(TaleError::analyzer(
                         0..0,
                         (0, 0),
                         "Cannot roll zero dice or zero sides.".to_string(),
-                    )])
+                    )
+                    .into())
                 } else {
                     Ok(())
                 }
@@ -399,11 +406,12 @@ impl Analyze for Atom {
                 if symbols.borrow().is_def(id) {
                     Ok(())
                 } else {
-                    Err(vec![TaleError::analyzer(
+                    Err(TaleError::analyzer(
                         0..0,
                         (0, 0),
                         format!("Identifier '{id}' is not defined"),
-                    )])
+                    )
+                    .into())
                 }
             }
             Atom::Number(_) | Atom::Str(_) | Atom::Raw(_) => Ok(()),
@@ -428,9 +436,10 @@ impl Analyze for Duration {
 mod tests {
     use std::cell::RefCell;
 
-    use crate::samples::STATEMENT_ROLL;
-
-    use crate::state::{StateTable, SymbolTable};
+    use crate::{
+        samples::STATEMENT_ROLL,
+        state::{StateTable, SymbolTable},
+    };
 
     #[test]
     fn analyze_roll() {

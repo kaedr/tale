@@ -9,3 +9,6 @@ End Script
 
 // More generally, they are used to group a sequence of actions to be performed
 // together, like clearing the modifiers from several tables all at once.
+
+// To make use of a Script, you use the `Invoke` keyword
+Invoke Starting Gear

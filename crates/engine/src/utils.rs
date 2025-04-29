@@ -1,3 +1,13 @@
+#[must_use]
+pub fn plural_s(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+#[must_use]
+pub fn plural_is_are(n: usize) -> &'static str {
+    if n == 1 { "is" } else { "are" }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::{

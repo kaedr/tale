@@ -1,12 +1,13 @@
 use std::{cell::RefCell, fs::read_to_string};
 
+use glob::glob;
+use rand::Rng;
+
 use crate::{
     ast::*,
     error::{TaleError, TaleResultVec},
     state::{StateTable, SymbolTable, SymbolValue},
 };
-use glob::glob;
-use rand::Rng;
 
 pub trait Eval {
     /// Evaluates the expression in the context of the provided symbol table.
@@ -258,11 +259,12 @@ fn clear_stmt(
                 .clear_modifier(duration.inner_t().clone());
             Ok(SymbolValue::Placeholder)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             target.source_span(),
             target.position(),
             format!("Cannot clear modifiers for: '{value}' (Not a Table or Group name)"),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -272,7 +274,7 @@ fn invoke_stmt(
     target: &RcNode<Atom>,
 ) -> TaleResultVec<SymbolValue> {
     let value = target.eval(symbols, state)?;
-    roll_invoke_or_err(symbols, state, value)
+    roll_invoke_or_err(symbols, state, &value)
 }
 
 fn load_stmt(
@@ -306,9 +308,7 @@ fn load_stmt(
         }
     }
     if results.is_empty() {
-        Err(TaleError::system(format!(
-            "No such file or directory: {name}"
-        )))?
+        Err(TaleError::system(format!("No such file or directory: {name}")).into())
     } else {
         Ok(SymbolValue::List(results))
     }
@@ -326,11 +326,12 @@ fn modify_stmt(
             table.inner_t_mut().add_modifier(modifier.inner_t().clone());
             Ok(SymbolValue::Placeholder)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             target.source_span(),
             target.position(),
             format!("Cannot modify: '{value}' (Not a Table or Group name)"),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -360,11 +361,12 @@ impl Eval for Expr {
             Expr::Atom(atom) => atom.eval(symbols, state),
             Expr::Neg(node) => match node.eval(symbols, state)? {
                 SymbolValue::Numeric(n) => Ok(SymbolValue::Numeric(-n)),
-                other => Err(vec![TaleError::evaluator(
+                other => Err(TaleError::evaluator(
                     node.source_span(),
                     node.position(),
                     format!("Cannot negate {other:?}"),
-                )]),
+                )
+                .into()),
             },
             Expr::Add(lhs, rhs) => add_expr(symbols, state, lhs, rhs),
             Expr::Sub(lhs, rhs) => sub_expr(symbols, state, lhs, rhs),
@@ -397,11 +399,12 @@ fn add_expr(
             l_err.extend(r_err);
             Err(l_err)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             lhs.merge_source_span(rhs),
             lhs.position(),
             "Cannot add non-numeric values.".to_string(),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -423,11 +426,12 @@ fn sub_expr(
             l_err.extend(r_err);
             Err(l_err)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             lhs.merge_source_span(rhs),
             lhs.position(),
             "Cannot subract non-numeric values.".to_string(),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -449,11 +453,12 @@ fn mul_expr(
             l_err.extend(r_err);
             Err(l_err)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             lhs.merge_source_span(rhs),
             lhs.position(),
             "Cannot multiply non-numeric values.".to_string(),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -475,11 +480,12 @@ fn div_expr(
             l_err.extend(r_err);
             Err(l_err)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             lhs.merge_source_span(rhs),
             lhs.position(),
             "Cannot divide non-numeric values.".to_string(),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -501,11 +507,12 @@ fn mod_expr(
             l_err.extend(r_err);
             Err(l_err)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             lhs.merge_source_span(rhs),
             lhs.position(),
             "Cannot modulo non-numeric values.".to_string(),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -527,11 +534,12 @@ fn pow_expr(
             l_err.extend(r_err);
             Err(l_err)
         }
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             lhs.merge_source_span(rhs),
             lhs.position(),
             "Cannot exponentiate non-numeric values.".to_string(),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -545,11 +553,12 @@ fn lookup_expr(
     let target_val = target.eval(symbols, state)?;
     match &target_val {
         SymbolValue::Table(table) => table.inner_t().lookup(symbols, state, &key),
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             target.source_span(),
             target.position(),
             format!("Cannot lookup on: '{target_val}' (Not a Table or Group name)"),
-        )]),
+        )
+        .into()),
     }
 }
 
@@ -562,11 +571,18 @@ fn roll_expr(
     let reps_val = reps.eval(symbols, state)?;
     let target_val = match target.eval(symbols, state)? {
         SymbolValue::String(target_string) => {
-            symbols.borrow().get_value(&target_string.to_lowercase())
+            if let Some(target_lookup) = symbols.borrow().get_value(&target_string.to_lowercase()) {
+                target_lookup
+            } else if target.get_detail("implied").is_some() {
+                // Return early if this is just implied roll variable interpolation
+                return Ok(SymbolValue::String(target_string));
+            } else {
+                SymbolValue::String(target_string)
+            }
         }
         other => other,
     };
-    match (reps_val, target_val.clone()) {
+    match (reps_val, &target_val) {
         (SymbolValue::Numeric(x), SymbolValue::Numeric(_)) => match x {
             ..=0 => Ok(SymbolValue::Placeholder),
             1..=1 => Ok(target_val),
@@ -581,32 +597,34 @@ fn roll_expr(
             1..=1 => roll_invoke_or_err(symbols, state, target),
             2.. => Ok(SymbolValue::List(
                 (0..x)
-                    .map(|_| roll_invoke_or_err(symbols, state, target.clone()))
+                    .map(|_| roll_invoke_or_err(symbols, state, target))
                     .collect::<Result<Vec<_>, _>>()?,
             )),
         },
-        _ => Err(vec![TaleError::evaluator(
+        _ => Err(TaleError::evaluator(
             reps.merge_source_span(target),
             reps.position(),
             format!("Invalid types for roll expression: {reps} and {target}."),
-        )]),
+        )
+        .into()),
     }
 }
 
 fn roll_invoke_or_err(
     symbols: &RefCell<SymbolTable>,
     state: &StateTable,
-    target: SymbolValue,
+    target: &SymbolValue,
 ) -> TaleResultVec<SymbolValue> {
     match target {
         SymbolValue::Script(script) => script.inner_t().invoke(symbols, state),
         SymbolValue::Table(table) => table.inner_t_mut().roll_on(symbols, state),
-        SymbolValue::Numeric(_) => Ok(target),
-        _ => Err(vec![TaleError::evaluator(
-            0..0,
-            (0, 0),
-            format!("No such Table or Script: '{target}'"),
-        )]),
+        SymbolValue::Numeric(n) => Ok(SymbolValue::Numeric(*n)),
+        _ => {
+            Err(
+                TaleError::evaluator(0..0, (0, 0), format!("No such Table or Script: '{target}'"))
+                    .into(),
+            )
+        }
     }
 }
 
@@ -646,7 +664,16 @@ impl Eval for Atom {
             Atom::Number(n) => Ok(SymbolValue::Numeric(*n as isize)),
             Atom::Dice(x, y) => roll_dice(*x, *y),
             Atom::Str(s) => Ok(SymbolValue::String(s.clone())),
-            Atom::Ident(id) => Ok(symbols.borrow().get_value(id)),
+            Atom::Ident(id) => {
+                if let Some(val) = symbols.borrow().get_value(id) {
+                    Ok(val)
+                } else {
+                    Err(
+                        TaleError::evaluator(0..0, (0, 0), format!("Undefined identifier: {id}"))
+                            .into(),
+                    )
+                }
+            }
             Atom::Raw(token) => Ok(SymbolValue::String(token.to_string())),
         }
     }
@@ -654,11 +681,12 @@ impl Eval for Atom {
 
 fn roll_dice(x: usize, y: usize) -> TaleResultVec<SymbolValue> {
     if x == 0 || y == 0 {
-        return Err(vec![TaleError::evaluator(
+        return Err(TaleError::evaluator(
             0..0,
             (0, 0),
             "Cannot roll zero dice or zero sides.".to_string(),
-        )]);
+        )
+        .into());
     }
 
     let mut rng = rand::rng();
@@ -669,14 +697,4 @@ fn roll_dice(x: usize, y: usize) -> TaleResultVec<SymbolValue> {
     }
     #[allow(clippy::cast_possible_wrap)] // > 2 Billion roll total isn't realistic
     Ok(SymbolValue::Numeric(total as isize))
-}
-
-#[cfg(test)]
-#[allow(unused_must_use)]
-mod tests {
-
-    #[test]
-    fn it_works() {
-        //todo!()
-    }
 }

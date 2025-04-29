@@ -2,10 +2,8 @@ use std::io;
 
 use clap::Parser;
 use help::help;
-use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Result};
-
-use tale_lib::prelude::*;
+use rustyline::{DefaultEditor, Result, error::ReadlineError};
+use tale_lib::{prelude::*, utils::plural_s};
 
 mod help;
 mod snippets;
@@ -96,6 +94,19 @@ fn main() -> Result<()> {
                     .map_err(|err| io::Error::other(format!("{err:?}")))?
                     .render(SIDEBAR);
                 println!("{DONE_LOAD_LINE} {file}");
+            }
+            match (engine.number_of_tables(), engine.number_of_scripts()) {
+                (tables, 0) => {
+                    print_sidebarred(&format!("Loaded {tables} Table{}", plural_s(tables)));
+                }
+                (0, scripts) => {
+                    print_sidebarred(&format!("Loaded {scripts} Script{}", plural_s(scripts)));
+                }
+                (tables, scripts) => print_sidebarred(&format!(
+                    "Loaded {tables} Table{}, {scripts} Script{}",
+                    plural_s(tables),
+                    plural_s(scripts)
+                )),
             }
             print_arrowed(WELCOME);
             print_sidebarred(TIP);

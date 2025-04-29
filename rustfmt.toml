@@ -1,0 +1,8 @@
+# This formatting can be used manually by running:
+# `cargo +nightly fmt`
+# This formatting is not an enforced standard of the project by may be used
+# periodically to clean up imports. Keeping in mind that these are unstable
+# for a reason, so when run, be sure to check for destructive changes
+# https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"

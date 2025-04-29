@@ -3,7 +3,7 @@ use std::{fmt::Display, str::FromStr, sync::LazyLock};
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
 
-use crate::{error::TaleError, error::TaleResultVec};
+use crate::error::{TaleError, TaleResultVec};
 
 fn die_roll(lex: &mut Lexer<Token>) -> Option<(usize, usize)> {
     let parts: Vec<_> = lex.slice().split('d').collect();
@@ -225,9 +225,8 @@ pub(crate) mod tests {
 
     #[cfg(test)]
     mod test_sample_files {
-        use crate::samples::*;
-
         use super::*;
+        use crate::samples::*;
 
         #[test]
         #[cfg(not(target_os = "windows"))]
@@ -1626,9 +1625,8 @@ pub(crate) mod tests {
     #[cfg(test)]
     mod test_general_tokens {
 
-        use crate::samples::STRINGS;
-
         use super::*;
+        use crate::samples::STRINGS;
 
         #[test]
         fn die_rolls() {

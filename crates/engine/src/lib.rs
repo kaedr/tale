@@ -1,8 +1,3 @@
-mod ast;
-mod lexer;
-mod parsers;
-mod utils;
-
 use std::{
     cell::RefCell,
     fs::read_to_string,
@@ -14,14 +9,20 @@ use std::{
 use error::{TaleError, TaleResultVec, render_tale_result_vec};
 use state::{StateTable, SymbolTable, SymbolValue};
 
+mod ast;
 mod error;
+mod lexer;
+mod parsers;
 mod samples;
 mod state;
+pub mod utils;
 
 pub mod prelude {
-    pub use crate::Interpreter;
-    pub use crate::error::{TaleError, TaleResultVec};
-    pub use crate::state::SymbolValue;
+    pub use crate::{
+        Interpreter,
+        error::{TaleError, TaleResultVec},
+        state::SymbolValue,
+    };
 }
 
 pub struct Interpreter {
@@ -94,6 +95,14 @@ impl Interpreter {
         Self::new_with_files(&[file_name])
     }
 
+    pub fn number_of_scripts(&self) -> usize {
+        self.symbols.borrow().number_of_scripts()
+    }
+
+    pub fn number_of_tables(&self) -> usize {
+        self.symbols.borrow().number_of_tables()
+    }
+
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
         self.state.current_output()
     }
@@ -136,12 +145,11 @@ impl Interpreter {
 mod tests {
     use chumsky::{extra::SimpleState, prelude::*};
 
+    use super::*;
     use crate::{
         error::TaleError, lexer::Token, samples::*, state::SimpleParserState,
         utils::tests::sample_path,
     };
-
-    use super::*;
 
     pub fn stubbed_parser<'src, T>(
         state: &'src mut state::ParserState,
@@ -513,12 +521,12 @@ mod tests {
         assert_eq!(1, output.matches("`farm animals`, 1d4, 4 Rows").count());
         assert_eq!(
             1,
-            output.matches("`magic item table a`, 1d1, 1 Rows").count()
+            output.matches("`magic item table a`, 1d1, 1 Row").count()
         );
         assert_eq!(1, output.matches("`minimalism`, 1d20, Empty").count());
         assert_eq!(1, output.matches("`quality`, 1d3, 3 Rows").count());
         assert_eq!(1, output.matches("`numkeyed`, 1d3, 3 Rows").count());
-        assert_eq!(2, output.matches("`textkeys`, 1d1, 1 Rows").count());
+        assert_eq!(2, output.matches("`textkeys`, 1d1, 1 Row").count());
     }
 
     #[test]
