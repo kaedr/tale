@@ -573,13 +573,11 @@ fn roll_expr(
         SymbolValue::String(target_string) => {
             if let Some(target_lookup) = symbols.borrow().get_value(&target_string.to_lowercase()) {
                 target_lookup
+            } else if target.get_detail("implied").is_some() {
+                // Return early if this is just implied roll variable interpolation
+                return Ok(SymbolValue::String(target_string));
             } else {
-                if let Some(_) = target.get_detail("implied") {
-                    // Return early if this is just implied roll variable interpolation
-                    return Ok(SymbolValue::String(target_string));
-                } else {
-                    SymbolValue::String(target_string)
-                }
+                SymbolValue::String(target_string)
             }
         }
         other => other,

@@ -6,8 +6,8 @@ use chumsky::{
 use super::{
     TaleExtra,
     atoms::{
-        self, DELIMITING_WHITESPACE, PERIOD_OR_SEMICOLON, RBRACKET, ident_maybe_sub, number,
-        qstring, terminator, value_name, words,
+        self, DELIMITING_WHITESPACE, PERIOD_OR_SEMICOLON, RBRACKET, dice_expr, ident_maybe_sub,
+        number, qstring, terminator, value_name, words,
     },
 };
 use crate::{
@@ -183,13 +183,13 @@ fn embed_expr<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtr
 
 pub fn implied_roll_expr<'src>()
 -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
-    ident_maybe_sub()
+    dice_expr().or(ident_maybe_sub()
         .map_with(full_rc_node)
         .map_with(|target, extra| {
             target.add_detail("implied".into(), "true".into());
             let implied_rep = full_rc_node(Atom::Number(1), extra);
             full_rc_node(Expr::Roll(implied_rep, target), extra)
-        })
+        }))
 }
 
 pub fn arithmetic<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone

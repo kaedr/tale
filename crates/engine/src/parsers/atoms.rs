@@ -62,10 +62,9 @@ pub fn chomp_disjoint_newlines<'src>(
 }
 
 pub fn term<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone {
-    let (number, dice, value_name) = (number(), dice(), value_name());
-    number
-        .or(dice)
-        .or(value_name)
+    number()
+        .or(dice())
+        .or(value_name())
         .map_with(|term, extra| {
             let term_node = full_rc_node(term, extra);
             let span = extra.span().into_range();
@@ -144,6 +143,7 @@ pub fn ident_maybe_sub<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExt
         .labelled("Identity")
 }
 
+/// `wordlike` or `qstring`
 pub fn ident<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     wordlike(false)
         .foldl(wordlike(false).repeated(), |l, r| ident_normalize(&l, &r))
@@ -153,6 +153,7 @@ pub fn ident<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> 
         .labelled("Identity")
 }
 
+/// `word`, `raw_keywords`, `number`, or `dice`
 pub fn wordlike<'src>(
     allow_roll: bool,
 ) -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
@@ -244,6 +245,11 @@ pub fn value_name<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'s
 pub fn word<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
     let word = select! { Token::Word(word) => Atom::Str(word) };
     word.labelled("Word")
+}
+
+pub fn dice_expr<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<'src>> + Clone
+{
+    dice().map_with(full_rc_node)
 }
 
 pub fn dice<'src>() -> impl Parser<'src, &'src [Token], Atom, TaleExtra<'src>> + Clone {
