@@ -10,3 +10,6 @@ Load *.tale
 // They can also load from any valid filepath
 // Meaning you can potentially organize your `.tale` files into directories
 Load monsters/abberations.tale
+
+// The above can also be combined, allowing things like:
+Load monsters/*.tale

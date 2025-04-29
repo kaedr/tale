@@ -13,7 +13,7 @@ Or preloaded with tables from files:
 ```
 
 ## TALE basics
-The application relies on Tables, Table Groups, and Scripts. These currently must be made in a basic text editor (like Notepad/Gedit/vim/etc. NOT a word processor). By convention, they are saved in files with a `.tale` extension.
+The application relies on Tables, Table Groups, and Scripts. These currently **MUST** be made in a basic text editor (like Notepad/Gedit/vim/etc. NOT a word processor). By convention, they are saved in files with a `.tale` extension. When getting started, you will most likely find it easiest to just save these files in the same directory as the TALE executable, so that loading them is more straightforward.
 
 
 ### Defining Tables
@@ -50,4 +50,4 @@ TALE +-> Roll on Magic Item Table A
 ```
 
 ### Basic Interaction
-TALE evaluates (or tries to) whatever statements you enter into the prompt, then shows the output of that evaluation. These could be simple [Arithmetic Expressions](src/snippets/ex31_expressions.tale), [Roll Expressions](src/snippets/ex32_rolls.tale), [Lookup Expressions](src/snippets/ex33_lookup.tale), [Load Statements](src/snippets/ex41_load.tale) or one of TALE's more [Advanced Features](Advanced_Features.md)
+TALE evaluates (or tries to) whatever statements you enter into the prompt, then shows the output of that evaluation. These could be simple [Arithmetic Expressions](src/snippets/ex31_expressions.tale), [Roll Expressions](src/snippets/ex32_rolls.tale), [Lookup Expressions](src/snippets/ex33_lookup.tale), [Load Statements](src/snippets/ex41_load.tale) or one of TALE's more [Advanced Features](Advanced_Features.md). Any of these expressions or statements can also be included in `.tale` files. They can either be directly in the body of the file, and executed when it is loaded, or within Tables or Scripts, and executed when rolled/invoked.
