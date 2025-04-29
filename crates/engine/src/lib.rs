@@ -1,8 +1,3 @@
-mod ast;
-mod lexer;
-mod parsers;
-mod utils;
-
 use std::{
     cell::RefCell,
     fs::read_to_string,
@@ -14,9 +9,13 @@ use std::{
 use error::{TaleError, TaleResultVec, render_tale_result_vec};
 use state::{StateTable, SymbolTable, SymbolValue};
 
+mod ast;
 mod error;
+mod lexer;
+mod parsers;
 mod samples;
 mod state;
+pub mod utils;
 
 pub mod prelude {
     pub use crate::{
@@ -94,6 +93,14 @@ impl Interpreter {
         P: AsRef<Path> + ToString,
     {
         Self::new_with_files(&[file_name])
+    }
+
+    pub fn number_of_scripts(&self) -> usize {
+        self.symbols.borrow().number_of_scripts()
+    }
+
+    pub fn number_of_tables(&self) -> usize {
+        self.symbols.borrow().number_of_tables()
     }
 
     pub fn current_output(&self) -> TaleResultVec<SymbolValue> {
@@ -514,12 +521,12 @@ mod tests {
         assert_eq!(1, output.matches("`farm animals`, 1d4, 4 Rows").count());
         assert_eq!(
             1,
-            output.matches("`magic item table a`, 1d1, 1 Rows").count()
+            output.matches("`magic item table a`, 1d1, 1 Row").count()
         );
         assert_eq!(1, output.matches("`minimalism`, 1d20, Empty").count());
         assert_eq!(1, output.matches("`quality`, 1d3, 3 Rows").count());
         assert_eq!(1, output.matches("`numkeyed`, 1d3, 3 Rows").count());
-        assert_eq!(2, output.matches("`textkeys`, 1d1, 1 Rows").count());
+        assert_eq!(2, output.matches("`textkeys`, 1d1, 1 Row").count());
     }
 
     #[test]

@@ -404,6 +404,10 @@ impl SymbolTable {
         SymbolValue::List(scripts_list)
     }
 
+    pub fn number_of_scripts(&self) -> usize {
+        self.scripts.len()
+    }
+
     pub fn list_tables(&self) -> SymbolValue {
         let mut tables_list = vec![SymbolValue::String("Defined Tables:".into())];
         tables_list.extend(
@@ -412,6 +416,10 @@ impl SymbolTable {
                 .map(|n| SymbolValue::String(n.to_string())),
         );
         SymbolValue::List(tables_list)
+    }
+
+    pub fn number_of_tables(&self) -> usize {
+        self.tables.len()
     }
 
     pub fn push_scope(&mut self) -> Result<(), ()> {

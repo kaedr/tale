@@ -7,6 +7,7 @@ use super::{
 use crate::{
     error::{TaleError, TaleResultVec},
     state::{StateTable, SymbolTable, SymbolValue},
+    utils::plural_is_are,
 };
 
 pub trait Analyze {
@@ -234,7 +235,10 @@ fn check_set_holes(numkeys: &BTreeSet<usize>) -> TaleResultVec<()> {
         if gaps.is_empty() {
             Ok(())
         } else {
-            let err_ln1 = format!("Numeric keys must be contiguous ({gap_list} are missing)");
+            let err_ln1 = format!(
+                "Numeric keys must be contiguous ({gap_list} {} missing)",
+                plural_is_are(gap_list.len())
+            );
             let err_ln2 = "Did you mean to add an empty row?";
             let err_ln3 = format!("{}\t-", gaps.first().unwrap());
             Err(

@@ -15,6 +15,7 @@ use crate::{
     lexer::{Position, Token},
     parsers::Op,
     state::{SimpleParserState, StateTable, SymbolTable, SymbolValue},
+    utils::plural_s,
 };
 
 mod analyzer;
@@ -670,7 +671,7 @@ impl Display for Script {
             "{}, {} Statement{}",
             self.name,
             self.statements.len(),
-            if self.statements.len() == 1 { "" } else { "s" }
+            plural_s(self.statements.len())
         )
     }
 }
@@ -1166,9 +1167,9 @@ impl Display for TableRows {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TableRows::Empty => write!(f, "Empty"),
-            TableRows::List(atoms) => write!(f, "{} Items", atoms.len()),
-            TableRows::Flat(stmts) => write!(f, "{} Rows", stmts.len()),
-            TableRows::Keyed(items) => write!(f, "{} Rows", items.len()),
+            TableRows::List(atoms) => write!(f, "{} Item{}", atoms.len(), plural_s(atoms.len())),
+            TableRows::Flat(stmts) => write!(f, "{} Row{}", stmts.len(), plural_s(stmts.len())),
+            TableRows::Keyed(items) => write!(f, "{} Row{}", items.len(), plural_s(items.len())),
             TableRows::SubTables(nodes) => {
                 let num_cols = nodes.len();
                 let num_rows = nodes.first().unwrap().inner_t().rows.inner_t().to_string();
