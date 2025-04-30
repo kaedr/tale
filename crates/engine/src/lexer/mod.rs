@@ -84,7 +84,6 @@ pub enum Token {
     #[token("*")]                       Asterisk,
     #[token("@")]                       At,
     #[token(r"\")]                      BackSlash,
-    #[token("!")]                       ExclamationPoint,
     #[token("|")]                       Bar,
     #[token("^")]                       Caret,
     #[token(":")]                       Colon,
@@ -95,6 +94,7 @@ pub enum Token {
     #[token("\u{2026}")] // Horizontal Ellipsis
     #[token("..")] #[token("...")]      Ellipsis,
     #[token("=")]                       Equals,
+    #[token("!")]                       ExclamationPoint,
     #[token("#")]                       Hash,
     #[token("-")] #[token("\u{2212}")]  Minus,
     #[token("%")]                       Modulo,

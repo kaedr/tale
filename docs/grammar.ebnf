@@ -1,0 +1,146 @@
+(* This document describes the grammar used by TALE. *)
+(* It *Should* accurately describe what will be accepted by the lexer + parser *)
+(* Any time the Lexer or Parser are updated in a way that changes the accepted grammar of the language, this document should be updated accordingly *)
+
+(* Atoms, should correspond directly to parsers in atoms.rs *)
+Ident =
+WordLike = Word | RawKeywordsWithRoll | Number | Dice ;
+RawKeywordsWithRoll = RawKeywords | Roll ;
+RawKeywords = Once | Twice | Thrice | One | Two | Three | Four | Five
+            | Six | Seven | Eight | Nine | Ten | All | And | Clear | End
+            | Group | Invoke | List | Load | Lookup | Modify | Next | On
+            | Output | Script | Set | Show | Table | Tag | Time | To ;
+TypicalPunctuation = Ampersand | Apostrophe | Asterisk | Colon | Comma
+                    | Dash | Ellipsis | ExclamationPoint | Hash | LParens
+                    | Minus | Plus | Modulo | Period | QuestionMark
+                    | RParens | SemiColon | Slash ;
+ValueName = WordToken ;
+Word = WordToken ;
+Dice = DieRoll ;
+Number = DoubleOught | Digits | NumeralKeyword ;
+QuotedString = ;
+
+(* BEGIN LEXER TOKENS *)
+(* Everything Below this point should a Token created by Lexing *)
+
+(* Strings *)
+
+
+(* Comment *)
+Comment = [ T ], Slash, Slash, { Anything - N }
+
+(* Anything, used for Anything - *not allowed* situations *)
+Anything = ? Any Character ? ;
+
+(* Words *)
+WordToken = WordCharacter, { WordCharacter } ;
+WordCharacter = "\w" ;
+
+(* Die Roll *)
+DieRoll = Digits, "d", Digits
+
+(* Numbers *)
+DoubleOught = "00" ;
+Digits = Digit, { Digit }
+Digit = "0" | non_zero_digit ;
+non_zero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(* Numeral Keywords, case insensitive *)
+NumeralKeyword = One | Two | Three | Four | Five | Six | Seven | Eight | Nine | Ten ;
+One = "one" ;
+Two = "two" ;
+Three = "three" ;
+Four = "four" ;
+Five = "five" ;
+Six = "six" ;
+Seven = "seven" ;
+Eight = "eight" ;
+Nine = "nine" ;
+Ten = "ten" ;
+
+(* Repetition Keywords, case insensitive *)
+Once = "once" ;
+Twice = "twice" ;
+Thrice = "thrice" ;
+
+(* Keywords, case insensitive*)
+ALL = "all" ;
+AND = "and" ;
+CLEAR = "clear" ;
+END = "end" ;
+GROUP = "group" ;
+INVOKE = "invoke" ;
+LIST = "list" ;
+LOAD = "load" ;
+LOOKUP = "lookup" ;
+MODIFY = "modify" ;
+NEXT = "next" ;
+ON = "on" ;
+OUTPUT = "output" ;
+ROLL = "roll", [ "s" ] ;
+SCRIPT = "script" ;
+SET = "set" ;
+SHOW = "show" ;
+TABLE = "table" ;
+TAGS = "tag", [ "s" ] ;
+TIMES = "time", [ "s" ] ;
+TO = "to" ;
+
+(* Quotes *)
+LeftSingleQuote = "‘" ;
+RightSingleQuote = "’" ;
+DoubleQuote = '"' ;
+FullDoubleQuote = "＂" ;
+LeftDoubleQuote = '“' ;
+RightDoubleQuote = '”' ;
+GraveQuote = "`" ;
+FullGraveQuote = "｀" ;
+
+LeftRightSingleQuotedString = LeftSingleQuote, ( Anything - RightSingleQuote ), RightSingleQuote ;
+DoubleQuotedString = DoubleQuote, ( Anything - DoubleQuote ), DoubleQuote ;
+FullDoubleQuotedString = FullDoubleQuote, ( Anything - FullDoubleQuote ), FullDoubleQuote ;
+LeftRightDoubleQuotedString = LeftDoubleQuote, ( Anything - RightDoubleQuote ), RightDoubleQuote ;
+GraveQuotedString = GraveQuote, ( Anything - GraveQuote ), GraveQuote ;
+FullGraveQuotedString = FullGraveQuote, ( Anything - FullGraveQuote ), FullGraveQuote ;
+
+(* Brackets/Braces *)
+LeftAngle = "<" ;
+LeftBracket = "[" ;
+LeftCurly = "{" ;
+LeftParens = "(" ;
+RightAngle = ">" ;
+RightBracket = "]" ;
+RightCurly = "}" ;
+RightParens = ")" ;
+
+(* Symbols/Punctuation *)
+Ampersand = "&" ;
+Apostrophe = "'" | "’" ;
+Asterisk = "*" ;
+At = "@" ;
+(* Just a single \, doubled up here because escape sequence highlighting*)
+BackSlash = "\\" ;
+Bar = "|" ;
+Caret = "^" ;
+Colon = ":" ;
+Comma = "," ;
+Dash = "–" | "—" ;
+DollarSign = "$" ;
+Ellipsis = "…" | ".." | "..." ;
+Equals = "=" ;
+ExclamationPoint = "!" ;
+Hash = "#" ;
+Minus = "-" | "−";
+Modulo = "%" ;
+Period = "." ;
+Plus = "+" ;
+QuestionMark = "?" ;
+SemiColon = ";" ;
+Slash = "/" ;
+Tilde = "~" ;
+Underscore = "_" ;
+
+(* White Space Types *)
+N = ( ( "\r", "\n" ? ) | ( "\n", "\r" ? ) ) +
+T = ( "\t" ) + ;
+S = ( " " ) + ;
