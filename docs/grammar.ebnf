@@ -2,9 +2,30 @@
 (* It *Should* accurately describe what will be accepted by the lexer + parser *)
 (* Any time the Lexer or Parser are updated in a way that changes the accepted grammar of the language, this document should be updated accordingly *)
 
-(* Expressions, should (mostly) correspond directly to parsers in expressions.rs *)
-EmbedExpr = LeftBracket, [ S ], ( ImpliedRollExpr | ), [ S ], RightBracket ;
+(* Statements, should (mostly) correspond directly to parsers in statements.rs *)
+ShowStmt = SHOW, S, [ TAGS ]
 
+(* Expressions, should (mostly) correspond directly to parsers in expressions.rs *)
+AnyExpression = RollExpr | LookupExpr | Arithmetic | Interpolation ;
+Interpolation = ( QuotedString | Words | EmbedExpr ), { QuotedString | Words | EmbedExpr }
+EmbedExpr = LeftBracket, [ S ], (
+    ImpliedRollExpr | RollExpr | LookupExpr | Arithmetic
+), [ S ], RightBracket ;
+RollExpr = (
+    [ ROLL, S ], RepetitionClause
+    | ROLL, [ S, RepetitionClause ]
+), S, RollPredicate
+RollPredicate = [ ON, S ], Arithmetic
+                | [ ON, S, [ TABLE, [ S ], Colon, [ S ] ] ], IdentMaybeSub
+                | [ ON ], S, TABLE, [ S ], Colon, [ S ], MiniInterpolation
+RepetitionClause = (
+    RepetitionWord
+    | Arithmetic, S, [ LeftParens, [ S ], Number, [ S ], RightParens ]
+), [ TIMES | ROLL ]
+RepetitionWord = ONCE | TWICE | THRICE ;
+LookupExpr = LOOKUP, S, ( Arithmetic | Words ), S, ON, S, IdentMaybeSub ;
+MiniInterpolation = ( QuotedString | Words | ValueEmbed ), { QuotedString | Words | ValueEmbed } ;
+ValueEmbed = LeftBracket, [ S ], ( ValueName ), [ S ], RightBracket ;
 ImpliedRollExpr = Dice | IdentMaybeSub ;
 Arithmetic = LeftParens, [ S ], Arithmetic, [ S ], RightParens
             | Arithmetic, [ S ], Op, [ S ], Arithmetic
@@ -23,15 +44,15 @@ Ident = WordLikeWithoutRoll, { S, WordLikeWithoutRoll }
         | QuotedString ;
 WordLikeWithoutRoll = Word | Number | Dice ;
 WordLike = Word | RawKeywordsWithRoll | Number | Dice ;
-RawKeywordsWithRoll = RawKeywords | Roll ;
-RawKeywords = Once | Twice | Thrice | One | Two | Three | Four | Five
-            | Six | Seven | Eight | Nine | Ten | All | And | Clear | End
-            | Group | Invoke | List | Load | Lookup | Modify | Next | On
-            | Output | Script | Set | Show | Table | Tag | Time | To ;
+RawKeywordsWithRoll = RawKeywords | ROLL ;
+RawKeywords = ONCE | TWICE | THRICE | ONE | TWO | THREE | FOUR | FIVE
+            | SIX | SEVEN | EIGHT | NINE | TEN | ALL | AND | CLEAR | END
+            | GROUP | INVOKE | LIST | LOAD | LOOKUP | MODIFY | NEXT | ON
+            | OUTPUT | SCRIPT | SET | SHOW | TABLE | TAGS | TIME | TO ;
 TypicalPunctuation = Ampersand | Apostrophe | Asterisk | Colon | Comma
-                    | Dash | Ellipsis | ExclamationPoint | Hash | LParens
+                    | Dash | Ellipsis | ExclamationPoint | Hash | LeftParens
                     | Minus | Plus | Modulo | Period | QuestionMark
-                    | RParens | SemiColon | Slash ;
+                    | RightParens | SemiColon | Slash ;
 ValueName = WordToken ;
 Word = WordToken ;
 Dice = DieRoll ;
@@ -71,22 +92,22 @@ Digit = "0" | non_zero_digit ;
 non_zero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 
 (* Numeral Keywords, case insensitive *)
-NumeralKeyword = One | Two | Three | Four | Five | Six | Seven | Eight | Nine | Ten ;
-One = "one" ;
-Two = "two" ;
-Three = "three" ;
-Four = "four" ;
-Five = "five" ;
-Six = "six" ;
-Seven = "seven" ;
-Eight = "eight" ;
-Nine = "nine" ;
-Ten = "ten" ;
+NumeralKeyword = ONE | TWO | THREE | FOUR | FIVE | SIX | SEVEN | EIGHT | NINE | TEN ;
+ONE = "one" ;
+TWO = "two" ;
+THREE = "three" ;
+FOUR = "four" ;
+FIVE = "five" ;
+SIX = "six" ;
+SEVEN = "seven" ;
+EIGHT = "eight" ;
+NINE = "nine" ;
+TEN = "ten" ;
 
 (* Repetition Keywords, case insensitive *)
-Once = "once" ;
-Twice = "twice" ;
-Thrice = "thrice" ;
+ONCE = "once" ;
+TWICE = "twice" ;
+THRICE = "thrice" ;
 
 (* Keywords, case insensitive*)
 ALL = "all" ;
