@@ -2,8 +2,26 @@
 (* It *Should* accurately describe what will be accepted by the lexer + parser *)
 (* Any time the Lexer or Parser are updated in a way that changes the accepted grammar of the language, this document should be updated accordingly *)
 
-(* Atoms, should correspond directly to parsers in atoms.rs *)
-Ident =
+(* Expressions, should (mostly) correspond directly to parsers in expressions.rs *)
+EmbedExpr = LeftBracket, [ S ], ( ImpliedRollExpr | ), [ S ], RightBracket ;
+
+ImpliedRollExpr = Dice | IdentMaybeSub ;
+Arithmetic = LeftParens, [ S ], Arithmetic, [ S ], RightParens
+            | Arithmetic, [ S ], Op, [ S ], Arithmetic
+            | Minus, [ S ], Arithmetic
+            | Term ;
+NumberRangeList = ( Number | NumberRange ), { [ S ], Comma, [ S ], ( Number | NumberRange ) } ;
+NumberRange = Number, [ S ], ( Minus | Dash | Ellipsis ), [ S ], Number ;
+
+(* Atoms, should (mostly) correspond directly to parsers in atoms.rs *)
+EOL = [ Comment ], N ;
+Term = Number | Dice | ValueName ;
+Op = Plus | Minus | Asterisk | Slash | Modulo | Caret ;
+Words = ( WordLike | TypicalPunctuation ), { WordLike | TypicalPunctuation } ;
+IdentMaybeSub = Ident, [ S ], [ Colon ], [ S ], Ident;
+Ident = WordLikeWithoutRoll, { S, WordLikeWithoutRoll }
+        | QuotedString ;
+WordLikeWithoutRoll = Word | Number | Dice ;
 WordLike = Word | RawKeywordsWithRoll | Number | Dice ;
 RawKeywordsWithRoll = RawKeywords | Roll ;
 RawKeywords = Once | Twice | Thrice | One | Two | Three | Four | Five
@@ -18,16 +36,23 @@ ValueName = WordToken ;
 Word = WordToken ;
 Dice = DieRoll ;
 Number = DoubleOught | Digits | NumeralKeyword ;
-QuotedString = ;
+QuotedString = String;
 
 (* BEGIN LEXER TOKENS *)
 (* Everything Below this point should a Token created by Lexing *)
 
 (* Strings *)
-
+String = LeftRightSingleQuotedString | DoubleQuotedString | FullDoubleQuotedString
+        | LeftRightDoubleQuotedString | GraveQuotedString | FullGraveQuotedString ;
+LeftRightSingleQuotedString = LeftSingleQuote, ( Anything - RightSingleQuote ), RightSingleQuote ;
+DoubleQuotedString = DoubleQuote, ( Anything - DoubleQuote ), DoubleQuote ;
+FullDoubleQuotedString = FullDoubleQuote, ( Anything - FullDoubleQuote ), FullDoubleQuote ;
+LeftRightDoubleQuotedString = LeftDoubleQuote, ( Anything - RightDoubleQuote ), RightDoubleQuote ;
+GraveQuotedString = GraveQuote, ( Anything - GraveQuote ), GraveQuote ;
+FullGraveQuotedString = FullGraveQuote, ( Anything - FullGraveQuote ), FullGraveQuote ;
 
 (* Comment *)
-Comment = [ T ], Slash, Slash, { Anything - N }
+Comment = [ T ], Slash, Slash, { Anything - N } ;
 
 (* Anything, used for Anything - *not allowed* situations *)
 Anything = ? Any Character ? ;
@@ -96,13 +121,6 @@ RightDoubleQuote = '”' ;
 GraveQuote = "`" ;
 FullGraveQuote = "｀" ;
 
-LeftRightSingleQuotedString = LeftSingleQuote, ( Anything - RightSingleQuote ), RightSingleQuote ;
-DoubleQuotedString = DoubleQuote, ( Anything - DoubleQuote ), DoubleQuote ;
-FullDoubleQuotedString = FullDoubleQuote, ( Anything - FullDoubleQuote ), FullDoubleQuote ;
-LeftRightDoubleQuotedString = LeftDoubleQuote, ( Anything - RightDoubleQuote ), RightDoubleQuote ;
-GraveQuotedString = GraveQuote, ( Anything - GraveQuote ), GraveQuote ;
-FullGraveQuotedString = FullGraveQuote, ( Anything - FullGraveQuote ), FullGraveQuote ;
-
 (* Brackets/Braces *)
 LeftAngle = "<" ;
 LeftBracket = "[" ;
@@ -141,6 +159,6 @@ Tilde = "~" ;
 Underscore = "_" ;
 
 (* White Space Types *)
-N = ( ( "\r", "\n" ? ) | ( "\n", "\r" ? ) ) +
+N = ( ( "\r", "\n" ? ) | ( "\n", "\r" ? ) ) + ;
 T = ( "\t" ) + ;
 S = ( " " ) + ;
