@@ -2,26 +2,78 @@
 (* It *Should* accurately describe what will be accepted by the lexer + parser *)
 (* Any time the Lexer or Parser are updated in a way that changes the accepted grammar of the language, this document should be updated accordingly *)
 
+TALE = { TableDef | TableGroupDef | ScriptDef | SequenceOrStatement, ( DisjointNewlines | EOI ) } ;
+
+(* Definitions, should (mostly) correspond directly to parsers in definitions.rs *)
+ScriptDef = SCRIPT, [ S ], Colon, [ S ], Ident, DisjointNewlines,
+        { [ T ], SequenceOrStatement, [ Period | SemiColon ], DisjointNewlines }
+        END, S, SCRIPT, ( DisjointNewlines | EOI ) ;
+TableDef = TABLE, [ S ], Colon, [ S ], Ident, DisjointNewlines,
+            [ TableHeadings ], TableRows ;
+TableGroupDef = TABLE, S, GROUP, [ S ], Colon, [ S ], Ident, DisjointNewlines,
+            [ TagsDirective ], SubTablesRow, TableGroupRows ;
+
+SubTablesRow = Dice, T, Ident, { T, Ident } ;
+TableGroupRows = { RowKey, T, AnyStatement, [ Period | SemiColon ], { T, AnyStatement, [ Period | SemiColon ] }, DisjointNewlines },
+                END, S, TABLE, [ S, GROUP ], ( DisjointNewlines | EOI ) ;
+
+TableRows = LIST, [ S ], Colon, [ S ], Ident, { [ S ], Comma, [ S ], Ident }
+    | (
+        { SequenceOrStatement, [ Period | SemiColon ], DisjointNewlines }
+        | { RowKey, T, SequenceOrStatement, DisjointNewlines }
+        | {
+            RowKey, ( T | [ Colon ], DisjointNewlines, T ),
+            SequenceOrStatement, DisjointNewlines, { T, SequenceOrStatement, DisjointNewlines }
+        }
+    ), END, S, TABLE, ( DisjointNewlines | EOI ) ;
+TableHeadings = RollDirective, [ TagsDirective ] | TagsDirective, [ RollDirective ] ;
+RollDirective = ROLL, [ S ], Colon, [ S ], Arithmetic, DisjointNewlines ;
+TagsDirective = TAGS, [ S ], Colon, [ S ], Ident, { [ S ], Comma, [ S ], Ident }, DisjointNewlines ;
+RowKey = NumberRangeList | Ident ;
+
 (* Statements, should (mostly) correspond directly to parsers in statements.rs *)
-ShowStmt = SHOW, S, [ TAGS ]
+SequenceOrStatement = StatementSequence | AnyStatement ;
+AnyStatement = Nonce | ChainableStatement | LoadStmt | OutputStmt | ShowStmt ;
+Nonce = Dash | Minus ;
+ChainableStatement = AssignmentStmt | ClearStmt | InvokeStmt | ModifyStmt | ExpressionStmt ;
+StatementSequence = LeftBracket, [ S ], (
+    ChainableStatement, { [ S ], Comma, [ S, [ AND, S ] ], ChainableStatement }
+    | AnyStatement
+    | ImpliedRollExpr
+), [ S ], RightBracket ;
+AssignmentStmt = (
+    [ SET, S, ], ValueName, [ S ], Equals, [ S ]
+    SET, S, ValueName, S, TO, S
+), AnyExpression ;
+ClearStmt = CLEAR, S, Duration, S, IdentMaybeSub, S, [ ROLL ] ;
+ExpressionStmt = AnyExpression ;
+InvokeStmt = INVOKE, [[ S ], Colon ], S, Ident ;
+LoadStmt = LOAD, [[ S ], Colon ], S, ( QuotedString | Words ) ;
+ModifyStmt = MODIFY, S, Duration, S, IdentMaybeSub, S, ROLL, S, ModifyBy
+            | ModifyBy, S, TO, [ S, Duration ], S, IdentMaybeSub, ROLL ;
+OutputStmt = OUTPUT, [[ S ], Colon], S, Interpolation ;
+ShowStmt = SHOW, S, [ TAGS, S ] ;
+
+ModifyBy = ( Plus | Minus ), [ S ], Number ;
+Duration = ALL | NEXT, S, Arithmetic;
 
 (* Expressions, should (mostly) correspond directly to parsers in expressions.rs *)
 AnyExpression = RollExpr | LookupExpr | Arithmetic | Interpolation ;
-Interpolation = ( QuotedString | Words | EmbedExpr ), { QuotedString | Words | EmbedExpr }
+Interpolation = ( QuotedString | Words | EmbedExpr ), { [ S ], ( QuotedString | Words | EmbedExpr ) } ;
 EmbedExpr = LeftBracket, [ S ], (
     ImpliedRollExpr | RollExpr | LookupExpr | Arithmetic
 ), [ S ], RightBracket ;
 RollExpr = (
     [ ROLL, S ], RepetitionClause
     | ROLL, [ S, RepetitionClause ]
-), S, RollPredicate
+), S, RollPredicate ;
 RollPredicate = [ ON, S ], Arithmetic
                 | [ ON, S, [ TABLE, [ S ], Colon, [ S ] ] ], IdentMaybeSub
-                | [ ON ], S, TABLE, [ S ], Colon, [ S ], MiniInterpolation
+                | [ ON ], S, TABLE, [ S ], Colon, [ S ], MiniInterpolation ;
 RepetitionClause = (
     RepetitionWord
     | Arithmetic, S, [ LeftParens, [ S ], Number, [ S ], RightParens ]
-), [ TIMES | ROLL ]
+), [ TIMES | ROLL ] ;
 RepetitionWord = ONCE | TWICE | THRICE ;
 LookupExpr = LOOKUP, S, ( Arithmetic | Words ), S, ON, S, IdentMaybeSub ;
 MiniInterpolation = ( QuotedString | Words | ValueEmbed ), { QuotedString | Words | ValueEmbed } ;
@@ -35,6 +87,7 @@ NumberRangeList = ( Number | NumberRange ), { [ S ], Comma, [ S ], ( Number | Nu
 NumberRange = Number, [ S ], ( Minus | Dash | Ellipsis ), [ S ], Number ;
 
 (* Atoms, should (mostly) correspond directly to parsers in atoms.rs *)
+DisjointNewlines = EOL, { EOL } ;
 EOL = [ Comment ], N ;
 Term = Number | Dice | ValueName ;
 Op = Plus | Minus | Asterisk | Slash | Modulo | Caret ;
@@ -83,11 +136,11 @@ WordToken = WordCharacter, { WordCharacter } ;
 WordCharacter = "\w" ;
 
 (* Die Roll *)
-DieRoll = Digits, "d", Digits
+DieRoll = Digits, "d", Digits ;
 
 (* Numbers *)
 DoubleOught = "00" ;
-Digits = Digit, { Digit }
+Digits = Digit, { Digit } ;
 Digit = "0" | non_zero_digit ;
 non_zero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 
@@ -183,3 +236,4 @@ Underscore = "_" ;
 N = ( ( "\r", "\n" ? ) | ( "\n", "\r" ? ) ) + ;
 T = ( "\t" ) + ;
 S = ( " " ) + ;
+EOI = ? End Of Input ? ;
