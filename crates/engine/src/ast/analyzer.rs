@@ -261,6 +261,36 @@ fn amend_id_to_str(symbols: &RefCell<SymbolTable>, expr: &RcNode<Expr>) -> TaleR
                 }
             }
         }
+        // Handle cases like `and/or` or `Mary-Jane` that were parsed as arithmetic
+        // TODO: as below, this could potentially be
+        Expr::Sub(lhs, rhs) => {
+            if let (Expr::Atom(Atom::Ident(lhs_id)), Expr::Atom(Atom::Ident(rhs_id))) =
+                (&*lhs.inner_t(), &*rhs.inner_t())
+            {
+                if !symbols.borrow().is_def(lhs_id) && !symbols.borrow().is_def(rhs_id) {
+                    if let (Some(l_sauce), Some(r_sauce)) = (
+                        lhs.get_detail("original_text"),
+                        rhs.get_detail("original_text"),
+                    ) {
+                        expr.replace_inner_t(Expr::Atom(Atom::Str(format!("{l_sauce}-{r_sauce}"))));
+                    }
+                }
+            }
+        }
+        Expr::Div(lhs, rhs) => {
+            if let (Expr::Atom(Atom::Ident(lhs_id)), Expr::Atom(Atom::Ident(rhs_id))) =
+                (&*lhs.inner_t(), &*rhs.inner_t())
+            {
+                if !symbols.borrow().is_def(lhs_id) && !symbols.borrow().is_def(rhs_id) {
+                    if let (Some(l_sauce), Some(r_sauce)) = (
+                        lhs.get_detail("original_text"),
+                        rhs.get_detail("original_text"),
+                    ) {
+                        expr.replace_inner_t(Expr::Atom(Atom::Str(format!("{l_sauce}/{r_sauce}"))));
+                    }
+                }
+            }
+        }
         Expr::Roll(reps, target) => match (&*reps.inner_t(), &*target.inner_t()) {
             (Expr::Atom(Atom::Ident(lhs_id)), Expr::Atom(Atom::Ident(rhs_id))) => {
                 if !symbols.borrow().is_def(lhs_id) || !symbols.borrow().is_def(rhs_id) {

@@ -96,6 +96,7 @@ fn main() -> Result<()> {
                 println!("{DONE_LOAD_LINE} {file}");
             }
             match (engine.number_of_tables(), engine.number_of_scripts()) {
+                (0, 0) => (),
                 (tables, 0) => {
                     print_sidebarred(&format!("Loaded {tables} Table{}", plural_s(tables)));
                 }

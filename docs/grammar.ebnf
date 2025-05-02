@@ -1,0 +1,239 @@
+(* This document describes the grammar used by TALE. *)
+(* It *Should* accurately describe what will be accepted by the lexer + parser *)
+(* Any time the Lexer or Parser are updated in a way that changes the accepted grammar of the language, this document should be updated accordingly *)
+
+TALE = { TableDef | TableGroupDef | ScriptDef | SequenceOrStatement, ( DisjointNewlines | EOI ) } ;
+
+(* Definitions, should (mostly) correspond directly to parsers in definitions.rs *)
+ScriptDef = SCRIPT, [ S ], Colon, [ S ], Ident, DisjointNewlines,
+        { [ T ], SequenceOrStatement, [ Period | SemiColon ], DisjointNewlines }
+        END, S, SCRIPT, ( DisjointNewlines | EOI ) ;
+TableDef = TABLE, [ S ], Colon, [ S ], Ident, DisjointNewlines,
+            [ TableHeadings ], TableRows ;
+TableGroupDef = TABLE, S, GROUP, [ S ], Colon, [ S ], Ident, DisjointNewlines,
+            [ TagsDirective ], SubTablesRow, TableGroupRows ;
+
+SubTablesRow = Dice, T, Ident, { T, Ident } ;
+TableGroupRows = { RowKey, T, AnyStatement, [ Period | SemiColon ], { T, AnyStatement, [ Period | SemiColon ] }, DisjointNewlines },
+                END, S, TABLE, [ S, GROUP ], ( DisjointNewlines | EOI ) ;
+
+TableRows = LIST, [ S ], Colon, [ S ], Ident, { [ S ], Comma, [ S ], Ident }
+    | (
+        { SequenceOrStatement, [ Period | SemiColon ], DisjointNewlines }
+        | { RowKey, T, SequenceOrStatement, DisjointNewlines }
+        | {
+            RowKey, ( T | [ Colon ], DisjointNewlines, T ),
+            SequenceOrStatement, DisjointNewlines, { T, SequenceOrStatement, DisjointNewlines }
+        }
+    ), END, S, TABLE, ( DisjointNewlines | EOI ) ;
+TableHeadings = RollDirective, [ TagsDirective ] | TagsDirective, [ RollDirective ] ;
+RollDirective = ROLL, [ S ], Colon, [ S ], Arithmetic, DisjointNewlines ;
+TagsDirective = TAGS, [ S ], Colon, [ S ], Ident, { [ S ], Comma, [ S ], Ident }, DisjointNewlines ;
+RowKey = NumberRangeList | Ident ;
+
+(* Statements, should (mostly) correspond directly to parsers in statements.rs *)
+SequenceOrStatement = StatementSequence | AnyStatement ;
+AnyStatement = Nonce | ChainableStatement | LoadStmt | OutputStmt | ShowStmt ;
+Nonce = Dash | Minus ;
+ChainableStatement = AssignmentStmt | ClearStmt | InvokeStmt | ModifyStmt | ExpressionStmt ;
+StatementSequence = LeftBracket, [ S ], (
+    ChainableStatement, { [ S ], Comma, [ S, [ AND, S ] ], ChainableStatement }
+    | AnyStatement
+    | ImpliedRollExpr
+), [ S ], RightBracket ;
+AssignmentStmt = (
+    [ SET, S, ], ValueName, [ S ], Equals, [ S ]
+    SET, S, ValueName, S, TO, S
+), AnyExpression ;
+ClearStmt = CLEAR, S, Duration, S, IdentMaybeSub, S, [ ROLL ] ;
+ExpressionStmt = AnyExpression ;
+InvokeStmt = INVOKE, [[ S ], Colon ], S, Ident ;
+LoadStmt = LOAD, [[ S ], Colon ], S, ( QuotedString | Words ) ;
+ModifyStmt = MODIFY, S, Duration, S, IdentMaybeSub, S, ROLL, S, ModifyBy
+            | ModifyBy, S, TO, [ S, Duration ], S, IdentMaybeSub, ROLL ;
+OutputStmt = OUTPUT, [[ S ], Colon], S, Interpolation ;
+ShowStmt = SHOW, S, [ TAGS, S ] ;
+
+ModifyBy = ( Plus | Minus ), [ S ], Number ;
+Duration = ALL | NEXT, S, Arithmetic;
+
+(* Expressions, should (mostly) correspond directly to parsers in expressions.rs *)
+AnyExpression = RollExpr | LookupExpr | Arithmetic | Interpolation ;
+Interpolation = ( QuotedString | Words | EmbedExpr ), { [ S ], ( QuotedString | Words | EmbedExpr ) } ;
+EmbedExpr = LeftBracket, [ S ], (
+    ImpliedRollExpr | RollExpr | LookupExpr | Arithmetic
+), [ S ], RightBracket ;
+RollExpr = (
+    [ ROLL, S ], RepetitionClause
+    | ROLL, [ S, RepetitionClause ]
+), S, RollPredicate ;
+RollPredicate = [ ON, S ], Arithmetic
+                | [ ON, S, [ TABLE, [ S ], Colon, [ S ] ] ], IdentMaybeSub
+                | [ ON ], S, TABLE, [ S ], Colon, [ S ], MiniInterpolation ;
+RepetitionClause = (
+    RepetitionWord
+    | Arithmetic, S, [ LeftParens, [ S ], Number, [ S ], RightParens ]
+), [ TIMES | ROLL ] ;
+RepetitionWord = ONCE | TWICE | THRICE ;
+LookupExpr = LOOKUP, S, ( Arithmetic | Words ), S, ON, S, IdentMaybeSub ;
+MiniInterpolation = ( QuotedString | Words | ValueEmbed ), { QuotedString | Words | ValueEmbed } ;
+ValueEmbed = LeftBracket, [ S ], ( ValueName ), [ S ], RightBracket ;
+ImpliedRollExpr = Dice | IdentMaybeSub ;
+Arithmetic = LeftParens, [ S ], Arithmetic, [ S ], RightParens
+            | Arithmetic, [ S ], Op, [ S ], Arithmetic
+            | Minus, [ S ], Arithmetic
+            | Term ;
+NumberRangeList = ( Number | NumberRange ), { [ S ], Comma, [ S ], ( Number | NumberRange ) } ;
+NumberRange = Number, [ S ], ( Minus | Dash | Ellipsis ), [ S ], Number ;
+
+(* Atoms, should (mostly) correspond directly to parsers in atoms.rs *)
+DisjointNewlines = EOL, { EOL } ;
+EOL = [ Comment ], N ;
+Term = Number | Dice | ValueName ;
+Op = Plus | Minus | Asterisk | Slash | Modulo | Caret ;
+Words = ( WordLike | TypicalPunctuation ), { WordLike | TypicalPunctuation } ;
+IdentMaybeSub = Ident, [ S ], [ Colon ], [ S ], Ident;
+Ident = WordLikeWithoutRoll, { S, WordLikeWithoutRoll }
+        | QuotedString ;
+WordLikeWithoutRoll = Word | Number | Dice ;
+WordLike = Word | RawKeywordsWithRoll | Number | Dice ;
+RawKeywordsWithRoll = RawKeywords | ROLL ;
+RawKeywords = ONCE | TWICE | THRICE | ONE | TWO | THREE | FOUR | FIVE
+            | SIX | SEVEN | EIGHT | NINE | TEN | ALL | AND | CLEAR | END
+            | GROUP | INVOKE | LIST | LOAD | LOOKUP | MODIFY | NEXT | ON
+            | OUTPUT | SCRIPT | SET | SHOW | TABLE | TAGS | TIME | TO ;
+TypicalPunctuation = Ampersand | Apostrophe | Asterisk | Colon | Comma
+                    | Dash | Ellipsis | ExclamationPoint | Hash | LeftParens
+                    | Minus | Plus | Modulo | Period | QuestionMark
+                    | RightParens | SemiColon | Slash ;
+ValueName = WordToken ;
+Word = WordToken ;
+Dice = DieRoll ;
+Number = DoubleOught | Digits | NumeralKeyword ;
+QuotedString = String;
+
+(* BEGIN LEXER TOKENS *)
+(* Everything Below this point should a Token created by Lexing *)
+
+(* Strings *)
+String = LeftRightSingleQuotedString | DoubleQuotedString | FullDoubleQuotedString
+        | LeftRightDoubleQuotedString | GraveQuotedString | FullGraveQuotedString ;
+LeftRightSingleQuotedString = LeftSingleQuote, ( Anything - RightSingleQuote ), RightSingleQuote ;
+DoubleQuotedString = DoubleQuote, ( Anything - DoubleQuote ), DoubleQuote ;
+FullDoubleQuotedString = FullDoubleQuote, ( Anything - FullDoubleQuote ), FullDoubleQuote ;
+LeftRightDoubleQuotedString = LeftDoubleQuote, ( Anything - RightDoubleQuote ), RightDoubleQuote ;
+GraveQuotedString = GraveQuote, ( Anything - GraveQuote ), GraveQuote ;
+FullGraveQuotedString = FullGraveQuote, ( Anything - FullGraveQuote ), FullGraveQuote ;
+
+(* Comment *)
+Comment = [ T ], Slash, Slash, { Anything - N } ;
+
+(* Anything, used for Anything - *not allowed* situations *)
+Anything = ? Any Character ? ;
+
+(* Words *)
+WordToken = WordCharacter, { WordCharacter } ;
+WordCharacter = "\w" ;
+
+(* Die Roll *)
+DieRoll = Digits, "d", Digits ;
+
+(* Numbers *)
+DoubleOught = "00" ;
+Digits = Digit, { Digit } ;
+Digit = "0" | non_zero_digit ;
+non_zero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(* Numeral Keywords, case insensitive *)
+NumeralKeyword = ONE | TWO | THREE | FOUR | FIVE | SIX | SEVEN | EIGHT | NINE | TEN ;
+ONE = "one" ;
+TWO = "two" ;
+THREE = "three" ;
+FOUR = "four" ;
+FIVE = "five" ;
+SIX = "six" ;
+SEVEN = "seven" ;
+EIGHT = "eight" ;
+NINE = "nine" ;
+TEN = "ten" ;
+
+(* Repetition Keywords, case insensitive *)
+ONCE = "once" ;
+TWICE = "twice" ;
+THRICE = "thrice" ;
+
+(* Keywords, case insensitive*)
+ALL = "all" ;
+AND = "and" ;
+CLEAR = "clear" ;
+END = "end" ;
+GROUP = "group" ;
+INVOKE = "invoke" ;
+LIST = "list" ;
+LOAD = "load" ;
+LOOKUP = "lookup" ;
+MODIFY = "modify" ;
+NEXT = "next" ;
+ON = "on" ;
+OUTPUT = "output" ;
+ROLL = "roll", [ "s" ] ;
+SCRIPT = "script" ;
+SET = "set" ;
+SHOW = "show" ;
+TABLE = "table" ;
+TAGS = "tag", [ "s" ] ;
+TIMES = "time", [ "s" ] ;
+TO = "to" ;
+
+(* Quotes *)
+LeftSingleQuote = "‘" ;
+RightSingleQuote = "’" ;
+DoubleQuote = '"' ;
+FullDoubleQuote = "＂" ;
+LeftDoubleQuote = '“' ;
+RightDoubleQuote = '”' ;
+GraveQuote = "`" ;
+FullGraveQuote = "｀" ;
+
+(* Brackets/Braces *)
+LeftAngle = "<" ;
+LeftBracket = "[" ;
+LeftCurly = "{" ;
+LeftParens = "(" ;
+RightAngle = ">" ;
+RightBracket = "]" ;
+RightCurly = "}" ;
+RightParens = ")" ;
+
+(* Symbols/Punctuation *)
+Ampersand = "&" ;
+Apostrophe = "'" | "’" ;
+Asterisk = "*" ;
+At = "@" ;
+(* Just a single \, doubled up here because escape sequence highlighting*)
+BackSlash = "\\" ;
+Bar = "|" ;
+Caret = "^" ;
+Colon = ":" ;
+Comma = "," ;
+Dash = "–" | "—" ;
+DollarSign = "$" ;
+Ellipsis = "…" | ".." | "..." ;
+Equals = "=" ;
+ExclamationPoint = "!" ;
+Hash = "#" ;
+Minus = "-" | "−";
+Modulo = "%" ;
+Period = "." ;
+Plus = "+" ;
+QuestionMark = "?" ;
+SemiColon = ";" ;
+Slash = "/" ;
+Tilde = "~" ;
+Underscore = "_" ;
+
+(* White Space Types *)
+N = ( ( "\r", "\n" ? ) | ( "\n", "\r" ? ) ) + ;
+T = ( "\t" ) + ;
+S = ( " " ) + ;
+EOI = ? End Of Input ? ;

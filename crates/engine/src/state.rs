@@ -469,6 +469,7 @@ impl Display for SymbolTable {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum SymbolValue {
     Placeholder,
     Numeric(isize),

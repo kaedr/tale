@@ -19,7 +19,7 @@ pub fn script<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tal
     just(Token::Script)
         .then(just(Token::Colon))
         .ignore_then(ident().map_with(full_rc_node))
-        .then_ignore(just(Token::NewLines))
+        .then_ignore(chomp_disjoint_newlines(NOTHING))
         .then(
             just(Token::Tabs)
                 .or_not()

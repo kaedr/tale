@@ -1,0 +1,266 @@
+{	"name": "tale",
+	"scopeName": "source.tale",
+	"fileTypes": [ ".tale", ".tal", ".tbl" ],
+	"foldingStartMarker": "^(?i:(Table|Script))",
+	"foldingStopMarker": "^(?i:End)",
+	"patterns": [
+		{"include": "#string"},
+		{"include": "#comment"},
+		{"include": "#table_def"},
+		{"include": "#script_def"},
+		{"include": "#command_sequence"},
+		{"include": "#statement"},
+		{"include": "#die_roll"},
+		{"include": "#number"}
+	],
+	"repository": {
+		"table_def": {
+			"name": "meta.table.tale",
+			"begin": "^(?i)(table)( +group)? *:(?:(.+)(\\/\\/.*)|(.+))",
+			"end": "^(?i)(end +table)( +group)?|(list) *:",
+			"beginCaptures": {
+				"1": { "name": "storage.type.table.tale" },
+				"2": { "name": "storage.type.table.tale" },
+				"3": { "name": "entity.name.type" },
+				"4": { "name": "comment" },
+				"5": { "name": "entity.name.type" }
+			},
+			"endCaptures": {
+				"1": { "name": "storage.type.table.tale" },
+				"2": { "name": "storage.type.table.tale" },
+				"3": { "name": "storage.type.table.tale" }
+			},
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#die_roll"
+				},
+				{
+					"include": "#number"
+				},
+				{	"name": "keyword.other",
+					"match": "(?i:roll:)"
+				},
+				{	"name": "keyword.other",
+					"match": "(?i:tags:)"
+				}
+			]
+		},
+		"script_def": {
+			"name": "meta.script.tale",
+			"begin": "(?i)(script) *:(?:(.+)(\\/\\/.*)|(.+))",
+			"end": "(?i)(end +script)",
+			"beginCaptures": {
+				"1": { "name": "storage.type.table.tale" },
+				"2": { "name": "entity.name.type" },
+				"3": { "name": "comment" },
+				"4": { "name": "entity.name.type" }
+			},
+			"endCaptures": {
+				"1": { "name": "storage.type.table.tale" }
+			},
+			"patterns": [
+				{"include": "#comment"},
+				{"include": "#statement"},
+				{"include": "#expression"}
+			]
+		},
+		"command_sequence": {
+			"name": "meta.cmdseq.tale",
+			"begin": "\\[",
+			"end": "\\]",
+			"beginCaptures": {
+				"0": { "name": "punctuation.brackets.square.tale" }
+			},
+			"endCaptures": {
+				"0": { "name": "punctuation.brackets.square.tale" }
+			},
+			"patterns": [
+				{
+					"match": "(?i),( +and)?",
+					"captures": {
+						"0": { "name": "meta.conjunction.tale" },
+						"1": { "name": "keyword.other" }
+					}
+				},
+				{"include": "#statement"},
+				{"include": "#expression"}
+
+			]
+		},
+
+		"statement": {
+			"patterns":[
+				{"include": "#modify_statement"},
+				{"include": "#assignment_statement"},
+				{"include": "#clear_statement"},
+				{"include": "#invoke_statement"},
+				{"include": "#load_statement"},
+				{"include": "#lookup_statement"},
+				{"include": "#output_statement"},
+				{"include": "#roll_statement"},
+				{"include": "#show_statement"}
+			]
+		},
+		"assignment_statement": {
+			"match": "(?i)(set)? *(\\w+)( +to +| *=)",
+			"captures": {
+				"0": { "name": "meta.assignment.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "variable.other" },
+				"3": { "name": "keyword.operator" }
+			}
+		},
+		"clear_statement": {
+			"match": "(?i)(clear) *:? +(all|next) +(\\d+ +)?(?:((?:\\w+[\\w ]*)|(?:\".+\"))(rolls?)|((?:\\w+[\\w ]*)|(?:\".+\")))",
+			"captures": {
+				"0": { "name": "meta.clear.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "keyword.other" },
+				"3": { "name": "constant.numeric" },
+				"4": { "name": "variable.other" },
+				"5": { "name": "keyword.other" },
+				"6": { "name": "variable.other" }
+			}
+		},
+		"invoke_statement": {
+			"match": "(?i)(invoke) *:?([^(?://),\\t]+)",
+			"captures": {
+				"0": { "name": "meta.invoke.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "variable.other" }
+			}
+		},
+		"load_statement": {
+			"match": "(?i)(load) *:?([^,\\t]+)",
+			"captures": {
+				"0": { "name": "meta.load.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "string.unquoted" }
+			}
+		},
+		"lookup_statement": {
+			"match": "(?i)(lookup) *:?(?:(\\d*d\\d+[^a-z]*)|(\\d+)|((?:\\w+[\\w ]*)|(?:\".+\")))( +on +)((?:\\w+[\\w ]*)|(?:\".+\"))",
+			"captures": {
+				"0": { "name": "meta.lookup.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "support.function" },
+				"3": { "name": "constant.numeric" },
+				"4": { "name": "variable.other" },
+				"5": { "name": "keyword.other" },
+				"6": { "name": "variable.other" }
+			}
+		},
+		"modify_statement": {
+			"patterns": [
+				{"include": "#modify_statement_a"},
+				{"include": "#modify_statement_b"}
+			]
+		},
+		"output_statement": {
+			"match": "(?i)(output) *:?",
+			"captures": {
+				"0": { "name": "meta.output.tale" },
+				"1": { "name": "keyword.other" }
+			}
+		},
+		"roll_statement": {
+			"patterns": [
+				{"include": "#roll_statement_a"},
+				{"include": "#roll_statement_b"}
+			]
+		},
+		"show_statement": {
+			"match": "(?i)(show) *(tag)? *:?((?:\\w+[\\w ]*)|(?:\".+\"))",
+			"captures": {
+				"0": { "name": "meta.show.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "keyword.other" },
+				"3": { "name": "variable.other" }
+			}
+		},
+
+		"modify_statement_a": {
+			"match": "(?i)(modify) *:? +(all|next) +(\\d+ +)?((?:\\w+[\\w ]*)|(?:\".+\"))(rolls?) +[^\\w\\s] *(\\d+)",
+			"captures": {
+				"0": { "name": "meta.modify.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "keyword.other" },
+				"3": { "name": "constant.numeric" },
+				"4": { "name": "variable.other" },
+				"5": { "name": "keyword.other" },
+				"6": { "name": "constant.numeric" }
+			}
+		},
+		"modify_statement_b": {
+			"match": "(?i)[-+](\\d+) +(to) +(all|next) +(\\d+ +)?((?:\\w+[\\w ]*)|(?:\".+\"))(rolls?)",
+			"captures": {
+				"0": { "name": "meta.modify.tale" },
+				"1": { "name": "constant.numeric" },
+				"2": { "name": "keyword.other" },
+				"3": { "name": "keyword.other" },
+				"4": { "name": "constant.numeric" },
+				"5": { "name": "variable.other" },
+				"6": { "name": "keyword.other" }
+			}
+		},
+		"roll_statement_a": {
+			"match": "(?i)(roll +)(?:(\\d*d\\d+)[^a-z\\[\\]]* +|(\\d+|one|two|three|four|five|six|seven|eight|nine|ten|once|twice|thrice) +)?(times? +)?(on +(?:table *: *)?)?(?:(\\d*d\\d+)|((?:\\w+[\\w ]*)|(?:\".+\")))",
+			"captures": {
+				"0": { "name": "meta.roll_a.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "support.function" },
+				"3": { "name": "constant.numeric" },
+				"4": { "name": "keyword.other" },
+				"5": { "name": "keyword.other" },
+				"6": { "name": "support.function" },
+				"7": { "name": "variable.other" }
+			}
+		},
+		"roll_statement_b": {
+			"match": "(?i)(roll +)?(?:(\\d*d\\d+)[^a-z\\[\\]]* +|(\\d+|one|two|three|four|five|six|seven|eight|nine|ten|once|twice|thrice) +)(times? +)?(on +(?:table *: *)?)?(?:(\\d*d\\d+)|((?:\\w+[\\w ]*)|(?:\".+\")))",
+			"captures": {
+				"0": { "name": "meta.roll_b.tale" },
+				"1": { "name": "keyword.other" },
+				"2": { "name": "support.function" },
+				"3": { "name": "constant.numeric" },
+				"4": { "name": "keyword.other" },
+				"5": { "name": "keyword.other" },
+				"6": { "name": "support.function" },
+				"7": { "name": "variable.other" }
+			}
+		},
+
+		"expression": {
+			"patterns": [
+				{"include": "#die_roll"},
+				{"include": "#number"}
+			]
+		},
+		"die_roll": {
+			"name": "support.function",
+			"match": "\\d*d\\d+"
+		},
+		"number": {
+			"name": "constant.numeric",
+			"match": "\\d+"
+		},
+		"comment": {
+			"name": "comment.line.double-slash",
+			"match": "//.*$"
+		},
+		"string": {
+			"name": "string.quoted.double.tale",
+			"begin": "\"",
+			"beginCaptures": {
+				"0": { "name": "punctuation.definition.string.tale" }
+			},
+			"end": "\"",
+			"endCaptures": {
+				"0": { "name": "punctuation.definition.string.tale" }
+			}
+		}
+	}
+}
