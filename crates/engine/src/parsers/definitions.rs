@@ -35,6 +35,7 @@ pub fn script<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tal
             Statement::Script(full_rc_node(value, extra))
         })
         .map_with(full_rc_node)
+        .boxed()
         .labelled("Script Definition")
         .as_context()
 }
@@ -56,6 +57,7 @@ pub fn table<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, Tale
             let table = full_rc_node(Table::new(name, roll, tags, rows), extra);
             full_rc_node(Statement::Table(table), extra)
         })
+        .boxed()
         .labelled("Table Definition")
         .as_context()
 }
@@ -101,6 +103,7 @@ pub fn table_group<'src>()
                 full_rc_node(TableGroup::new(name, tags, sub_tables), extra);
             Ok(full_rc_node(value, extra))
         })
+        .boxed()
         .labelled("Table Group Definition")
         .as_context()
 }
@@ -112,6 +115,7 @@ fn sub_tables_row<'src>()
         .then_ignore(just(Token::Tabs))
         .then(ident().separated_by(just(Token::Tabs)).collect::<Vec<_>>())
         .then_ignore(chomp_disjoint_newlines(NOTHING))
+        .boxed()
 }
 
 fn table_group_rows<'src>()
@@ -165,7 +169,9 @@ fn table_group_rows<'src>()
                 .map(|column| full_rc_node(TableRows::Keyed(column), extra))
                 .collect();
             Ok(columns)
-        }).labelled("Table Group Rows")
+        })
+        .boxed()
+        .labelled("Table Group Rows")
         .as_context()
 }
 
@@ -204,7 +210,9 @@ fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
         .map_with(full_rc_node)
         .labelled("Table Rows (List)")
         .as_context()
+        .then_ignore(chomp_disjoint_newlines(NOTHING).then(end_table()).or_not())
         .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+        .boxed()
 }
 
 fn table_flat_rows<'src>()
@@ -219,6 +227,7 @@ fn table_flat_rows<'src>()
         .as_context()
         .then_ignore(end_table())
         .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+        .boxed()
 }
 
 fn table_keyed_form<'src>()
@@ -234,6 +243,7 @@ fn table_keyed_form<'src>()
         .as_context()
         .then_ignore(end_table())
         .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+        .boxed()
 }
 
 fn table_block_cell_form<'src>()
@@ -262,11 +272,11 @@ fn table_block_cell_form<'src>()
         .at_least(1)
         .collect()
         .map_with(|rows, extra| full_rc_node(TableRows::Keyed(rows), extra))
-        .boxed()
         .labelled("Table Rows (Block)")
         .as_context()
         .then_ignore(end_table())
         .then_ignore(chomp_disjoint_newlines(NOTHING).or(end()))
+        .boxed()
 }
 
 fn table_headings<'src>()
@@ -275,7 +285,8 @@ fn table_headings<'src>()
         .then(just(Token::Colon))
         .ignore_then(arithmetic())
         .then_ignore(chomp_disjoint_newlines(NOTHING))
-        .map_with(|item, extra| (item, full_rc_node(Vec::new(), extra)));
+        .map_with(|item, extra| (item, full_rc_node(Vec::new(), extra)))
+        .boxed();
 
     let tags_directive =
         tags_directive().map_with(|item, extra| (full_rc_node(Expr::Empty, extra), item));
@@ -330,6 +341,7 @@ fn tags_directive<'src>()
                 .map_with(full_rc_node),
         )
         .then_ignore(chomp_disjoint_newlines(NOTHING))
+        .boxed()
 }
 
 fn row_key<'src>(
@@ -342,6 +354,7 @@ fn row_key<'src>(
             .and_is(end_table().not())
             .map_with(full_rc_node)
             .then_ignore(chomp_separator(chomp_tokens, end_tokens)))
+        .boxed()
 }
 
 #[cfg(test)]
