@@ -19,23 +19,24 @@ type TaleExtra<'src> = extra::Full<Rich<'src, Token>, SimpleParserState<'src>, (
 
 pub fn parser<'src>() -> impl Parser<'src, &'src [Token], RcNode<Statement>, TaleExtra<'src>> + Clone
 {
-    table()
-        .or(table_group())
-        .or(script())
-        .or(seq_or_statement(NEWLINES).then_ignore(just(Token::NewLines).ignored().or(end())))
-        .or(chomp_separator(TABS, NEWLINES)
-            .map_with(|(), extra| full_rc_node(Statement::Empty, extra)))
-        .repeated()
-        .collect::<Vec<_>>()
-        .map_with(|items, extra| {
-            // Combine all parsed statements into a single vec
-            if items.is_empty() {
-                full_rc_node(Statement::Empty, extra) // Handle empty case
-            } else {
-                full_rc_node(Statement::Sequence(full_rc_node(items, extra)), extra)
-            }
-        })
-        .labelled("Source")
+    choice((
+        table(),
+        table_group(),
+        script(),
+        seq_or_statement(NEWLINES).then_ignore(just(Token::NewLines).ignored().or(end())),
+        chomp_separator(TABS, NEWLINES).map_with(|(), extra| full_rc_node(Statement::Empty, extra)),
+    ))
+    .repeated()
+    .collect::<Vec<_>>()
+    .map_with(|items, extra| {
+        // Combine all parsed statements into a single vec
+        if items.is_empty() {
+            full_rc_node(Statement::Empty, extra) // Handle empty case
+        } else {
+            full_rc_node(Statement::Sequence(full_rc_node(items, extra)), extra)
+        }
+    })
+    .labelled("Source")
 }
 
 #[cfg(test)]
