@@ -2,6 +2,8 @@
 // rather than having each on a new line
 Table: Cardinal Directions
 List: North, South, East, West
+// Because the line following the List: directive contains the entire
+// contents of the table, the End Table Directive is not required.
 
 // While most of these examples will capitalize keywords, this is just for
 // clarity. TALE's keywords (as well as user defined identifiers)
