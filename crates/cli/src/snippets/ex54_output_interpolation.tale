@@ -1,0 +1,23 @@
+// `Output` statements are useful for displaying additional information or context within tale.
+// They aren't particularly useful when just used at the prompt, but really shine within Scripts.
+// For example, say you wanted to provide a name to a group of rolls, or divide them from another group, you could so something such as:
+Script: Example
+    Output: Doing mischief
+    Roll on Some Random Table
+    Roll on Something Else
+    Invoke The Names of Elder Gods
+    Output: Mischief Managed!
+End Script
+
+//And Invoke it to yield:
+Invoke Example
+//   |       Doing mischief
+//   |       1 => Wonder!
+//   |       1 => Excitement!
+//   |         ^(;,;)^
+//   |       Mischief Managed!
+
+// But the real power of output statements comes out when combined with interpolation expressions,
+// which use square brackets `[]` to evaluate expressions within a section of text. For example:
+Output: The house is [Roll on Color], with [Color] trim, and has [1d4] stories.
+// Notice that above, you can either use full roll syntax, or an abbreviated syntax where you only put the Table name within the `[]`.

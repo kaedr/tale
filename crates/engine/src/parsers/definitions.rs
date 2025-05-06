@@ -7,7 +7,7 @@ use super::{
         chomp_separator, dice, ident, ident_normalize,
     },
     expressions::{arithmetic, number_range_list},
-    statements::{any_statement, seq_or_statement},
+    statements::seq_or_statement,
 };
 use crate::{
     ast::{Atom, Expr, RcNode, Script, Statement, Table, TableGroup, TableRows, full_rc_node},
@@ -122,7 +122,7 @@ fn table_group_rows<'src>()
 -> impl Parser<'src, &'src [Token], Vec<RcNode<TableRows>>, TaleExtra<'src>> + Clone {
     row_key(NOTHING, TABS)
         .then(
-            any_statement(CELL_ENDINGS).labelled("Table Group Cell")
+            seq_or_statement(CELL_ENDINGS).labelled("Table Group Cell")
                 .separated_by(chomp_separator(PERIOD_OR_SEMICOLON, TABS))
                 .collect::<Vec<_>>(),
         )

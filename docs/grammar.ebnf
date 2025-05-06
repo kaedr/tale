@@ -14,7 +14,7 @@ TableGroupDef = TABLE, S, GROUP, [ S ], Colon, [ S ], Ident, DisjointNewlines,
             [ TagsDirective ], SubTablesRow, TableGroupRows ;
 
 SubTablesRow = Dice, T, Ident, { T, Ident } ;
-TableGroupRows = { RowKey, T, AnyStatement, [ Period | SemiColon ], { T, AnyStatement, [ Period | SemiColon ] }, DisjointNewlines },
+TableGroupRows = { RowKey, T, SequenceOrStatement, [ Period | SemiColon ], { T, SequenceOrStatement, [ Period | SemiColon ] }, DisjointNewlines },
                 END, S, TABLE, [ S, GROUP ], ( DisjointNewlines | EOI ) ;
 
 TableRows = LIST, [ S ], Colon, [ S ], Ident, { [ S ], Comma, [ S ], Ident }

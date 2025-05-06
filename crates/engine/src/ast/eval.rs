@@ -7,6 +7,7 @@ use crate::{
     ast::*,
     error::{TaleError, TaleResultVec},
     state::{StateTable, SymbolTable, SymbolValue},
+    utils::render_loaded_tables_scripts,
 };
 
 pub trait Eval {
@@ -297,11 +298,24 @@ fn load_stmt(
                 if !parent_dir.display().to_string().is_empty() {
                     std::env::set_current_dir(parent_dir).map_err(TaleError::from)?;
                 }
+                let (num_tables, num_scripts) = (
+                    symbols.borrow().number_of_tables(),
+                    symbols.borrow().number_of_scripts(),
+                );
                 results.push(SymbolValue::String(format!("Loading: '{tale_path}'")));
                 results.push(state.nested_pipeline(symbols, &tale_path, &source)?);
-                results.push(SymbolValue::String(format!(
-                    "'{tale_path}' loaded successfully!"
-                )));
+                if let Some(load_string) = render_loaded_tables_scripts(
+                    symbols.borrow().number_of_tables() - num_tables,
+                    symbols.borrow().number_of_scripts() - num_scripts,
+                ) {
+                    results.push(SymbolValue::String(format!(
+                        "{load_string} from '{tale_path}'"
+                    )));
+                } else {
+                    results.push(SymbolValue::String(format!(
+                        "'{tale_path}' loaded successfully!"
+                    )));
+                }
                 std::env::set_current_dir(return_loc).map_err(TaleError::from)?;
             }
             Err(err) => Err(TaleError::system(format!("Glob error: {err}")))?,

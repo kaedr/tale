@@ -1,19 +1,17 @@
-// This Trading Post Age table, from Spectacular Settlements, serves as an example of
+// This Crafter Skill table, from Spectacular Settlements, serves as an example of
 // block form table rows. This allows you to have multiple lines in a single table 'row'
 // It is particularly useful for tables like this one that have statements to execute
 // in addition to the textual output.
-Table: Trading Post Age
+Table: Crafter Skill
 Roll: d20
-1-3		Recent. The trading post was established within the past year.
-		[-1 to visitor traffic roll]	// This statement applies a -1 modifier to all `visitor traffic` rolls
-4-8		Established. The trading post has been around for at least a couple of years.
-		[+0 to visitor traffic roll]
-9-13	Mature. The trading post was originally built decades ago.
-		[+1 to visitor traffic roll]
-14-17	Old. The trading post was built around a hundred years ago.
-		[+2 to visitor traffic roll]
-18-19	Ancient. The trading post was built hundreds of years ago.
-		[+3 to visitor traffic roll]
-20		Unknown. No one really knows when the trading post was established.
-		[+4 to visitor traffic roll]
+1-4		Novice. This person is new to their craft.
+		[-1 to Crafting Quality roll]	// This statement applies a -1 modifier to all `crafting quality` rolls
+6-10	Competent. This person has a solid grasp of the fundementals of their craft.
+		[+0 to Crafting Quality roll]
+11-15	Proficient. This person can consistently perform intermediate to advanced tasks in their craft.
+		[+1 to Crafting Quality roll]
+16-19	Expert. This person can handle whatever task you throw at them.
+		[+2 to Crafting Quality roll]
+20		Master. This person pushes the boundaries of what's possible with their craft.
+		[+3 to Crafting Quality roll]
 End Table

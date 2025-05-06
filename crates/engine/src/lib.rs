@@ -13,6 +13,7 @@ mod ast;
 mod error;
 mod lexer;
 mod parsers;
+#[cfg(test)]
 mod samples;
 mod state;
 pub mod utils;

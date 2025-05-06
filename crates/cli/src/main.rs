@@ -3,7 +3,7 @@ use std::io;
 use clap::Parser;
 use help::help;
 use rustyline::{DefaultEditor, Result, error::ReadlineError};
-use tale_lib::{prelude::*, utils::plural_s};
+use tale_lib::{prelude::*, utils::render_loaded_tables_scripts};
 
 mod help;
 mod snippets;
@@ -11,6 +11,11 @@ mod snippets;
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
+    /// Execute whatever `.tale` files are listed in `[FILES]`, then quit.
+    #[arg(short, long)]
+    one_shot: bool,
+
+    /// A list of filenames to load at startup
     files: Vec<String>,
 }
 
@@ -95,23 +100,18 @@ fn main() -> Result<()> {
                     .render(SIDEBAR);
                 println!("{DONE_LOAD_LINE} {file}");
             }
-            match (engine.number_of_tables(), engine.number_of_scripts()) {
-                (0, 0) => (),
-                (tables, 0) => {
-                    print_sidebarred(&format!("Loaded {tables} Table{}", plural_s(tables)));
-                }
-                (0, scripts) => {
-                    print_sidebarred(&format!("Loaded {scripts} Script{}", plural_s(scripts)));
-                }
-                (tables, scripts) => print_sidebarred(&format!(
-                    "Loaded {tables} Table{}, {scripts} Script{}",
-                    plural_s(tables),
-                    plural_s(scripts)
-                )),
+            if let Some(load_string) =
+                render_loaded_tables_scripts(engine.number_of_tables(), engine.number_of_scripts())
+            {
+                print_sidebarred(&load_string);
             }
-            print_arrowed(WELCOME);
-            print_sidebarred(TIP);
-            Ok(repl(engine)?)
+            if cli.one_shot {
+                Ok(())
+            } else {
+                print_arrowed(WELCOME);
+                print_sidebarred(TIP);
+                Ok(repl(engine)?)
+            }
         }
         Err(err) => Err(err.into()),
     }

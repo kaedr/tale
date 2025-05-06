@@ -1,9 +1,6 @@
 //! Contains `include_str`! of all the samples files
 //! These can then be used easily for testing or elsewhere
 
-// Since these are primarily for testing, they won't show up as used.
-#![allow(unused)]
-
 pub const TABLE_MINIMAL: &str = include_str!("01_table_minimal.tale");
 pub const TABLE_ROLL_DEF: &str = include_str!("02_table_roll_def.tale");
 pub const TABLE_LIST: &str = include_str!("03_table_list.tale");

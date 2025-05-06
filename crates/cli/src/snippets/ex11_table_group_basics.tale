@@ -3,19 +3,19 @@
 
 // A simple example comes from Blades in the Dark, and is for rolling up
 // the ambiance of the streets of Duskvol
-Table Group: Impressions
-1d6	Sights										Sounds								Smells
-1	Rain Slick, Oil Slick						Machinery, Workers					Cook Fires, Furnaces
-2	Dancing Shadows, Flickering Lights			Fluttering Cloth, Howling Wind		Damp Wood, Decay, Refuse
-3	Mist, Fog, Frost							Laughter, Song, Music				Animals, Hides, Blood
-4	Fleeting Shapes, Echoes in the Ghost Field	Whispers, Echoes, Strange Voices	Chemicals, Distillates, Fumes
-5	Soot, Ash Clouds, Grime						Thunder, Driving Rain				Rain Water, Ocean
-6	Crackling Electricity, Wires, Mechanisms	Bells, Clock Chimes, Harbor Horns	Ozone, Electroplasmic Discharges
+Table Group: Magic Weapon
+1d6	Form		Element		Charges per Day
+1	Wand		Air			Three
+2	Staff		Water		Six
+3	Orb			Earth		Ten
+4	Tome		Fire		Fifteen
+5	Ring		Light		Twenty
+6	Talisman	Dark		Infinite
 End Table Group
 
 // Each of these tables can be rolled on separately, optionally separated by a colon
-Roll on Impressions: Sights
-Roll on Impressions Sounds
+Roll on Magic Weapon: Form
+Roll on Magic Weapon Element
 
 // Or the whole group can be rolled together, which will generate a roll for each of the sub-tables
-Roll on Impressions
+Roll on Magic Weapon
