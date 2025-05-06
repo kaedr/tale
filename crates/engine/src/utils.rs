@@ -8,6 +8,20 @@ pub fn plural_is_are(n: usize) -> &'static str {
     if n == 1 { "is" } else { "are" }
 }
 
+#[must_use]
+pub fn render_loaded_tables_scripts(num_tables: usize, num_scripts: usize) -> Option<String> {
+    match (num_tables, num_scripts) {
+        (0, 0) => None,
+        (tables, 0) => Some(format!("Loaded {tables} Table{}", plural_s(tables))),
+        (0, scripts) => Some(format!("Loaded {scripts} Script{}", plural_s(scripts))),
+        (tables, scripts) => Some(format!(
+            "Loaded {tables} Table{}, {scripts} Script{}",
+            plural_s(tables),
+            plural_s(scripts)
+        )),
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::{
