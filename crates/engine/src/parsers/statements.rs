@@ -16,8 +16,8 @@ use crate::{
 pub fn seq_or_statement<'src>(
     end_tokens: &'static [Token],
 ) -> impl Parser<'src, &'src [Token], RcNode<Statement>, TaleExtra<'src>> + Clone {
-    statement_sequence()
-        .or(any_statement(end_tokens))
+    any_statement(end_tokens)
+        .or(statement_sequence())
         .boxed()
         .labelled("Sequence or Statement")
 }
