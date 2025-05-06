@@ -96,10 +96,29 @@ TALE +-> Invoke Example
      |       1 => Excitement!
      |         ^(;,;)^
      |       Mischief Managed!
-````
+```
 
 But the real power of output statements comes out when combined with interpolation expressions, which use square brackets `[]` to evaluate expressions within a section of text. For example:
 ```
 Output: The house is [Roll on Color], with [Color] trim, and has [1d4] stories.
 ```
 Notice that above, you can either use full roll syntax, or an abbreviated syntax where you only put the Table name within the `[]`.
+
+## Assigning values to names
+Or Assigning names to values, depending on how you want to think about it. Either way, Assignment statements allow you created named values that can be used elsewhere in Tables and Scripts.
+
+The first first two forms rely on the `=` sign to indicate assignment, and differ only in whether they include the leading `Set` keyword.
+```
+Set the_answer = 42
+the_word = Bird
+```
+Notice that assigned values can be either numbers or textual/strings.
+
+The third form uses the keyword `To` in place of the `=` sign, and must always include the leading keyword `Set`
+```
+Set throttle To "100 %"
+```
+You can enclose values in quotes to force them to be interpreted as strings in situations where it might be ambiguous otherwise.
+
+### The Scope of Assignments
+Most programming languages, including TALE, implement [Scoping](https://en.wikipedia.org/wiki/Scope_(computer_science)) for their named values/variables. In TALE, two syntax constructs currently introduce a new Scope: `Script` executions, and `Load` statements. Here is a [Practical Example](src/snippets/ex22_script_scopes.tale) of how that might apply to a script. The average TALE user, is unlikely to run into situations where this is relevent, but it's documented here so that advanced users aren't caught off guard by the behavior.

@@ -24,4 +24,7 @@
      |  Lookup:
      |    Used to retrieve values from tables.
      |    Type: 'help lookup' for more info
-
+     |
+     |
+     |  Type: 'help advanced' for more advanced help topics.
+     |

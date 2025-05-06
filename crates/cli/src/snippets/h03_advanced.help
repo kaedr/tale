@@ -1,0 +1,23 @@
+     |
+-----+- Advanced Help Topics ->
+     |
+     |  Show:
+     |    A statement to display information about currently defined information in TALE.
+     |    Type: 'help show' for more info
+     |
+     |  Modify:
+     |    A statement to modify future rolls on Tables.
+     |    Type: 'help modify' for more info
+     |
+     |  Clear:
+     |    A statement to clear modifiers from future rolls on Tables.
+     |    Type: 'help clear' for more info
+     |
+     |  Output:
+     |    A statement to display text. Typically used in conjuction with Interpolation expressions.
+     |    Type: 'help clear' for more info
+     |
+     |  Assignment:
+     |    A statement to create a named value that can be referenced later.
+     |    Type: 'help assignment' for more info
+     |

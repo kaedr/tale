@@ -1,0 +1,14 @@
+// Assigning values to names, or Assigning names to values, depending on how you want to think about it.
+// Either way, Assignment statements allow you created named values that can be used elsewhere in Tables and Scripts.
+// The first first two forms rely on the `=` sign to indicate assignment, and differ only in whether they include the leading `Set` keyword.
+```
+Set the_answer = 42
+the_word = Bird
+```
+Notice that assigned values can be either numbers or textual/strings.
+
+The third form uses the keyword `To` in place of the `=` sign, and must always include the leading keyword `Set`
+```
+Set throttle To "100 %"
+```
+You can enclose values in quotes to force them to be interpreted as strings in situations where it might be ambiguous otherwise.

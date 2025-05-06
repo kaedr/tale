@@ -18,7 +18,13 @@ pub fn help(lc_input: &str) {
             Topic::Roll => flanked_example("Roll Syntax", EXAMPLE_ROLLS),
             Topic::Lookup => flanked_example("Lookup Syntax", EXAMPLE_LOOKUP),
             Topic::Load => flanked_example("Load Syntax", EXAMPLE_LOAD),
+            Topic::Show => flanked_example("Show Syntax", EXAMPLE_SHOW),
+            Topic::Modify => flanked_example("Modify Syntax", EXAMPLE_MODIFY),
+            Topic::Clear => flanked_example("Clear Syntax", EXAMPLE_CLEAR),
+            Topic::Output => flanked_example("Output Syntax", EXAMPLE_OUTPUT),
+            Topic::Assignment => flanked_example("Assignment Syntax", EXAMPLE_ASSIGNMENT),
             Topic::Topics => print!("{HELP_TOPICS}"),
+            Topic::Advanced => print!("{HELP_ADVANCED}"),
             Topic::Unknown(topic) => {
                 print_sidebarred(&format!("Uknown help topic: {topic}"));
                 print_sidebarred("Type: 'help topics' for a list of valid topics");
@@ -79,7 +85,13 @@ enum Topic<'a> {
     Roll,
     Lookup,
     Load,
+    Show,
+    Modify,
+    Clear,
+    Output,
+    Assignment,
     Topics,
+    Advanced,
     Unknown(&'a str),
 }
 
@@ -93,7 +105,13 @@ impl<'a> From<&'a str> for Topic<'a> {
             "roll" | "rolls" => Topic::Roll,
             "lookup" | "lookups" => Topic::Lookup,
             "load" => Topic::Load,
+            "show" => Topic::Show,
+            "modify" => Topic::Modify,
+            "clear" => Topic::Clear,
+            "output" | "interpolation" => Topic::Output,
+            "assignment" => Topic::Assignment,
             "topics" => Topic::Topics,
+            "advanced" => Topic::Advanced,
             other => Self::Unknown(other),
         }
     }
