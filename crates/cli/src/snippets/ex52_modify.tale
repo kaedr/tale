@@ -1,4 +1,5 @@
-// `Modify` statements can either apply to all of the rolls on a given Table, or just a certain number of the rolls. To modify all rolls, you can use:
+// `Modify` statements can either apply to all of the rolls on a given Table, or just a certain number of the rolls.
+// To modify all rolls, you can use:
 Modify All Quality Rolls +2
 
 // Or, to modify the next 3 rolls, you would use:
@@ -7,6 +8,7 @@ Modify Next 3 Quality Quality Rolls -4
 // There's also an alternative form where the modifier is in the leading position, followed by the keyword `To`:
 +3 To Next 5 Quality Rolls
 
-// When using the leading modifier form, if you don't specify `Next`/`All`, it is implied to be `All`. So the following two statements are equivalent:
+// When using the leading modifier form, if you don't specify `Next`/`All`, it is implied to be `All`.
+// So the following two statements are equivalent:
 -1 To All Quality Rolls
 -1 To Quality Rolls

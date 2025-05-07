@@ -1,4 +1,5 @@
-// `Clear` statements are used to remove modifiers that have been applied to the given table. To clear all the modifiers from a table:
+// `Clear` statements are used to remove modifiers that have been applied to the given table.
+// To clear all the modifiers from a table:
 Clear All Quality Rolls
 
 // Or to clear just a certain number of modifiers (as if you had rolled that many times):

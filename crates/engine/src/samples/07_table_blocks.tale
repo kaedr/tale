@@ -1,73 +1,28 @@
-Table: Wanted Outcomes
-Arrest:
-	A detective presents a case file of evidence to a judge, to begin prosecution of your crew. The system police send a detail to arrest you (a gang at least equal in scale to your wanted level or a ship of that Tier). Pay them off with cred equal to your wanted level +3, hand someone over for arrest (this clears your heat and wanted level in the system), or try to evade capture.
-	A hail comes over the comms as a police cruiser translates out of a hyperlane. “This is Captain Lineal of the Indri System Police. Shut down your engines and prepare to be boarded.” At the same time, a second encrypted channel is opened. “This doesn’t have to get ugly. Here’s the routing number to my private account.” There’s a palpable tension in the air as the cruiser seems to wait for your decision.
-
-Bounty Hunter:
-	An enemy faction hires a bounty hunter. Fight, evade, or pay them off. If you have no faction with negative status, you avoid entanglements right now.
-	Bounty hunters are strong fighters, with armor, drones, and weapons that grant them potency in combat. Base their Tier on the hiring faction and how angry they are. Pay them off with 3 cred.
-
-Collectors:
-	A collection agency claims part of your ship. Pay them 2 cred, give them the components (remove a ship module), or make them leave another way.
-
-Cooperation:
-	A faction you have +2 or +3 status with asks you for a “favor.” Agree to it or lose a status with them. If you don’t have a +2 or +3 faction status, you avoid entanglements right now.
-	The GM should look at the faction’s goals for job prompts
-
-Impounded:
-	Dock authorities impound your craft. Bribe dockworkers to lift the lockdown with 2 cred, or steal your ship back. If you are not on a planet or station, you avoid entanglements right now.
-
-Interrogation:
-	System officers round up one of the PCs to question them about the crew’s crimes. How did they manage to capture you? Either pay them off with 2 cred, or they sweat it out of you (level 2 harm) AND you tell them what they want to know (+2 heat ). You can resist each of those consequences separately.
-	Some players really hate it when their character gets captured! Just tell them that this is completely normal for a criminal in Procyon. You spend time in and out of jail, getting questioned and harassed by the law. It’s not the end of the world. But now that you’re here in the interrogation room, what kind of person are you? Do you talk? Do you stand up to them? Do you make a deal? Playing out an escape can also be fun!
-
-`New "Frends"`:
-	A neutral faction asks you to do a job that is either extra dangerous, pays little, or gathers more heat than usual (GM’s choice). Accept or lose a status with them.
-	The GM should look at their faction goals for job prompts.
-
-Out Of Gas:
-	A piece of your ship fails catastrophically, damaging the system and rendering it inoperable until repaired. If you didn’t use your ship at all on the last job, you avoid entanglements right now.
-	This entanglement can happen while in flight between planets or systems, or on the way to or from a job. This failure means the whole system (for example, engines) can’t be used. Who do you call for help and what will it cost you?
-
-`Pirates!`:
-	Pirates attempt to take over your ship by force. Outrun, fight, or cut a deal. If you didn’t use your ship at all on the last job, you avoid entanglements right now.
-	This entanglement can happen while in flight between planets or systems, or on the way to or from a job.
-
-Reprisals:
-	An enemy faction moves against you or yours. Pay them 1 cred per Tier, allow them to mess with you, or fight back. If you have no faction with negative status, you avoid entanglements right now.
-
-Ship Trouble:
-	A ship system acts up. Damage a system (the GM will tell you which).
-	You may repair the system as normal, though you have to deal with the consequences of the damage at the time it occurs. This entanglement can happen while in flight between planets or systems, or on the way to or from a job.
-
-Unquiet Black:
-	An alien or Way creature finds its way on board. Acquire the services of a mystic or exterminator to destroy or banish it, or deal with it yourself.
-	Treat the magnitude (see page 278) of the Way creature as equal to the crew’s wanted level in the system. Parasites, cargo you weren’t told was alive, strange creatures hiding in unmapped lanes, and bizarre physics effects from using your jump drives way past capacity can all apply here.
-
-Ur Field:
-	The closest jumpgate calls to each of you in a language you cannot understand. Resist with reso lve or take level 1 harm from the visions you cannot escape.
-	What you choose to do with the visions is up to you. They end after you leave the system or the next downtime—whichever comes first.
-
-Wanted Level 4:
-	The Governor sends a Legion or Malklaith warship to capture your ship. When you hit wanted level 4 in a system, the Governor’s personal guard is sent out to bring you to justice, and you will have to find a way to get away. You cannot bribe them, and fighting them would be foolhardy. In any case, if you survive the encounter, your wanted level drops by 1—resources for your pursuit aren’t infinite.
-	Generally the ship will be a well-armed frigate with a few personal fighters. You may want to consider repainting or modifying your ship, or getting fake papers and transponders to help shake similar experiences off your tail.
-
+Table: Crafter Skill
+Roll: d20
+1-5		Novice. This person is new to their craft.
+		[-1 to Crafting Quality roll]	// This statement applies a -1 modifier to all `crafting quality` rolls
+6-10	Competent. This person has a solid grasp of the fundementals of their craft.
+		[+0 to Crafting Quality roll]
+11-15	Proficient. This person can consistently perform intermediate to advanced tasks in their craft.
+		[+1 to Crafting Quality roll]
+16-19	Expert. This person can handle whatever task you throw at them.
+		[+2 to Crafting Quality roll]
+20		Master. This person pushes the boundaries of what's possible with their craft.
+		[+3 to Crafting Quality roll]
 End Table
 
-Table: Trading Post Visitor traffic
-1-2 	Vacant. No one seems to be visiting this place.
-		[+0 to size roll]
-		[+2 to crime roll]
-3-6 	Groups. Visitors are a rarity, though a few might be around.
-		[+1 to size roll]
-		[+1 to crime roll]
-7-14 	Crowds. It is typical to see some new visitors most days.
-		[+2 to size roll]
-		[+0 to crime roll]
-15-18 	Droves. There are lots of new faces on a regular basis.
-		[+3 to size roll]
-		[-1 to crime roll]
-19-20	Masses. New people are everywhere, coming and going at all times.
-		[+4 to size roll]
-		[-2 to crime roll]
+Table: Fantastic Metals
+Adamantine:
+		Adamantine is a rare and precious metal that is nearly indestructible. It is often used to create weapons and armor of unparalleled strength.
+		It is a dark gray color, and it has a slight sheen to it. It is often found in the deepest parts of the earth, and it is said to be formed from the tears of the gods.
+		It is also extremely difficult to work with, and it requires a master craftsman to shape it into usable forms.
+
+Mithril:
+		Mithril is a lightweight and durable metal that is often used to create armor and weapons. It is a silvery color, and it has a slight sheen to it.
+		It is often found in the mountains, and it is said to be formed from the blood of dragons.
+
+BrightSteel:
+		BrightSteel is an alloy of steel and mithril that is resistant to rust and corrosion.
+		It is often used to create weapons and armor that are both strong and lightweight.
 End Table
