@@ -482,7 +482,7 @@ mod tests {
 
         symbols
             .borrow_mut()
-            .register("magic item table a".to_string());
+            .register("basic magic items".to_string());
         symbols.borrow_mut().register("magic items #3".to_string());
         symbols.borrow_mut().register("farm animals".to_string());
 
@@ -497,10 +497,10 @@ mod tests {
             "Sequence: [\n\t\
                 Roll 1, 3d6,\n\t\
                 Roll 1, (1d20 + 7),\n\t\
-                Roll 1, `magic item table a`,\n\t\
-                Roll 7, `magic item table a`,\n\t\
-                Roll 1d6, `magic item table a`,\n\t\
-                Roll 1d6, `magic item table a`,\n\t\
+                Roll 1, `basic magic items`,\n\t\
+                Roll 7, `basic magic items`,\n\t\
+                Roll 1d6, `basic magic items`,\n\t\
+                Roll 1d6, `basic magic items`,\n\t\
                 Roll (1d4 + 2), `farm animals`,\n\t\
                 Roll (1d6 - 1), `farm animals`,\n\t\
                 Roll 1d6, `magic items #3`,\n\t\

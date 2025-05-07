@@ -1,6 +1,7 @@
 // `Output` statements are useful for displaying additional information or context within tale.
 // They aren't particularly useful when just used at the prompt, but really shine within Scripts.
-// For example, say you wanted to provide a name to a group of rolls, or divide them from another group, you could so something such as:
+// For example, say you wanted to provide a name to a group of rolls, or divide them from another group;
+// You could do something such as:
 Script: Example
     Output: Doing mischief
     Roll on Some Random Table

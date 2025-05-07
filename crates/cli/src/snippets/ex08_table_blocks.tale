@@ -4,7 +4,7 @@
 // in addition to the textual output.
 Table: Crafter Skill
 Roll: d20
-1-4		Novice. This person is new to their craft.
+1-5		Novice. This person is new to their craft.
 		[-1 to Crafting Quality roll]	// This statement applies a -1 modifier to all `crafting quality` rolls
 6-10	Competent. This person has a solid grasp of the fundementals of their craft.
 		[+0 to Crafting Quality roll]
@@ -14,4 +14,21 @@ Roll: d20
 		[+2 to Crafting Quality roll]
 20		Master. This person pushes the boundaries of what's possible with their craft.
 		[+3 to Crafting Quality roll]
+End Table
+
+// You can also use block style for lookup tables, including a form where the key on its own line (with an optional colon)
+// followed by an indented value on following lines. This is useful for long keys or values that contain multiple paragraphs.
+Table: Fantastic Metals
+Adamantine:
+		Adamantine is a rare and precious metal that is nearly indestructible. It is often used to create weapons and armor of unparalleled strength.
+		It is a dark gray color, and it has a slight sheen to it. It is often found in the deepest parts of the earth, and it is said to be formed from the tears of the gods.
+		It is also extremely difficult to work with, and it requires a master craftsman to shape it into usable forms.
+
+Mithril:
+		Mithril is a lightweight and durable metal that is often used to create armor and weapons. It is a silvery color, and it has a slight sheen to it.
+		It is often found in the mountains, and it is said to be formed from the blood of dragons.
+
+BrightSteel:
+		BrightSteel is an alloy of steel and mithril that is resistant to rust and corrosion.
+		It is often used to create weapons and armor that are both strong and lightweight.
 End Table

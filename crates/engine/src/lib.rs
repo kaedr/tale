@@ -283,7 +283,7 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError"));
         assert!(output.ends_with("}])"));
-        assert_eq!(29, output.matches("is not defined").count());
+        assert_eq!(9, output.matches("is not defined").count());
     }
 
     #[test]
@@ -295,7 +295,7 @@ mod tests {
         let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.contains("Defined Tables:"));
-        assert!(output.contains("`treasure hoard: challenge 0-4`, 1d100, 2 Columns, 17 Rows"));
+        assert!(output.contains("`treasure chest: challenge 0-4`, 1d20, 3 Columns, 7 Rows"));
     }
 
     #[test]
@@ -304,9 +304,8 @@ mod tests {
         eprintln!("{output}");
         assert!(output.starts_with("Err([TaleError { kind: Analysis"));
         assert!(output.ends_with("}])"));
-        assert!(output.contains("'size' is not defined"));
-        assert!(output.contains("'crime' is not defined"));
-        assert_eq!(10, output.matches("is not defined").count());
+        assert!(output.contains("'crafting quality' is not defined"));
+        assert_eq!(5, output.matches("is not defined").count());
     }
 
     #[test]
@@ -316,8 +315,8 @@ mod tests {
         let output = format!("{:?}", terp.current_output());
         eprintln!("{output}");
         assert!(output.contains("Defined Tables:"));
-        assert!(output.contains("`trading post visitor traffic`, 1d20, 5 Rows"));
-        assert!(output.contains("`wanted outcomes`, 1d14, 14 Rows"));
+        assert!(output.contains("`crafter skill`, 1d20, 5 Rows"));
+        assert!(output.contains("`fantastic metals`, 1d3, 3 Rows"));
     }
 
     #[test]
@@ -478,9 +477,9 @@ mod tests {
         eprintln!("{}", output.matches("KeyValue(").count());
         assert!(17 <= output.matches("KeyValue(").count());
         assert!(40 >= output.matches("KeyValue(").count());
-        eprintln!("{}", output.matches("Literally just a wand").count());
-        assert!(4 <= output.matches("Literally just a wand").count());
-        assert!(20 >= output.matches("Literally just a wand").count());
+        eprintln!("{}", output.matches("'Fork'").count());
+        assert!(4 <= output.matches("'Fork'").count());
+        assert!(20 >= output.matches("'Fork'").count());
         eprintln!("{}", output.matches("List(").count());
         assert!(10 >= output.matches("List(").count());
         assert!(4 <= output.matches("List(").count());
@@ -505,12 +504,12 @@ mod tests {
         assert_eq!(3, output.matches("minimalism").count());
         assert_eq!(1, output.matches("midnight").count());
         assert_eq!(1, output.matches("Numeric(12)").count());
-        assert_eq!(2, output.matches("quality").count());
+        assert_eq!(4, output.matches("quality").count());
         assert_eq!(2, output.matches("some kind of bizarre ritual").count());
         assert_eq!(2, output.matches("last rites").count());
         assert_eq!(3, output.matches("textkeys").count());
         assert_eq!(2, output.matches("numkeyed").count());
-        assert_eq!(2, output.matches("magic item table a").count());
+        assert_eq!(2, output.matches("basic magic items").count());
         assert_eq!(2, output.matches("farm animals").count());
         assert_eq!(
             1,
@@ -520,10 +519,7 @@ mod tests {
         );
         assert_eq!(1, output.matches("`last rites`, 0 Statements").count());
         assert_eq!(1, output.matches("`farm animals`, 1d4, 4 Rows").count());
-        assert_eq!(
-            1,
-            output.matches("`magic item table a`, 1d1, 1 Row").count()
-        );
+        assert_eq!(1, output.matches("`basic magic items`, 1d1, 1 Row").count());
         assert_eq!(1, output.matches("`minimalism`, 1d20, Empty").count());
         assert_eq!(1, output.matches("`quality`, 1d3, 3 Rows").count());
         assert_eq!(1, output.matches("`numkeyed`, 1d3, 3 Rows").count());
@@ -558,8 +554,8 @@ mod tests {
         assert!(output.starts_with("Ok(List([Placeholder"));
         assert!(output.ends_with("]))"));
         assert_eq!(3, output.matches("Placeholder").count());
-        assert_eq!(17, output.matches("Table(Node").count());
-        assert_eq!(2, output.matches("Script(Node").count());
+        assert_eq!(11, output.matches("Table(Node").count());
+        assert_eq!(3, output.matches("Script(Node").count());
     }
 
     #[test]

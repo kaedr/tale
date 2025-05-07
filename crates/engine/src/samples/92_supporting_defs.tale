@@ -8,6 +8,12 @@ better
 best
 End Table
 
+Table: Crafting Quality
+common
+rare
+epic
+End Table
+
 Script: Some kind Of BIZARRE ritual
 	midnight = 13
 End Script
@@ -24,28 +30,17 @@ Table: NumKeyed
 3	c
 End Table
 
-Table: Magic Item Table A
-Literally just a wand
-End Table
-Table: Magic Item Table B
-End Table
-Table: Magic Item Table C
-End Table
-Table: Magic Item Table D
-End Table
-Table: Magic Item Table F
-End Table
-Table: Magic Item Table G
+Table: Basic Magic Items
+'Fork'
 End Table
 
-Table: 10 gp Gems
-End Table
-Table: 50 gp Gems
-End Table
-
-Table: 25 gp Art Objects
+Table: Intermediate Magic Items
+Idk man, this is just for testing
 End Table
 
+Script: Mimic Encounter
+Output: "OH GOD IT'S A MIMIC!"
+End Script
 
 Table: "Magic Items #3"
 A small golden ring
