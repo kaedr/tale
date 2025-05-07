@@ -180,6 +180,8 @@ impl Analyze for TableGroup {
             symbols
                 .borrow_mut()
                 .register(table.inner_t().name().inner_t().to_lowercase());
+        }
+        for table in &self.sub_tables {
             if let Err(new_errs) = table.analyze(symbols) {
                 errs.extend(new_errs);
             }
