@@ -1,3 +1,17 @@
+//! # TALE - TTRPG Random Table Scripting
+//!
+//! The Table Automation Language Engine implements a scripting language designed to ease and
+//! empower the work of people running Table Top Role Playing Games (TTRPGs).
+//!
+//! The goal is to make it as easy as possible to use the plethora of random tables that exist
+//! in TTRPG source books to quickly generate random content for games.
+//!
+//! With that in mind, it provides a syntax that was largely inspired by the syntax found in
+//! the books for various TTRPG systems and supplements.
+//!
+//! The Library/Interpreter is currently highly unstable and is subject to major changes as its design shifts to better present itself to the world.
+//! More/better API documentation will be added as it becomes more stable.
+
 use std::{
     cell::RefCell,
     fs::read_to_string,
@@ -16,8 +30,10 @@ mod parsers;
 #[cfg(test)]
 mod samples;
 mod state;
+/// Functions to make life easier.
 pub mod utils;
 
+/// Commonly used functions, traits and types.
 pub mod prelude {
     pub use crate::{
         Interpreter,
@@ -26,6 +42,7 @@ pub mod prelude {
     };
 }
 
+/// The main TALE scripting engine
 pub struct Interpreter {
     state: StateTable,
     symbols: RefCell<SymbolTable>,
@@ -49,7 +66,7 @@ impl Interpreter {
     }
 
     #[must_use]
-    pub fn new_with_source_string(source: String) -> Self {
+    pub fn with_source_string(source: String) -> Self {
         let state = StateTable::new();
         let symbols = RefCell::default();
         state.captured_pipeline(&symbols, "InitialInput".into(), source);
@@ -60,7 +77,7 @@ impl Interpreter {
         }
     }
 
-    pub fn new_with_files<P>(file_names: &[P]) -> io::Result<Self>
+    pub fn with_files<P>(file_names: &[P]) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
@@ -89,11 +106,11 @@ impl Interpreter {
         })
     }
 
-    pub fn new_with_file<P>(file_name: P) -> io::Result<Self>
+    pub fn with_file<P>(file_name: P) -> io::Result<Self>
     where
         P: AsRef<Path> + ToString,
     {
-        Self::new_with_files(&[file_name])
+        Self::with_files(&[file_name])
     }
 
     pub fn number_of_scripts(&self) -> usize {
@@ -205,7 +222,7 @@ mod tests {
     }
 
     fn streamline(source: &str) -> String {
-        let terp = Interpreter::new_with_source_string(source.to_string());
+        let terp = Interpreter::with_source_string(source.to_string());
         format!("{:?}", terp.current_output())
     }
 
@@ -214,7 +231,7 @@ mod tests {
         let file_names = transform
             .map(|f| f.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        Interpreter::new_with_files(&file_names).unwrap()
+        Interpreter::with_files(&file_names).unwrap()
     }
 
     #[test]

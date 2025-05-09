@@ -1,13 +1,24 @@
+/// Takes a [`usize`] indicating a quantity of something.
+/// Returns a [`&str`] that is empty if the quanity is 1,
+/// and an "s" otherwise.
 #[must_use]
 pub fn plural_s(n: usize) -> &'static str {
     if n == 1 { "" } else { "s" }
 }
 
+/// Takes a [`usize`] indicating a quantity of something.
+/// Returns a [`&str`] containing the correctly pluralized
+/// present tense of the verb 'to be'.
 #[must_use]
 pub fn plural_is_are(n: usize) -> &'static str {
     if n == 1 { "is" } else { "are" }
 }
 
+/// Take a pair [`usize`], representing the number of tables and number of scripts
+/// that have been loaded.
+/// If both are 0, returns [`None`].
+/// Otherwise, returns a [`String`] describing how many of each have been loaded
+/// in a nice and correctly pluralized way.
 #[must_use]
 pub fn render_loaded_tables_scripts(num_tables: usize, num_scripts: usize) -> Option<String> {
     match (num_tables, num_scripts) {
