@@ -2,6 +2,11 @@
 name = "tale"
 version = "0.1.0"
 edition = "2024"
+description = "A Scripting language for TTRPG Tables"
+repository = "https://github.com/kaedr/tale"
+license = "MPL-2.0"
+keywords = ["scripting", "scripting-engine", "scripting-language", "ttrpg", "tale"]
+categories = ["command-line-utilities", "compilers"]
 
 [[bin]]
 name = "tale"

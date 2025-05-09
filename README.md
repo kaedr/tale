@@ -1,5 +1,5 @@
 # TALE
-The **T**able **A**utomation **L**anguage **E**ngine implements a scripting language designed to ease and empower the work of people running Table Top Role Playing Games (TTRPGs). The goal is to make it as easy as possible to use the plethora of random tables that exist in TTRPG source books to quickly generate random content for games.
+The **T**able **A**utomation **L**anguage **E**ngine implements a scripting language designed to ease and empower the work of people running Table Top Role Playing Games (TTRPGs). The goal is to make it as easy as possible to use the plethora of random tables that exist in TTRPG source books to quickly generate random content for games. With that in mind, it provides a syntax that was largely inspired by the syntax found in the books for various TTRPG systems and supplements.
 
 For information on how to use TALE, see the [README](crates/cli/README.md) for the Command Line Interface Application.
 

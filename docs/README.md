@@ -6,3 +6,6 @@ A formal definition of the grammar (In [**E**xtended **B**ackus-**N**aur **F**or
 
 ## Syntax Highlighting
 A fairly basic (and incomplete) syntax highlighting definition for TALE exists in [tale.tmLanguage.json](tale.tmLanguage.json). A [VSCode Extension](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide) could be created and published once this grammar is more complete. A more complete solution, handling syntax highlighting, semantic analysis and possibly other error detection, will eventually be accomplished via an LSP implementation [Tracked Here](https://github.com/kaedr/tale/issues/22).
+
+## Library/Interpreter API
+The Library/Interpreter is currently highly unstable and is subject to major changes as its design shifts to better present itself to the world.
