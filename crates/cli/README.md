@@ -1,7 +1,12 @@
 # Getting Started with TALE
 
+## Downloading the application
+The latest version of TALE can be downloaded on the [Releases](https://github.com/kaedr/tale/releases) page. Currently there are prebuilt versions for x86 64 bit Linux and Windows, as well as 64 bit Arm MacOS. More target platforms will become available as needed/requested.
+
+Once it's been downloaded, the executable can either be placed in the folder where you intend to use it (likely where you plan to store your `.tale` files, or in a folder that is in your system's [PATH](https://en.wikipedia.org/wiki/PATH_(variable)).
+
 ## Running the application
-TALE is a Command Line Interface (CLI) application, meaning it needs to be run at your system's terminal, whatever that may be. How to use a terminal is beyond the scope of this tutorial. Luckily, the internet has many resources available to help if you're not familiar.
+TALE is a Command Line Interface (CLI) application, meaning it needs to be run at your system's terminal, whatever that may be. How to use a terminal is beyond the (current) scope of this tutorial. Luckily, the internet has many resources available to help if you're not familiar.
 
 Tale can be run on its own
 ```
