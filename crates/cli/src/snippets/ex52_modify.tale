@@ -3,7 +3,7 @@
 Modify All Quality Rolls +2
 
 // Or, to modify the next 3 rolls, you would use:
-Modify Next 3 Quality Quality Rolls -4
+Modify Next 3 Quality Rolls -4
 
 // There's also an alternative form where the modifier is in the leading position, followed by the keyword `To`:
 +3 To Next 5 Quality Rolls
