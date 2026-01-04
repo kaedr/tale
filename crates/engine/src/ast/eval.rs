@@ -104,10 +104,10 @@ impl Eval for Ast {
 impl Eval for Script {
     fn eval(
         &self,
-        symbols: &RefCell<SymbolTable>,
-        state: &StateTable,
+        _symbols: &RefCell<SymbolTable>,
+        _state: &StateTable,
     ) -> TaleResultVec<SymbolValue> {
-        self.name().eval(symbols, state)
+        Ok(SymbolValue::String(self.name().inner_t().bare_string()))
     }
 }
 
