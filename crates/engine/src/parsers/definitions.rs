@@ -202,7 +202,7 @@ fn table_list<'src>() -> impl Parser<'src, &'src [Token], RcNode<TableRows>, Tal
             ident()
                 .map_with(|_, extra| {
                     let span = extra.span().into_range();
-                    Atom::Str(extra.state().get_source_slice(&span).to_string())
+                    Atom::Str(extra.state().get_source_slice(&span).clone())
                 })
                 .separated_by(just(Token::Comma))
                 .collect::<Vec<_>>(),

@@ -237,7 +237,7 @@ fn assignment_stmt(
 ) -> TaleResultVec<SymbolValue> {
     let name = name.inner_t().to_string().trim_matches('`').to_string();
     let value = value.eval(symbols, state)?;
-    if symbols.borrow_mut().insert(name.to_string(), value) {
+    if symbols.borrow_mut().insert(name.clone(), value) {
         Ok(SymbolValue::Placeholder)
     } else {
         Ok(SymbolValue::String(format!(
@@ -358,7 +358,7 @@ fn show_stmt(
         let target = node.inner_t().1.to_lowercase();
         Ok(symbols
             .borrow()
-            .get_tags(&target.to_string().split_whitespace().collect::<Vec<_>>()))
+            .get_tags(&target.clone().split_whitespace().collect::<Vec<_>>()))
     } else {
         node.inner_t().1.eval(symbols, state)
     }

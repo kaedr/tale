@@ -62,7 +62,7 @@ pub fn roll<'src>(
                 let span = extra.span().into_range();
                 roll_expr_node.add_detail(
                     "words_only".into(),
-                    extra.state().get_source_slice(&span).to_string(),
+                    extra.state().get_source_slice(&span).clone(),
                 );
             }
             roll_expr_node

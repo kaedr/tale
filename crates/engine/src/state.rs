@@ -87,7 +87,7 @@ impl StateTable {
         }
     }
 
-    pub fn current(&self) -> Ref<String> {
+    pub fn current(&self) -> Ref<'_, String> {
         self.current.borrow()
     }
 

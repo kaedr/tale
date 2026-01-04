@@ -70,7 +70,7 @@ pub fn term<'src>() -> impl Parser<'src, &'src [Token], RcNode<Expr>, TaleExtra<
             let span = extra.span().into_range();
             term_node.add_detail(
                 "original_text".into(),
-                extra.state().get_source_slice(&span).to_string(),
+                extra.state().get_source_slice(&span).clone(),
             );
             term_node
         })
@@ -122,7 +122,7 @@ where
         .collect::<Vec<_>>()
         .map_with(|_, extra| {
             let span = extra.span().into_range();
-            Atom::Str(extra.state().get_source_slice(&span).to_string())
+            Atom::Str(extra.state().get_source_slice(&span).clone())
         })
         .map_with(full_rc_node)
         .boxed()

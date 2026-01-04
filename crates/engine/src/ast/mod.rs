@@ -76,9 +76,10 @@ impl Display for Ast {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub enum Statement {
     // Empty Statement
+    #[default]
     Empty,
 
     // Definition Statements
@@ -105,12 +106,6 @@ pub enum Statement {
 impl Statement {
     pub fn is_empty(&self) -> bool {
         matches!(self, Self::Empty)
-    }
-}
-
-impl Default for Statement {
-    fn default() -> Self {
-        Self::Empty
     }
 }
 
@@ -178,9 +173,10 @@ impl From<RcNode<TableGroup>> for Statement {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub enum Expr {
     // Empty Expression
+    #[default]
     Empty,
 
     // Atom
@@ -211,12 +207,6 @@ pub enum Expr {
 impl Expr {
     pub fn is_empty(&self) -> bool {
         matches!(self, Self::Empty)
-    }
-}
-
-impl Default for Expr {
-    fn default() -> Self {
-        Self::Empty
     }
 }
 
@@ -303,7 +293,7 @@ impl Atom {
         match self {
             Atom::Number(n) => n.to_string(),
             Atom::Dice(n, s) => format!("{n}d{s}"),
-            Atom::Str(s) | Atom::Ident(s) => s.to_string(),
+            Atom::Str(s) | Atom::Ident(s) => s.clone(),
             Atom::Raw(token) => token.to_string(),
         }
     }
@@ -409,11 +399,11 @@ impl<T> Node<T>
 where
     T: TypedNode,
 {
-    pub fn inner_t(&self) -> Ref<T> {
+    pub fn inner_t(&self) -> Ref<'_, T> {
         self.actual.borrow()
     }
 
-    pub fn inner_t_mut(&self) -> RefMut<T> {
+    pub fn inner_t_mut(&self) -> RefMut<'_, T> {
         self.actual.borrow_mut()
     }
 
@@ -1136,8 +1126,9 @@ impl TypedNode for TableGroup {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub enum TableRows {
+    #[default]
     Empty,
     List(Vec<Atom>),
     Flat(Vec<RcNode<Statement>>),
@@ -1154,12 +1145,6 @@ impl TableRows {
             TableRows::Keyed(rows) => calc_keyed_roll(rows),
             TableRows::SubTables(nodes) => nodes.first().unwrap().inner_t().roll.inner_t().clone(),
         }
-    }
-}
-
-impl Default for TableRows {
-    fn default() -> Self {
-        Self::Empty
     }
 }
 
